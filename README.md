@@ -9,13 +9,34 @@ Claude Code を活用した研究プロジェクト用テンプレートです�
 - **データ保護**: 重要データとWorktreeの分離
 - **Claude Code統合**: カスタムスキルによる自動化
 
-## セットアップ
+---
+
+## 既存プロジェクトへの導入
+
+既存のプロジェクトにこのテンプレートのスキルを追加するには：
+
+```bash
+# プロジェクトディレクトリ内で実行（Gitルートを自動検出）
+curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash
+
+# または、パスを明示的に指定
+curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash -s -- /path/to/project
+
+# 既存ファイルを上書きする場合
+curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash -s -- --force
+```
+
+インストール後、`.claude/CLAUDE.md` を編集してプロジェクト固有の情報を設定してください。
+
+---
+
+## 新規プロジェクトのセットアップ
 
 ### 1. テンプレートからリポジトリを作成
 
 ```bash
 # このテンプレートをコピー
-git clone https://github.com/YOUR_USERNAME/research-project-template.git my-project
+git clone https://github.com/AtsushiHashimoto/research-project-template.git my-project
 cd my-project
 
 # セットアップスクリプトを実行
