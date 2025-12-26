@@ -3,29 +3,117 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash
 #   curl -fsSL ... | bash -s -- /path/to/project
-#   curl -fsSL ... | bash -s -- --force  # 既存ファイルを上書き
+#   curl -fsSL ... | bash -s -- --force
 
 set -e
 
-# 色付き出力
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
+
+# Detect language
+detect_lang() {
+    local lang="${LANG:-${LC_ALL:-en}}"
+    case "$lang" in
+        ja*) echo "ja" ;;
+        zh*) echo "zh" ;;
+        *)   echo "en" ;;
+    esac
+}
+
+LANG_CODE=$(detect_lang)
+
+# Multilingual messages
+msg() {
+    local key="$1"
+    case "$LANG_CODE" in
+        ja)
+            case "$key" in
+                "installing") echo "インストール先" ;;
+                "downloading") echo "テンプレートをダウンロード中..." ;;
+                "download_failed") echo "テンプレートのダウンロードに失敗しました" ;;
+                "skipping") echo "スキップ（既に存在）" ;;
+                "use_force") echo "--force で上書き可能" ;;
+                "installed") echo "インストール完了" ;;
+                "preserved") echo "既存ファイルを保持。テンプレートは .template として保存" ;;
+                "updated_gitignore") echo ".gitignore を更新しました" ;;
+                "gitignore_ok") echo ".gitignore は既に必要なエントリを含んでいます" ;;
+                "created_data") echo "data/shared ディレクトリを作成しました" ;;
+                "complete") echo "インストール完了！" ;;
+                "init_prompt") echo "データディレクトリを初期化しますか？" ;;
+                "init_desc") echo "共有データの保存場所を設定します（デフォルト: data/shared）" ;;
+                "init_later") echo "後で初期化する場合: ./scripts/init-data.sh または Claude Code で /worktree/init" ;;
+                "next_steps") echo "次のステップ" ;;
+                "step_edit") echo ".claude/CLAUDE.md を編集してプロジェクト情報を設定" ;;
+                "step_claude") echo "Claude Code を起動" ;;
+                "step_start") echo "最初のタスクを開始" ;;
+                "skills") echo "利用可能なスキル" ;;
+            esac
+            ;;
+        zh)
+            case "$key" in
+                "installing") echo "安装到" ;;
+                "downloading") echo "正在下载模板..." ;;
+                "download_failed") echo "模板下载失败" ;;
+                "skipping") echo "跳过（已存在）" ;;
+                "use_force") echo "使用 --force 覆盖" ;;
+                "installed") echo "安装完成" ;;
+                "preserved") echo "保留现有文件。模板已保存为 .template" ;;
+                "updated_gitignore") echo "已更新 .gitignore" ;;
+                "gitignore_ok") echo ".gitignore 已包含所需条目" ;;
+                "created_data") echo "已创建 data/shared 目录" ;;
+                "complete") echo "安装完成！" ;;
+                "init_prompt") echo "是否初始化数据目录？" ;;
+                "init_desc") echo "设置共享数据存储位置（默认: data/shared）" ;;
+                "init_later") echo "稍后初始化: ./scripts/init-data.sh 或在 Claude Code 中使用 /worktree/init" ;;
+                "next_steps") echo "下一步" ;;
+                "step_edit") echo "编辑 .claude/CLAUDE.md 设置项目信息" ;;
+                "step_claude") echo "启动 Claude Code" ;;
+                "step_start") echo "开始第一个任务" ;;
+                "skills") echo "可用技能" ;;
+            esac
+            ;;
+        *)  # English
+            case "$key" in
+                "installing") echo "Installing to" ;;
+                "downloading") echo "Downloading template..." ;;
+                "download_failed") echo "Failed to download template" ;;
+                "skipping") echo "Skipping (already exists)" ;;
+                "use_force") echo "Use --force to overwrite" ;;
+                "installed") echo "Installed" ;;
+                "preserved") echo "Existing file preserved. Template saved as .template" ;;
+                "updated_gitignore") echo "Updated .gitignore" ;;
+                "gitignore_ok") echo ".gitignore already has required entries" ;;
+                "created_data") echo "Created data/shared directory" ;;
+                "complete") echo "Installation complete!" ;;
+                "init_prompt") echo "Initialize data directory?" ;;
+                "init_desc") echo "Configure shared data storage location (default: data/shared)" ;;
+                "init_later") echo "To initialize later: ./scripts/init-data.sh or /worktree/init in Claude Code" ;;
+                "next_steps") echo "Next steps" ;;
+                "step_edit") echo "Edit .claude/CLAUDE.md to set project info" ;;
+                "step_claude") echo "Start Claude Code" ;;
+                "step_start") echo "Start your first task" ;;
+                "skills") echo "Available skills" ;;
+            esac
+            ;;
+    esac
+}
 
 info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 success() { echo -e "${GREEN}[OK]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# デフォルト値
+# Default values
 TEMPLATE_REPO="https://github.com/AtsushiHashimoto/research-project-template"
 TEMPLATE_BRANCH="main"
 FORCE=false
 TARGET_DIR=""
 
-# 引数解析
+# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --force|-f)
@@ -37,9 +125,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --force, -f    Overwrite existing files"
-            echo "  --help, -h     Show this help message"
-            echo ""
-            echo "If TARGET_DIR is not specified, uses git root or current directory."
+            echo "  --help, -h     Show this help"
             exit 0
             ;;
         *)
@@ -49,93 +135,68 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ターゲットディレクトリの決定
+# Determine target directory
 if [[ -n "$TARGET_DIR" ]]; then
-    # 引数で指定された場合
     if [[ ! -d "$TARGET_DIR" ]]; then
         error "Directory not found: $TARGET_DIR"
     fi
     PROJECT_ROOT="$(cd "$TARGET_DIR" && pwd)"
 elif git rev-parse --show-toplevel &>/dev/null; then
-    # Gitリポジトリ内の場合
     PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 else
-    # それ以外はカレントディレクトリ
     PROJECT_ROOT="$(pwd)"
     warn "Not in a git repository. Using current directory: $PROJECT_ROOT"
 fi
 
-info "Installing to: $PROJECT_ROOT"
+info "$(msg installing): $PROJECT_ROOT"
 
-# 一時ディレクトリ
+# Create temp directory
 TMP_DIR=$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT
 
-# テンプレートをダウンロード
-info "Downloading template..."
+# Download template
+info "$(msg downloading)"
 git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TMP_DIR/template" 2>/dev/null || \
-    error "Failed to download template"
+    error "$(msg download_failed)"
 
-# インストールするファイル/ディレクトリ
+# Files to install
 ITEMS=(
     ".claude/commands"
     ".claude/skills"
-    ".claude/worktree-config.json"
+    "scripts"
 )
-
-OPTIONAL_ITEMS=(
-    ".devcontainer"
-    "data"
-)
-
-# .claude/CLAUDE.md は特別扱い（マージが必要な場合がある）
-# .gitignore も特別扱い
 
 cd "$PROJECT_ROOT"
 
-# .claude ディレクトリの作成
+# Create directories
 mkdir -p .claude
 
-# 必須ファイルのインストール
+# Install files
 for item in "${ITEMS[@]}"; do
     src="$TMP_DIR/template/$item"
     dst="$PROJECT_ROOT/$item"
 
     if [[ -e "$dst" ]] && [[ "$FORCE" != true ]]; then
-        warn "Skipping (already exists): $item"
-        warn "  Use --force to overwrite"
+        warn "$(msg skipping): $item"
+        warn "  $(msg use_force)"
     else
         mkdir -p "$(dirname "$dst")"
         cp -r "$src" "$dst"
-        success "Installed: $item"
+        success "$(msg installed): $item"
     fi
 done
 
-# CLAUDE.md の処理
+# Handle CLAUDE.md
 if [[ -f ".claude/CLAUDE.md" ]]; then
-    if [[ "$FORCE" == true ]]; then
-        cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md.template"
-        warn "Existing CLAUDE.md found. Template saved as CLAUDE.md.template"
-        warn "  Please merge manually if needed"
-    else
-        cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md.template"
-        warn "Existing CLAUDE.md preserved. Template saved as CLAUDE.md.template"
-    fi
+    cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md.template"
+    warn "$(msg preserved)"
 else
     cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md"
-    success "Installed: .claude/CLAUDE.md"
-    warn "Please edit .claude/CLAUDE.md to customize for your project:"
-    warn "  - Replace {{PROJECT_NAME}} with your project name"
-    warn "  - Replace {{PROJECT_DESCRIPTION}} with your description"
-    warn "  - Replace {{RESEARCHER_NAME}} with your name"
-    warn "  - Replace {{START_DATE}} with today's date"
+    success "$(msg installed): .claude/CLAUDE.md"
 fi
 
-# .gitignore の処理
+# Handle .gitignore
 if [[ -f ".gitignore" ]]; then
-    info "Checking .gitignore..."
-
-    # 追加が必要なエントリ
     GITIGNORE_ENTRIES=(
         "worktrees/"
         "data/shared/**"
@@ -152,55 +213,57 @@ if [[ -f ".gitignore" ]]; then
     done
 
     if [[ "$ADDED" == true ]]; then
-        success "Updated .gitignore with worktree/data entries"
+        success "$(msg updated_gitignore)"
     else
-        success ".gitignore already has required entries"
+        success "$(msg gitignore_ok)"
     fi
 else
     cp "$TMP_DIR/template/.gitignore" ".gitignore"
-    success "Installed: .gitignore"
+    success "$(msg installed): .gitignore"
 fi
 
-# オプショナルファイルの確認
-echo ""
-info "Optional components:"
-for item in "${OPTIONAL_ITEMS[@]}"; do
-    dst="$PROJECT_ROOT/$item"
-    if [[ -e "$dst" ]]; then
-        echo "  [EXISTS] $item"
-    else
-        echo "  [MISSING] $item - copy from template if needed"
-    fi
-done
-
-# data ディレクトリの作成
+# Create data directory
 if [[ ! -d "data/shared" ]]; then
     mkdir -p data/shared
     touch data/.gitkeep data/shared/.gitkeep
-    success "Created: data/shared directory"
+    success "$(msg created_data)"
 fi
 
-# 完了メッセージ
+# Make scripts executable
+chmod +x scripts/*.sh 2>/dev/null || true
+
 echo ""
 echo "=========================================="
-success "Installation complete!"
+success "$(msg complete)"
 echo "=========================================="
 echo ""
-echo "Next steps:"
-echo "  1. Edit .claude/CLAUDE.md to customize for your project"
-echo "  2. Review .claude/commands/ for available skills"
-echo "  3. Start Claude Code: claude"
-echo "  4. Begin your first task: /start-task <description>"
+
+# Ask about initialization (only if interactive)
+if [[ -t 0 ]]; then
+    echo -e "${BLUE}$(msg init_prompt)${NC}"
+    echo "$(msg init_desc)"
+    echo ""
+    read -p "[Y/n]: " do_init
+
+    if [[ ! "$do_init" =~ ^[Nn]$ ]]; then
+        echo ""
+        "$PROJECT_ROOT/scripts/init-data.sh" "$PROJECT_ROOT"
+    else
+        echo ""
+        info "$(msg init_later)"
+    fi
+else
+    echo "$(msg init_later)"
+fi
+
 echo ""
-echo "Available skills:"
-echo "  /start-task     - Start a new task (Issue + Branch + Worktree)"
-echo "  /commit push    - Save progress (no merge)"
+echo -e "${BLUE}$(msg next_steps):${NC}"
+echo "  1. $(msg step_edit)"
+echo "  2. $(msg step_claude): claude"
+echo "  3. $(msg step_start): /start-task <description>"
+echo ""
+echo -e "${BLUE}$(msg skills):${NC}"
+echo "  /start-task     - Start new task (Issue + Branch + Worktree)"
+echo "  /commit push    - Save progress"
 echo "  /finish-task    - Complete task (review + merge + close)"
-echo "  /report-progress - Report progress to Issue"
 echo ""
-
-if [[ ! -d ".devcontainer" ]]; then
-    echo "Optional: To add Dev Container support, run:"
-    echo "  cp -r $TMP_DIR/template/.devcontainer ."
-    echo "  (Run this before the installer exits, or re-run with template)"
-fi
