@@ -1,50 +1,49 @@
 # Research Project Template
 
-Claude Code を活用した研究プロジェクト用テンプレートです。
+A project template for Claude Code integration with research workflows.
 
-## 特徴
+[日本語](README-ja.md)
 
-- **Issue駆動開発**: GitHub Issueを中心としたワークフロー
-- **Git Worktree管理**: 並行タスクを独立したディレクトリで管理
-- **データ保護**: 重要データとWorktreeの分離
-- **Claude Code統合**: カスタムスキルによる自動化
+## Features
+
+- **Issue-Driven Development**: GitHub Issue-centered workflow
+- **Git Worktree Management**: Parallel tasks in isolated directories
+- **Data Protection**: Separation of important data and worktrees
+- **Claude Code Integration**: Custom skills for automation
 
 ---
 
-## 既存プロジェクトへの導入
+## Installation for Existing Projects
 
-既存のプロジェクトにこのテンプレートのスキルを追加するには：
+Add template skills to an existing project:
 
 ```bash
-# プロジェクトディレクトリ内で実行（Gitルートを自動検出）
+# Run inside your project (auto-detects git root)
 curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash
 
-# または、パスを明示的に指定
+# Or specify path explicitly
 curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash -s -- /path/to/project
 
-# 既存ファイルを上書きする場合
+# Force overwrite existing files
 curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash -s -- --force
 ```
 
-インストール後、`.claude/CLAUDE.md` を編集してプロジェクト固有の情報を設定してください。
+After installation, edit `.claude/CLAUDE.md` to set project-specific information.
 
 ---
 
-## 新規プロジェクトのセットアップ
+## New Project Setup
 
-### 1. テンプレートからリポジトリを作成
+### 1. Clone Template
 
 ```bash
-# このテンプレートをコピー
 git clone https://github.com/AtsushiHashimoto/research-project-template.git my-project
 cd my-project
-
-# セットアップスクリプトを実行
 chmod +x setup.sh
 ./setup.sh "My Project Name" "Project description" "Your Name"
 ```
 
-### 2. GitHubリポジトリを作成
+### 2. Create GitHub Repository
 
 ```bash
 gh repo create my-project --public
@@ -52,20 +51,22 @@ git remote add origin https://github.com/YOUR_USERNAME/my-project.git
 git push -u origin main
 ```
 
-### 3. 開発環境を起動
+### 3. Start Development
 
-VS Code で Dev Container を使用する場合:
-1. VS Code で プロジェクトを開く
-2. "Reopen in Container" を選択
-3. Claude Code を起動: `claude`
+With VS Code Dev Container:
+1. Open project in VS Code
+2. Select "Reopen in Container"
+3. Start Claude Code: `claude`
 
-## ディレクトリ構成
+---
+
+## Directory Structure
 
 ```
 my-project/
 ├── .claude/
-│   ├── CLAUDE.md          # プロジェクト設定・ワークフロー定義
-│   ├── commands/          # カスタムスキル（コマンド）
+│   ├── CLAUDE.md              # Project config & workflow
+│   ├── commands/              # Custom skills (commands)
 │   │   ├── start-task.md
 │   │   ├── commit.md
 │   │   ├── commit-push.md
@@ -73,101 +74,106 @@ my-project/
 │   │   ├── finish-task.md
 │   │   ├── report-progress.md
 │   │   └── branch-task.md
-│   ├── skills/            # Worktree管理スキル
-│   │   ├── worktree-init/
-│   │   ├── worktree-setup/
-│   │   └── worktree-safe-remove/
-│   └── worktree-config.json
+│   └── skills/                # Worktree management skills
+├── scripts/                   # Standalone scripts
+│   ├── init-data.sh
+│   ├── setup-worktree.sh
+│   └── safe-remove-worktree.sh
 ├── .devcontainer/
-│   ├── devcontainer.json  # Dev Container設定
+│   ├── devcontainer.json
 │   └── Dockerfile
 ├── data/
-│   └── shared/            # 共有データ（Worktree間で共有）
-├── worktrees/             # Worktree用ディレクトリ（.gitignore対象）
-└── src/                   # ソースコード
+│   └── shared/                # Shared data (across worktrees)
+└── worktrees/                 # Worktree directory (.gitignore)
 ```
 
-## ワークフロー
+---
 
-### 新しいタスクを開始
+## Workflow
+
+### Start a New Task
 
 ```bash
-# Claude Code を起動
 claude
-
-# タスクを開始
-/start-task データセットの前処理を実装
+/start-task Implement data preprocessing
 ```
 
-これにより:
-1. GitHub Issue が作成される
-2. ブランチが作成される（例: `feature/1-dataset-preprocessing`）
-3. Worktree が作成される（例: `worktrees/issue1`）
+This will:
+1. Create GitHub Issue
+2. Create branch (e.g., `feature/1-implement-data-preprocessing`)
+3. Create worktree (e.g., `worktrees/issue1`)
 
-### 途中で保存
+### Save Progress (Intermediate)
 
 ```bash
 /commit push
 ```
 
-- 変更をコミット＆プッシュ
-- Issueは開いたまま
-- Worktreeも残る
+- Commit & push
+- Issue stays **open**
+- Worktree **remains**
 
-### タスクを完了
+### Complete Task
 
 ```bash
 /finish-task
 ```
 
-これにより:
-1. 品質レビューを実施
-2. PR を作成
-3. マージ
-4. Issue をクローズ
-5. Worktree を削除
+This will:
+1. Quality review
+2. Create PR & merge
+3. **Close Issue**
+4. **Delete worktree**
 
-## カスタムスキル一覧
+---
 
-| スキル | 用途 |
-|-------|------|
-| `/start-task [説明]` | 新しいタスクを開始 |
-| `/branch-task [説明]` | 子タスクを作成（同じWorktree内） |
-| `/report-progress` | 進捗をIssueに報告 |
-| `/commit` | ローカルにコミット |
-| `/commit push` | コミット＆プッシュ（途中保存） |
-| `/commit merge` | コミット＆マージ（タスク完了） |
-| `/finish-task` | タスクを完了（= `/commit merge`） |
+## Available Skills
 
-## データ管理
+| Skill | Purpose |
+|-------|---------|
+| `/start-task [desc]` | Start new task (Issue + Branch + Worktree) |
+| `/branch-task [desc]` | Create child task (same worktree) |
+| `/report-progress` | Report progress to Issue |
+| `/commit` | Local commit only |
+| `/commit push` | Commit & push (save progress) |
+| `/commit merge` | Commit & merge (complete task) |
+| `/finish-task` | Complete task (= `/commit merge`) |
 
-### 重要データ（保護される）
+---
 
-`data/shared/` に保存:
-- データセット
-- 実験結果
-- 学習済みモデル
+## Data Management
 
-### 一時データ（削除OK）
+### Important Data (Protected)
 
-`data/local/` に保存:
-- キャッシュ
-- デバッグ出力
-- 一時ファイル
+Save to `data/shared/`:
+- Datasets
+- Experiment results
+- Trained models
 
-## カスタマイズ
+### Temporary Data (Deleted with Worktree)
 
-### プロジェクト固有の設定
+Save to `data/local/`:
+- Cache
+- Debug output
+- Temp files
 
-`.claude/CLAUDE.md` を編集してプロジェクト固有のルールを追加できます。
+---
+
+## Customization
+
+### Project-Specific Settings
+
+Edit `.claude/CLAUDE.md` to add project-specific rules.
 
 ### Dev Container
 
-`.devcontainer/` を編集して開発環境をカスタマイズできます:
-- ベースイメージの変更
-- 追加パッケージのインストール
-- VS Code拡張機能の追加
+Edit `.devcontainer/` to customize:
+- Base image
+- Additional packages
+- VS Code extensions
 
-## ライセンス
+---
+
+## License
 
 MIT License
