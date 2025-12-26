@@ -1,0 +1,9 @@
+{
+  "name": "worktree-init",
+  "version": "1.0.0",
+  "description": "Initialize worktree data protection configuration (run once in main repository)",
+  "author": "Atsushi Hashimoto",
+  "type": "user",
+  "command": ".claude/skills/worktree-init/init.sh",
+  "help": "Set up shared data storage location for worktree data protection. Run this once in the main repository before creating worktrees."
+}

@@ -1,0 +1,9 @@
+{
+  "name": "worktree-setup",
+  "version": "1.0.0",
+  "description": "Set up data directories in a new worktree",
+  "author": "Atsushi Hashimoto",
+  "type": "user",
+  "command": ".claude/skills/worktree-setup/setup.sh",
+  "help": "Run this after creating a new worktree to set up data/shared (symlink) and data/local (temporary) directories."
+}
