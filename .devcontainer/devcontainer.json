@@ -19,7 +19,8 @@
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
   "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
   },
   "customizations": {
     "vscode": {
@@ -29,5 +30,5 @@
       ]
     }
   },
-  "postCreateCommand": "mkdir -p ~/.claude && echo '{\"autoApprove\": true, \"dangerouslyIgnoreReadOnly\": true}' > ~/.claude/config.json"
+  "postCreateCommand": "mkdir -p ~/.claude && [ ! -f ~/.claude/config.json ] && echo '{\"autoApprove\": true, \"dangerouslyIgnoreReadOnly\": true}' > ~/.claude/config.json || true"
 }
