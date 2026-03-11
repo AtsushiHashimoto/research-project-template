@@ -163,6 +163,8 @@ git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TMP_DIR/templ
 ITEMS=(
     ".claude/commands"
     ".claude/skills"
+    ".claude/worktree-config.json"
+    ".devcontainer"
     "scripts"
 )
 

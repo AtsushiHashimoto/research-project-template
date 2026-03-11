@@ -162,7 +162,9 @@ fi
 echo ""
 echo -e "${BLUE}Removing worktree...${NC}"
 
-cd "$MAIN_REPO"
+# ★ Must cd to main repo BEFORE removing worktree
+# Otherwise the shell's cwd becomes invalid after removal
+cd "$MAIN_REPO" || { echo -e "${RED}❌ Failed to cd to main repo: $MAIN_REPO${NC}"; exit 1; }
 git worktree remove "$WORKTREE_PATH"
 
 echo ""
@@ -171,6 +173,7 @@ echo -e "${GREEN}Worktree Removed Successfully!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo "Removed: $WORKTREE_PATH"
+echo "Current directory: $MAIN_REPO"
 if [ -d "$SHARED_DATA_PATH" ]; then
     echo "Shared data preserved: $SHARED_DATA_PATH"
 fi
