@@ -82,13 +82,13 @@ my-project/
 
 ```bash
 # 1. タスクを開始
-/start-task データセットの前処理を実装
+/issue/start データセットの前処理を実装
 
 # 2. 作業して途中保存
-/commit push
+/commit/push
 
 # 3. タスクを完了
-/finish-task
+/issue/finish
 ```
 
 ---
@@ -97,13 +97,13 @@ my-project/
 
 | スキル | 用途 |
 |-------|------|
-| `/start-task [説明]` | 新しいタスクを開始（Issue + Branch + Worktree） |
-| `/branch-task [説明]` | 現在のWorktree内で子タスクを作成 |
-| `/report-progress` | 進捗をIssueに報告 |
+| `/issue/start [説明]` | 新しいタスクを開始（Issue + Branch + Worktree） |
+| `/issue/branch [説明]` | 現在のWorktree内で子タスクを作成 |
+| `/issue/report` | 進捗をIssueに報告 |
+| `/issue/finish` | タスクを完了（レビュー + マージ + クリーンアップ） |
 | `/commit` | ローカルにコミット |
-| `/commit push` | コミット＆プッシュ（途中保存） |
-| `/commit merge` | コミット＆マージ（タスク完了） |
-| `/finish-task` | タスクを完了（レビュー + マージ + クリーンアップ） |
+| `/commit/push` | コミット＆プッシュ（途中保存） |
+| `/commit/merge` | コミット＆マージ（タスク完了） |
 | `/review` | 多角的コードレビュー |
 | `/template/sync` | テンプレートの最新更新を取り込み |
 | `/template/contribute` | テンプレートへの改善PRを作成 |

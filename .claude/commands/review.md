@@ -9,7 +9,7 @@ description: Multi-agent review of current branch changes (多角的レビュー
 ## 用途
 
 - コミット前の品質確認
-- `/commit-merge` 前のプリレビュー
+- `/commit/merge` 前のプリレビュー
 - 設計判断の妥当性検証
 - 仕様との整合性確認
 
@@ -260,7 +260,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 レビュー結果を提示し、以下を確認：
 - Critical Issues がある場合: 修正を提案
 - Warnings のみの場合: 修正するか進めるか確認
-- 問題なしの場合: `/commit-merge` への進行を提案
+- 問題なしの場合: `/commit/merge` への進行を提案
 
 ## Implementation
 
@@ -274,7 +274,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 ## Note
 
-- `/commit-merge` のPhase 0（品質チェック）とは独立して実行可能
+- `/commit/merge` のPhase 0（品質チェック）とは独立して実行可能
 - より詳細なレビューが必要な場合にこのコマンドを使用
-- `/commit-merge` は単体でも品質チェックを行うため、両方を実行する必要はない
+- `/commit/merge` は単体でも品質チェックを行うため、両方を実行する必要はない
 - 仕様ファイルが存在しない場合、Fallbackチェッカーと仕様充足チェッカーは「仕様ファイルなし」と報告する

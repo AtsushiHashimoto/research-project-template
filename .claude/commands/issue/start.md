@@ -10,7 +10,7 @@ argument-hint: [short-description]
 ## Usage
 
 ```
-/start-task データセットローダーの実装
+/issue/start データセットローダーの実装
 ```
 
 ## Workflow
