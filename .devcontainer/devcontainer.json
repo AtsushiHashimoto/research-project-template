@@ -11,8 +11,7 @@
     "--gpus=all",
     "--shm-size=64gb",
     "--ulimit", "memlock=-1",
-    "--ulimit", "stack=67108864",
-    "--hostname", "devcontainer"
+    "--ulimit", "stack=67108864"
   ],
   "mounts": [
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
@@ -43,5 +42,5 @@
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
   },
 
-  "postCreateCommand": "mkdir -p ~/.claude && [ -f ~/.claude/.claude.json ] || echo '{}' > ~/.claude/.claude.json && mkdir -p /workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models && echo -n 'devcontainer-${localWorkspaceFolderBasename}' | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null"
+  "postCreateCommand": "mkdir -p ~/.claude && mkdir -p /workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
 }
