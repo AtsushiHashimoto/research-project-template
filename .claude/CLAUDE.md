@@ -1,11 +1,11 @@
-# {{PROJECT_NAME}} プロジェクト設定
+# pyfluoview プロジェクト設定
 
 ## プロジェクト概要
 
-{{PROJECT_DESCRIPTION}}
+Unofficial Python client for Olympus FluoView FV40S-RMTDK API
 
-**研究者**: {{RESEARCHER_NAME}}
-**開始日**: {{START_DATE}}
+**研究者**: Atsushi Hashimoto
+**開始日**: 2026-03-11
 
 ---
 
@@ -118,7 +118,7 @@ cd worktrees/issueN
 ### 並行作業の例
 
 ```
-{{PROJECT_NAME}}/                # メインリポジトリ
+pyfluoview/                # メインリポジトリ
 ├── worktrees/                   # Worktree用ディレクトリ（.gitignore対象）
 │   ├── issue5/                  # feature/5-description
 │   ├── issue7/                  # research/7-description
