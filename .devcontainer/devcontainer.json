@@ -42,5 +42,5 @@
     "OLLAMA_MODELS": "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
   },
 
-  "postCreateCommand": "echo -n 'devcontainer-${localWorkspaceFolderBasename}' | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null && mkdir -p \"/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models\""
+  "postCreateCommand": "sudo chown -R $(id -u):$(id -g) /home/vscode/.claude && echo -n 'devcontainer-${localWorkspaceFolderBasename}' | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null && mkdir -p \"/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models\""
 }
