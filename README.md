@@ -67,63 +67,31 @@ my-project/
 ├── .claude/
 │   ├── CLAUDE.md              # Project config & workflow
 │   ├── commands/              # Custom skills (commands)
-│   │   ├── start-task.md
-│   │   ├── commit.md
-│   │   ├── commit-push.md
-│   │   ├── commit-merge.md
-│   │   ├── finish-task.md
-│   │   ├── report-progress.md
-│   │   └── branch-task.md
-│   └── skills/                # Worktree management skills
+│   └── skills/                # Additional skills
 ├── scripts/                   # Standalone scripts
-│   ├── init-data.sh
-│   ├── setup-worktree.sh
-│   └── safe-remove-worktree.sh
 ├── .devcontainer/
 │   ├── devcontainer.json
 │   └── Dockerfile
 ├── data/
 │   └── shared/                # Shared data (across worktrees)
+│       └── ollama_models/     # Ollama models (optional)
 └── worktrees/                 # Worktree directory (.gitignore)
 ```
 
 ---
 
-## Workflow
-
-### Start a New Task
+## Quick Start
 
 ```bash
-claude
+# 1. Start a task
 /start-task Implement data preprocessing
-```
 
-This will:
-1. Create GitHub Issue
-2. Create branch (e.g., `feature/1-implement-data-preprocessing`)
-3. Create worktree (e.g., `worktrees/issue1`)
-
-### Save Progress (Intermediate)
-
-```bash
+# 2. Work and save progress
 /commit push
-```
 
-- Commit & push
-- Issue stays **open**
-- Worktree **remains**
-
-### Complete Task
-
-```bash
+# 3. Complete task
 /finish-task
 ```
-
-This will:
-1. Quality review
-2. Create PR & merge
-3. **Close Issue**
-4. **Delete worktree**
 
 ---
 
@@ -132,55 +100,27 @@ This will:
 | Skill | Purpose |
 |-------|---------|
 | `/start-task [desc]` | Start new task (Issue + Branch + Worktree) |
-| `/branch-task [desc]` | Create child task (same worktree) |
+| `/branch-task [desc]` | Create child task in current worktree |
 | `/report-progress` | Report progress to Issue |
 | `/commit` | Local commit only |
 | `/commit push` | Commit & push (save progress) |
 | `/commit merge` | Commit & merge (complete task) |
-| `/finish-task` | Complete task (= `/commit merge`) |
-
----
-
-## Data Management
-
-### Important Data (Protected)
-
-Save to `data/shared/`:
-- Datasets
-- Experiment results
-- Trained models
-
-### Temporary Data (Deleted with Worktree)
-
-Save to `data/local/`:
-- Cache
-- Debug output
-- Temp files
+| `/finish-task` | Complete task (review + merge + cleanup) |
+| `/review` | Multi-perspective code review |
+| `/template/sync` | Sync updates from template |
+| `/template/contribute` | Contribute improvements to template |
 
 ---
 
 ## Customization
 
-### Project-Specific Settings
+You can customize the following:
 
-Edit `.claude/CLAUDE.md` to add project-specific rules.
+- **`.claude/CLAUDE.md`**: Project-specific rules and workflow
+- **`.devcontainer/Dockerfile`**: Base image, packages, tools (e.g., Ollama)
+- **`.devcontainer/devcontainer.json`**: VS Code extensions, environment variables
 
-### Dev Container
-
-Edit `.devcontainer/` to customize:
-- Base image
-- Additional packages
-- VS Code extensions
-
-### Ollama Model Persistence
-
-By default, Ollama model persistence is **enabled**. Models are stored in `data/shared/ollama_models/` and persist across container rebuilds.
-
-**To disable Ollama persistence:**
-
-Edit `.devcontainer/devcontainer.json` and remove or comment out:
-1. The `containerEnv` section with `OLLAMA_MODELS`
-2. The `ollama_models` part in `postCreateCommand`
+See `.claude/CLAUDE.md` for detailed customization instructions.
 
 ---
 

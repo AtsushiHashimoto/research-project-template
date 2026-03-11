@@ -35,11 +35,8 @@ curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-t
 ### 1. テンプレートからリポジトリを作成
 
 ```bash
-# このテンプレートをコピー
 git clone https://github.com/AtsushiHashimoto/research-project-template.git my-project
 cd my-project
-
-# セットアップスクリプトを実行
 chmod +x setup.sh
 ./setup.sh "My Project Name" "Project description" "Your Name"
 ```
@@ -55,128 +52,75 @@ git push -u origin main
 ### 3. 開発環境を起動
 
 VS Code で Dev Container を使用する場合:
-1. VS Code で プロジェクトを開く
+1. VS Code でプロジェクトを開く
 2. "Reopen in Container" を選択
 3. Claude Code を起動: `claude`
+
+---
 
 ## ディレクトリ構成
 
 ```
 my-project/
 ├── .claude/
-│   ├── CLAUDE.md          # プロジェクト設定・ワークフロー定義
-│   ├── commands/          # カスタムスキル（コマンド）
-│   │   ├── start-task.md
-│   │   ├── commit.md
-│   │   ├── commit-push.md
-│   │   ├── commit-merge.md
-│   │   ├── finish-task.md
-│   │   ├── report-progress.md
-│   │   └── branch-task.md
-│   ├── skills/            # Worktree管理スキル
-│   │   ├── worktree-init/
-│   │   ├── worktree-setup/
-│   │   └── worktree-safe-remove/
-│   └── worktree-config.json
+│   ├── CLAUDE.md              # プロジェクト設定・ワークフロー定義
+│   ├── commands/              # カスタムスキル（コマンド）
+│   └── skills/                # 追加スキル
+├── scripts/                   # スタンドアロンスクリプト
 ├── .devcontainer/
-│   ├── devcontainer.json  # Dev Container設定
+│   ├── devcontainer.json
 │   └── Dockerfile
 ├── data/
-│   └── shared/            # 共有データ（Worktree間で共有）
-├── worktrees/             # Worktree用ディレクトリ（.gitignore対象）
-└── src/                   # ソースコード
+│   └── shared/                # 共有データ（Worktree間で共有）
+│       └── ollama_models/     # Ollamaモデル（オプション）
+└── worktrees/                 # Worktree用ディレクトリ（.gitignore対象）
 ```
 
-## ワークフロー
+---
 
-### 新しいタスクを開始
+## クイックスタート
 
 ```bash
-# Claude Code を起動
-claude
-
-# タスクを開始
+# 1. タスクを開始
 /start-task データセットの前処理を実装
-```
 
-これにより:
-1. GitHub Issue が作成される
-2. ブランチが作成される（例: `feature/1-dataset-preprocessing`）
-3. Worktree が作成される（例: `worktrees/issue1`）
-
-### 途中で保存
-
-```bash
+# 2. 作業して途中保存
 /commit push
-```
 
-- 変更をコミット＆プッシュ
-- Issueは開いたまま
-- Worktreeも残る
-
-### タスクを完了
-
-```bash
+# 3. タスクを完了
 /finish-task
 ```
 
-これにより:
-1. 品質レビューを実施
-2. PR を作成
-3. マージ
-4. Issue をクローズ
-5. Worktree を削除
+---
 
 ## カスタムスキル一覧
 
 | スキル | 用途 |
 |-------|------|
-| `/start-task [説明]` | 新しいタスクを開始 |
-| `/branch-task [説明]` | 子タスクを作成（同じWorktree内） |
+| `/start-task [説明]` | 新しいタスクを開始（Issue + Branch + Worktree） |
+| `/branch-task [説明]` | 現在のWorktree内で子タスクを作成 |
 | `/report-progress` | 進捗をIssueに報告 |
 | `/commit` | ローカルにコミット |
 | `/commit push` | コミット＆プッシュ（途中保存） |
 | `/commit merge` | コミット＆マージ（タスク完了） |
-| `/finish-task` | タスクを完了（= `/commit merge`） |
+| `/finish-task` | タスクを完了（レビュー + マージ + クリーンアップ） |
+| `/review` | 多角的コードレビュー |
+| `/template/sync` | テンプレートの最新更新を取り込み |
+| `/template/contribute` | テンプレートへの改善PRを作成 |
 
-## データ管理
-
-### 重要データ（保護される）
-
-`data/shared/` に保存:
-- データセット
-- 実験結果
-- 学習済みモデル
-
-### 一時データ（削除OK）
-
-`data/local/` に保存:
-- キャッシュ
-- デバッグ出力
-- 一時ファイル
+---
 
 ## カスタマイズ
 
-### プロジェクト固有の設定
+以下をカスタマイズできます：
 
-`.claude/CLAUDE.md` を編集してプロジェクト固有のルールを追加できます。
+- **`.claude/CLAUDE.md`**: プロジェクト固有のルールとワークフロー
+- **`.devcontainer/Dockerfile`**: ベースイメージ、パッケージ、ツール（Ollamaなど）
+- **`.devcontainer/devcontainer.json`**: VS Code拡張機能、環境変数
 
-### Dev Container
+詳細なカスタマイズ手順は `.claude/CLAUDE.md` を参照してください。
 
-`.devcontainer/` を編集して開発環境をカスタマイズできます:
-- ベースイメージの変更
-- 追加パッケージのインストール
-- VS Code拡張機能の追加
-
-### Ollamaモデルの永続化
-
-デフォルトでOllamaモデルの永続化は**有効**です。モデルは `data/shared/ollama_models/` に保存され、コンテナ再ビルド後も保持されます。
-
-**Ollama永続化を無効にする場合:**
-
-`.devcontainer/devcontainer.json` を編集し、以下を削除またはコメントアウトしてください:
-1. `containerEnv` セクション（`OLLAMA_MODELS`）
-2. `postCreateCommand` 内の `ollama_models` 部分
+---
 
 ## ライセンス
 
