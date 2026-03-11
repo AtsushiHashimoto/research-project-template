@@ -44,8 +44,12 @@ chmod +x setup.sh
 ### 2. GitHubリポジトリを作成
 
 ```bash
+# 個人アカウントの場合
 gh repo create my-project --public
-git remote add origin https://github.com/YOUR_USERNAME/my-project.git
+
+# Organizationの場合
+gh repo create YOUR_ORG/my-project --public
+
 git push -u origin main
 ```
 
