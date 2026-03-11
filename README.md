@@ -46,8 +46,12 @@ chmod +x setup.sh
 ### 2. Create GitHub Repository
 
 ```bash
+# Personal account
 gh repo create my-project --public
-git remote add origin https://github.com/YOUR_USERNAME/my-project.git
+
+# Organization account
+gh repo create YOUR_ORG/my-project --public
+
 git push -u origin main
 ```
 
