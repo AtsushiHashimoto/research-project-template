@@ -194,3 +194,42 @@ mv debug_images/ data/local/debug/
 4. **明示的指示を待つ**: 自動コミットはしない
 5. **ルールは絶対**: このファイルに記載された全てのルール、スキルで定義されたワークフローは必ず従う
 6. **省略・逸脱する前に確認**: ルールから外れる行為をする場合は、事前に一言ユーザーに確認を取る。自己判断で「不要」「単純だから省略」と決めない
+
+---
+
+## オプション機能の設定
+
+### Ollama（ローカルLLM）
+
+Ollamaのモデル永続化は事前設定済み（`data/shared/ollama_models/`）。使用するにはDockerfileにインストールコマンドを追加：
+
+```dockerfile
+# .devcontainer/Dockerfile に追加
+RUN curl -fsSL https://ollama.com/install.sh | sh
+```
+
+コンテナ再ビルド後、以下で使用可能：
+```bash
+ollama serve &          # サーバー起動
+ollama pull llama3.2    # モデルダウンロード
+ollama run llama3.2     # 実行
+```
+
+### Claude Code認証
+
+認証情報はbind mountで永続化済み。初回のみ `claude` を実行して認証。コンテナ再ビルド後も自動的に維持される。
+
+---
+
+## ドキュメント原則
+
+### What vs How
+
+- **README（What）**: このプロジェクトは何か、何ができるか、何が含まれているか
+- **CLAUDE.md（How）**: どうやって作業するか、どういうルールで進めるか
+
+### 変更時の注意
+
+- 手順やルールの追加・変更は CLAUDE.md に記載
+- プロジェクト概要やセットアップ手順は README に記載
+- 同じ情報を両方に書かない（Single Source of Truth）
