@@ -42,5 +42,5 @@
     "OLLAMA_MODELS": "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
   },
 
-  "postCreateCommand": "mkdir -p ~/.claude && mkdir -p /workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
+  "postCreateCommand": "mkdir -p ~/.claude && [ -f ~/.claude/.claude.json ] || echo '{}' > ~/.claude/.claude.json && mkdir -p /workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
 }
