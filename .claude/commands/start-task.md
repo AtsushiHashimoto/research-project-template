@@ -5,7 +5,7 @@ argument-hint: [short-description]
 
 # Start Task Workflow
 
-新しいタスクを開始します。GitHub Issue の作成、ブランチ作成、Worktree 作成を自動的に実行します。
+新しいタスクを開始します。GitHub Issue の作成、ブランチ作成、Worktree 作成、仕様レビューを自動的に実行します。
 
 ## Usage
 
@@ -31,6 +31,21 @@ argument-hint: [short-description]
 4. **作業開始の準備**
    - Worktree ディレクトリに移動
    - 初期報告を Issue に投稿
+
+5. **仕様の対話**
+   - ユーザーと仕様について対話
+   - 要件、制約、想定されるエッジケースを確認
+
+6. **仕様レビュー（/review-spec）**
+   - 4つのサブエージェントで仕様をレビュー
+   - 状態遷移図、ログ戦略、ファイル構成計画を生成
+   - Fallback分岐の承認をユーザーに確認
+   - 検証チェックリストを生成
+   - `.claude/spec/issues/{issue_id}-{description}.md` に保存
+
+7. **Plan Mode**
+   - 仕様が固まったら plan-mode に移行
+   - 実装計画を策定
 
 ## Implementation
 

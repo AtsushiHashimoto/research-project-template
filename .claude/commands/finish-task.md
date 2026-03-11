@@ -12,11 +12,12 @@ description: Finish task with quality review by invoking commit-merge workflow (
 
 以下を実行します：
 1. 品質レビュー（Issue目的との整合性確認）
-2. Commit & Push
-3. PR作成 & マージ
-4. **Issueクローズ**
-5. Worktree削除
-6. コンテキスト整理（/compact）
+2. **仕様ファイルのステータス更新**（completed）
+3. Commit & Push
+4. PR作成 & マージ
+5. **Issueクローズ**
+6. Worktree削除
+7. コンテキスト整理（/compact）
 
 ## Usage
 
@@ -35,6 +36,24 @@ description: Finish task with quality review by invoking commit-merge workflow (
 
 ## Implementation
 
+### Step 1: 仕様ファイルのステータス更新
+
+```bash
+# Issue番号の取得
+BRANCH=$(git branch --show-current)
+ISSUE_ID=$(echo "$BRANCH" | grep -oE '[0-9]+' | head -1)
+
+# 仕様ファイルを特定
+SPEC_FILE=$(ls .claude/spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
+```
+
+仕様ファイルが存在する場合、メタ情報を更新：
+- `ステータス: draft` → `ステータス: completed`
+- `完了日: YYYY-MM-DD` を追加
+- 変更履歴に完了記録を追加
+
+### Step 2: /commit-merge 実行
+
 Skillツールを使って `/commit-merge` コマンドを実行：
 
 ```xml
@@ -47,6 +66,6 @@ Skillツールを使って `/commit-merge` コマンドを実行：
 
 ## Note
 
-- `/finish-task` と `/commit-merge` は**同じ動作**をします
+- `/finish-task` は仕様ファイルのステータス更新 + `/commit-merge` を実行
 - どちらもタスク完了時に使用（Issueをクローズする）
 - 途中保存したい場合は `/commit-push` を使用
