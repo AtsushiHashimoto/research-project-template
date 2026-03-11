@@ -59,7 +59,7 @@ done
 
 ### ローカルで変更されたファイル
 - `scripts/safe-remove-worktree.sh` — cd ガード追加
-- `.claude/commands/commit-merge.md` — Worktree削除手順改善
+- `.claude/commands/commit/merge.md` — Worktree削除手順改善
 
 ### ローカルで追加されたファイル
 - `.claude/commands/review.md` — 新規コマンド

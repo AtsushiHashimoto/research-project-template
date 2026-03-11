@@ -65,7 +65,7 @@ done
 - `.claude/commands/new-command.md`
 
 ### 変更されたファイル
-- `.claude/commands/commit-merge.md` (テンプレート側で更新あり)
+- `.claude/commands/commit/merge.md` (テンプレート側で更新あり)
 - `scripts/safe-remove-worktree.sh` (テンプレート側で更新あり)
 
 ### ローカルのみのファイル（テンプレートに存在しない）

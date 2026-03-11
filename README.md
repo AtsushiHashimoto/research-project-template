@@ -84,13 +84,13 @@ my-project/
 
 ```bash
 # 1. Start a task
-/start-task Implement data preprocessing
+/issue/start Implement data preprocessing
 
 # 2. Work and save progress
-/commit push
+/commit/push
 
 # 3. Complete task
-/finish-task
+/issue/finish
 ```
 
 ---
@@ -99,13 +99,13 @@ my-project/
 
 | Skill | Purpose |
 |-------|---------|
-| `/start-task [desc]` | Start new task (Issue + Branch + Worktree) |
-| `/branch-task [desc]` | Create child task in current worktree |
-| `/report-progress` | Report progress to Issue |
+| `/issue/start [desc]` | Start new task (Issue + Branch + Worktree) |
+| `/issue/branch [desc]` | Create child task in current worktree |
+| `/issue/report` | Report progress to Issue |
+| `/issue/finish` | Complete task (review + merge + cleanup) |
 | `/commit` | Local commit only |
-| `/commit push` | Commit & push (save progress) |
-| `/commit merge` | Commit & merge (complete task) |
-| `/finish-task` | Complete task (review + merge + cleanup) |
+| `/commit/push` | Commit & push (save progress) |
+| `/commit/merge` | Commit & merge (complete task) |
 | `/review` | Multi-perspective code review |
 | `/template/sync` | Sync updates from template |
 | `/template/contribute` | Contribute improvements to template |

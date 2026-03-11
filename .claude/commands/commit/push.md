@@ -10,11 +10,11 @@ description: Commit and push changes (途中保存)
 - このコマンドは**途中保存**用です
 - Issueは**クローズしません**
 - Worktreeは**削除しません**
-- タスク完了時は `/finish-task` または `/commit-merge` を使用
+- タスク完了時は `/issue/finish` または `/commit/merge` を使用
 
-## vs /commit-merge
+## vs /commit/merge
 
-| 特徴 | /commit-push | /commit-merge |
+| 特徴 | /commit/push | /commit/merge |
 |------|-------------|---------------|
 | **目的** | 途中保存 | タスク完了 |
 | **レビュー** | 簡易 | 品質チェック |
@@ -110,7 +110,7 @@ gh issue comment "$ISSUE_ID" --body "## コミット完了（途中保存）
 - 次のステップ: [...]
 
 ---
-*Issueは開いたままです。タスク完了時は `/finish-task` を実行してください。*"
+*Issueは開いたままです。タスク完了時は `/issue/finish` を実行してください。*"
 ```
 
 ## Output
@@ -124,4 +124,4 @@ gh issue comment "$ISSUE_ID" --body "## コミット完了（途中保存）
 ## Note
 
 このコマンドは**途中保存**用です。
-タスクが完了したら `/finish-task` を実行してください。
+タスクが完了したら `/issue/finish` を実行してください。

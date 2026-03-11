@@ -12,7 +12,7 @@ argument-hint: [short-description]
 ## Usage
 
 ```
-/branch-task データ前処理の実装
+/issue/branch データ前処理の実装
 ```
 
 ## Workflow
@@ -138,9 +138,9 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 親Issue #5「データセットローダーの実装」を進めている途中で、細かいサブタスクに分割:
 
 ```bash
-/branch-task 画像前処理パイプラインの実装
-/branch-task データ拡張機能の追加
-/branch-task バッチ処理の最適化
+/issue/branch 画像前処理パイプラインの実装
+/issue/branch データ拡張機能の追加
+/issue/branch バッチ処理の最適化
 ```
 
 すべて同じworktree内で順次作業し、各サブタスクごとにコミット＆報告。
@@ -150,8 +150,8 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 親Issue #7「モデルアーキテクチャの設計」の中で発見した関連タスク:
 
 ```bash
-/branch-task ハイパーパラメータ設定の追加
-/branch-task モデル評価スクリプトの作成
+/issue/branch ハイパーパラメータ設定の追加
+/issue/branch モデル評価スクリプトの作成
 ```
 
 ### ケース3: バグ修正の発見
@@ -159,19 +159,19 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 Feature開発中に見つけたバグを別Issueとして管理:
 
 ```bash
-/branch-task 画像読み込み時のメモリリーク修正
+/issue/branch 画像読み込み時のメモリリーク修正
 ```
 
 ## Note
 
-- **worktree切り替えなし**: `/start-task` と異なり、新しいworktreeを作成しません
+- **worktree切り替えなし**: `/issue/start` と異なり、新しいworktreeを作成しません
 - **親子関係の明示**: Issue本文とコメントで親子関係を明確に記録
 - **柔軟なコミット**: 子Issue番号のみ、または親子両方を参照可能
 - **並行作業**: 複数の子Issueを同時に進めることも可能（すべて同じブランチ内）
 
-## vs /start-task
+## vs /issue/start
 
-| 特徴 | /start-task | /branch-task |
+| 特徴 | /issue/start | /issue/branch |
 |------|-------------|-------------|
 | **Worktree** | 新規作成 | 現在のまま |
 | **ブランチ** | 新規作成 | 現在のまま |

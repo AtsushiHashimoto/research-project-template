@@ -65,22 +65,22 @@
 
 ## スキル一覧
 
-### タスク管理
+### Issue管理
 
 | スキル | 用途 |
 |-------|------|
-| `/start-task [説明]` | 新しいタスクを開始（Issue作成→ブランチ→Worktree） |
-| `/branch-task [説明]` | 現在のWorktree内で子タスクを作成 |
-| `/report-progress` | 現在の進捗をIssueに報告 |
-| `/finish-task` | タスクを完了（レビュー→マージ→Issueクローズ） |
+| `/issue/start [説明]` | 新しいタスクを開始（Issue作成→ブランチ→Worktree） |
+| `/issue/branch [説明]` | 現在のWorktree内で子タスクを作成 |
+| `/issue/report` | 現在の進捗をIssueに報告 |
+| `/issue/finish` | タスクを完了（レビュー→マージ→Issueクローズ） |
 
 ### コミット
 
 | スキル | 用途 | Issueクローズ |
 |-------|------|--------------|
 | `/commit` | ローカルにコミットのみ | ❌ |
-| `/commit push` | コミット＆プッシュ（途中保存） | ❌ |
-| `/commit merge` | コミット＆マージ（タスク完了） | ✅ |
+| `/commit/push` | コミット＆プッシュ（途中保存） | ❌ |
+| `/commit/merge` | コミット＆マージ（タスク完了） | ✅ |
 
 ### レビュー
 

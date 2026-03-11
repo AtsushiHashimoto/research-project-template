@@ -1,10 +1,10 @@
 ---
-description: Finish task with quality review by invoking commit-merge workflow (タスク完了)
+description: Finish task with quality review by invoking commit/merge workflow (タスク完了)
 ---
 
 # Finish Task（タスク完了）
 
-タスクを完了します。`/commit-merge` のエイリアスです。
+タスクを完了します。`/commit/merge` のエイリアスです。
 
 ## 用途
 
@@ -22,17 +22,17 @@ description: Finish task with quality review by invoking commit-merge workflow (
 ## Usage
 
 ```
-/finish-task
+/issue/finish
 ```
 
-## vs /commit-push（途中保存）
+## vs /commit/push（途中保存）
 
-タスクが**まだ完了していない**場合は `/commit-push` を使用してください。
+タスクが**まだ完了していない**場合は `/commit/push` を使用してください。
 
 | スキル | 用途 | Issueクローズ | Worktree削除 |
 |-------|------|--------------|--------------|
-| `/finish-task` | タスク完了 | ✅ する | ✅ する |
-| `/commit-push` | 途中保存 | ❌ しない | ❌ しない |
+| `/issue/finish` | タスク完了 | ✅ する | ✅ する |
+| `/commit/push` | 途中保存 | ❌ しない | ❌ しない |
 
 ## Implementation
 
@@ -52,20 +52,20 @@ SPEC_FILE=$(ls .claude/spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
 - `完了日: YYYY-MM-DD` を追加
 - 変更履歴に完了記録を追加
 
-### Step 2: /commit-merge 実行
+### Step 2: /commit/merge 実行
 
-Skillツールを使って `/commit-merge` コマンドを実行：
+Skillツールを使って `/commit/merge` コマンドを実行：
 
 ```xml
 <invoke name="Skill">
-<parameter name="skill">commit-merge</parameter>
+<parameter name="skill">commit/merge</parameter>
 </invoke>
 ```
 
-すべての実装詳細は `/commit-merge` コマンドに委譲されます。
+すべての実装詳細は `/commit/merge` コマンドに委譲されます。
 
 ## Note
 
-- `/finish-task` は仕様ファイルのステータス更新 + `/commit-merge` を実行
+- `/issue/finish` は仕様ファイルのステータス更新 + `/commit/merge` を実行
 - どちらもタスク完了時に使用（Issueをクローズする）
-- 途中保存したい場合は `/commit-push` を使用
+- 途中保存したい場合は `/commit/push` を使用

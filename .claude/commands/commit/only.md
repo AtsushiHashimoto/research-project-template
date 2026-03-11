@@ -70,4 +70,4 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - 簡易レビュー結果（問題があれば）
 - コミットハッシュ
 - 変更ファイル数
-- 次のステップの案内（push: `/commit push`、完了: `/finish-task`）
+- 次のステップの案内（push: `/commit/push`、完了: `/issue/finish`）
