@@ -168,6 +168,16 @@ claude
 - 追加パッケージのインストール
 - VS Code拡張機能の追加
 
+### Ollamaモデルの永続化
+
+デフォルトでOllamaモデルの永続化は**有効**です。モデルは `data/shared/ollama_models/` に保存され、コンテナ再ビルド後も保持されます。
+
+**Ollama永続化を無効にする場合:**
+
+`.devcontainer/devcontainer.json` を編集し、以下を削除またはコメントアウトしてください:
+1. `containerEnv` セクション（`OLLAMA_MODELS`）
+2. `postCreateCommand` 内の `ollama_models` 部分
+
 ## ライセンス
 
 MIT License

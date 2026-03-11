@@ -172,6 +172,16 @@ Edit `.devcontainer/` to customize:
 - Additional packages
 - VS Code extensions
 
+### Ollama Model Persistence
+
+By default, Ollama model persistence is **enabled**. Models are stored in `data/shared/ollama_models/` and persist across container rebuilds.
+
+**To disable Ollama persistence:**
+
+Edit `.devcontainer/devcontainer.json` and remove or comment out:
+1. The `containerEnv` section with `OLLAMA_MODELS`
+2. The `ollama_models` part in `postCreateCommand`
+
 ---
 
 ## License

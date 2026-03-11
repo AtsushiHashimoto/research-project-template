@@ -31,5 +31,15 @@
       ]
     }
   },
-  "postCreateCommand": "mkdir -p ~/.claude"
+
+  // ============================================================
+  // Ollama Configuration (Default: ON)
+  // To disable: Comment out or remove the containerEnv and
+  // ollama-related postCreateCommand sections below
+  // ============================================================
+  "containerEnv": {
+    "OLLAMA_MODELS": "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
+  },
+
+  "postCreateCommand": "mkdir -p ~/.claude && mkdir -p /workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
 }
