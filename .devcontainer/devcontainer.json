@@ -17,7 +17,7 @@
   "mounts": [
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached",
-    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+    "source=claude-code-config,target=/home/vscode/.claude,type=volume"
   ],
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
@@ -39,7 +39,8 @@
   // ollama-related postCreateCommand sections below
   // ============================================================
   "containerEnv": {
-    "OLLAMA_MODELS": "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
+    "OLLAMA_MODELS": "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models",
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
   },
 
   "postCreateCommand": "mkdir -p ~/.claude && [ -f ~/.claude/.claude.json ] || echo '{}' > ~/.claude/.claude.json && mkdir -p /workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models && echo -n 'devcontainer-${localWorkspaceFolderBasename}' | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null"
