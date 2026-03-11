@@ -72,6 +72,7 @@ my-project/
 │   └── Dockerfile
 ├── data/
 │   └── shared/                # 共有データ（Worktree間で共有）
+│       └── ollama_models/     # Ollamaモデル（オプション）
 └── worktrees/                 # Worktree用ディレクトリ（.gitignore対象）
 ```
 
