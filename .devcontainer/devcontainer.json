@@ -11,7 +11,8 @@
     "--gpus=all",
     "--shm-size=64gb",
     "--ulimit", "memlock=-1",
-    "--ulimit", "stack=67108864"
+    "--ulimit", "stack=67108864",
+    "--hostname", "devcontainer"
   ],
   "mounts": [
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
