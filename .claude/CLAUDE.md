@@ -1,11 +1,11 @@
-# pyfluoview プロジェクト設定
+# {{PROJECT_NAME}} プロジェクト設定
 
 ## プロジェクト概要
 
-Unofficial Python client for Olympus FluoView FV40S-RMTDK API
+{{PROJECT_DESCRIPTION}}
 
-**研究者**: Atsushi Hashimoto
-**開始日**: 2026-03-11
+**研究者**: {{RESEARCHER_NAME}}
+**開始日**: {{START_DATE}}
 
 ---
 
@@ -18,11 +18,12 @@ Unofficial Python client for Olympus FluoView FV40S-RMTDK API
 1. **まずGitHub Issueを作成**
    - 新たなタスクが指示されたら、最初にGitHub Issue を作成する
    - Issue には明確なタイトルと説明を記載
-   - 適切なラベルを付ける（feature, bug, enhancement, research など）
+   - 適切なラベルを付ける（下記「ラベル運用ルール」参照）
+   - 自分をAssigneeに設定（通知を受け取るため）
 
 2. **ブランチの作成**
-   - Issue に対応するブランチを作成: `feature/ISSUE_ID-short-description` または `research/ISSUE_ID-description`
-   - 例: `feature/5-add-dataset-loader`, `research/3-model-training`
+   - Issue に対応するブランチを作成: `feature/ISSUE_ID-short-description`
+   - 例: `feature/5-add-dataset-loader`, `survey/3-related-work`
 
 3. **Git Worktree の使用（必須）**
    - 並行タスクでブランチがコンタミネーション（混入）しないよう、**必ず worktree を作成**して作業する
@@ -34,7 +35,80 @@ Unofficial Python client for Olympus FluoView FV40S-RMTDK API
    - 複数の Issue を並行して進める場合、それぞれ独立した worktree で作業する
    - **注意**: Dockerコンテナ内での開発に対応するため、worktreeは `worktrees/` ディレクトリ内に作成する
 
-### 進捗報告のルール
+---
+
+## ラベル運用ルール
+
+### 種類ラベル（必須、1つ選ぶ）
+
+| ラベル | 用途 | 完了条件 |
+|--------|------|----------|
+| `feature` | 新機能追加 | 機能が動作する |
+| `bug` | バグ修正 | バグが解消 |
+| `survey` | 文献・ライブラリ調査 | `docs/surveys/` に結果を残す |
+| `experiment` | 仮説検証、データ取得 | `data/shared/experiments/` に3点セット保存 |
+| `validation` | 実装の動作確認 | 動く/動かないの判定 |
+| `docs` | ドキュメント | ドキュメント更新完了 |
+| `refactor` | リファクタリング | コード改善完了 |
+| `chore` | CI設定、依存更新など | 設定完了 |
+
+### 状態ラベル（該当時のみ付与）
+
+| ラベル | 用途 |
+|--------|------|
+| `blocked` | 他Issueや外部要因で待ち |
+
+### 終了ラベル（クローズ時、該当時のみ）
+
+| ラベル | 用途 |
+|--------|------|
+| `wontfix` | やらないことにした |
+| `duplicate` | 重複 |
+
+### Issue間の関係性
+
+ラベルではなく、Issue本文またはコメントに記述：
+
+```markdown
+## 関係
+- Parent: #5
+- Blocked by: #7
+- Related: #12
+```
+
+途中で関係性が変わった場合はコメントで追記：
+
+```markdown
+## Update (2026-03-12)
+- Blocked by: #15 （新たに依存が発生）
+```
+
+---
+
+## 成果物の保存場所
+
+### survey の成果物
+
+```
+docs/surveys/
+└── YYYY-MM-DD_topic-name.md
+```
+
+### experiment の成果物（3点セット）
+
+```
+data/shared/experiments/
+└── YYYY-MM-DD_experiment-name/
+    ├── data/              # 生データ
+    │   └── results.csv
+    ├── figures/           # 可視化
+    │   └── plot.png
+    └── README.md          # 実験内容・結論
+```
+
+---
+
+## 進捗報告のルール
 
 - **途中経過は Issue のコメントに Markdown で報告**
   - コードを書いた後、コミット前に進捗を Issue に報告
@@ -43,7 +117,9 @@ Unofficial Python client for Olympus FluoView FV40S-RMTDK API
     - 現在のブロッカー（あれば）
     - 次のステップ
 
-### コミットのルール
+---
+
+## コミットのルール
 
 - **指示があったときのみコミットする**
   - 自動的にコミットせず、明示的な指示を待つ
@@ -55,7 +131,9 @@ Unofficial Python client for Olympus FluoView FV40S-RMTDK API
     - `refactor(scope): description` - リファクタリング
     - `test(scope): description` - テスト追加
 
-### プルリクエストのルール
+---
+
+## プルリクエストのルール
 
 - ブランチでの作業完了後、PR を作成
 - PR タイトルに Issue 番号を含める
@@ -73,6 +151,7 @@ Unofficial Python client for Olympus FluoView FV40S-RMTDK API
 | `/issue/branch [説明]` | 現在のWorktree内で子タスクを作成 |
 | `/issue/report` | 現在の進捗をIssueに報告 |
 | `/issue/finish` | タスクを完了（レビュー→マージ→Issueクローズ） |
+| `/issue/auto [ids...]` | 複数Issueを自動処理（スナップショット付き） |
 
 ### コミット
 
@@ -118,10 +197,10 @@ cd worktrees/issueN
 ### 並行作業の例
 
 ```
-pyfluoview/                # メインリポジトリ
+project-name/                    # メインリポジトリ
 ├── worktrees/                   # Worktree用ディレクトリ（.gitignore対象）
 │   ├── issue5/                  # feature/5-description
-│   ├── issue7/                  # research/7-description
+│   ├── issue7/                  # survey/7-description
 │   └── issue9/                  # fix/9-description
 ├── data/
 │   └── shared/                  # 共有データ（全worktreeからアクセス可能）
@@ -180,7 +259,8 @@ mv debug_images/ data/local/debug/
 
 ### ブランチの命名規則
 - `feature/ISSUE_ID-description` - 新機能
-- `research/ISSUE_ID-description` - 研究・実験
+- `survey/ISSUE_ID-description` - 調査
+- `experiment/ISSUE_ID-description` - 実験
 - `fix/ISSUE_ID-description` - バグ修正
 - `docs/ISSUE_ID-description` - ドキュメント
 

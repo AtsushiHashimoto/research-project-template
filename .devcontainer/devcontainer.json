@@ -1,5 +1,6 @@
 {
   "name": "Research-Project-Dev-Env",
+  "shutdownAction": "none",
   "build": {
     "dockerfile": "Dockerfile",
     "args": {
