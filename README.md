@@ -46,13 +46,15 @@ chmod +x setup.sh
 ### 2. Create GitHub Repository
 
 ```bash
-# Personal account
-gh repo create my-project --public
+# If your repository URL is https://github.com/YOUR_ORG/my-project,
+# YOUR_ORG and my-project are the parts you need to replace.
 
-# Organization account
-gh repo create YOUR_ORG/my-project --public
+# Public
+gh repo create YOUR_ORG/my-project --source=. --push --public
 
-git push -u origin main
+# Private
+gh repo create YOUR_ORG/my-project --source=. --push --private
+
 ```
 
 ### 3. Start Development
