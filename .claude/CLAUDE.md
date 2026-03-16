@@ -1,11 +1,11 @@
-# {{PROJECT_NAME}} プロジェクト設定
+# PushVoice プロジェクト設定
 
 ## プロジェクト概要
 
-{{PROJECT_DESCRIPTION}}
+Wake-word-activated STT middleware that pushes transcripts to your apps.
 
-**研究者**: {{RESEARCHER_NAME}}
-**開始日**: {{START_DATE}}
+**研究者**: Atsushi Hashimoto
+**開始日**: 2026-03-16
 
 ---
 
