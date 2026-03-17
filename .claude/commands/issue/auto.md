@@ -97,44 +97,109 @@ git checkout pre-auto/YYYYMMDD-HHMMSS
 各Issueに対して以下を実行:
 
 #### Step 1: Issue開始
+
+**`/issue/start` スキルを呼び出してWorktreeとブランチを作成**:
+
+```
+Skill(skill="issue/start", args="#${ISSUE_ID}")
+```
+
+これにより以下が自動実行される：
+- Worktree作成
+- ブランチ作成
+- 開始報告のコメント投稿
+
+**注意**: /issue/start は仕様の対話を行うが、/issue/auto では auto-reviewer が代理判断するため、対話はスキップして Step 1.5 に進む。
+
+#### Step 1.5: 仕様レビュー（/review-spec）
+
+**重要**: 実装前に必ず仕様をレビューする。
+
+1. **既存仕様ファイルの確認**
 ```bash
-# /issue/start 相当の処理
-ISSUE_ID=$CURRENT_ID
-ISSUE_INFO=$(gh issue view $ISSUE_ID --json title,body)
-ISSUE_TITLE=$(echo "$ISSUE_INFO" | jq -r '.title')
+SPEC_FILE=".claude/spec/issues/${ISSUE_ID}-*.md"
+if ls $SPEC_FILE 2>/dev/null; then
+  echo "既存の仕様ファイルを使用"
+else
+  echo "仕様ファイルがありません。review-spec を実行します。"
+fi
+```
 
-# ブランチ名生成
-BRANCH_NAME="feature/${ISSUE_ID}-$(echo "$ISSUE_TITLE" | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | cut -c1-30)"
+2. **review-spec の実行**
 
-# Worktree作成
-WORKTREE_PATH="worktrees/issue${ISSUE_ID}"
-git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME"
-cd "$WORKTREE_PATH"
+Task tool で `/review-spec` 相当の処理を実行：
+- 5つのサブエージェント（実現性、品質、設計、Fallback計画、妥当性検証）を並列実行
+- 仕様ファイルを生成
 
-# 開始報告
-gh issue comment $ISSUE_ID --body "## 🤖 自動処理開始
+3. **auto-reviewer による代理判断**
 
-\`/issue/auto\` による自動処理を開始します。
+`agents/auto-reviewer.md` の定義に従い、review-spec の結果に対して自動判断：
 
-- ブランチ: \`$BRANCH_NAME\`
-- Worktree: \`$WORKTREE_PATH\`"
+```
+Task(subagent_type="general-purpose", prompt="
+あなたは auto-reviewer エージェントです。
+agents/auto-reviewer.md の定義に従って、review-spec の結果に対して判断を行ってください。
+
+## 必ず読み込むコンテキスト
+- constitution/core-rules.md
+- specs/invariants.md
+- specs/known-issues.md
+
+## 判断対象
+${REVIEW_SPEC_RESULT}
+
+## 出力
+1. 各判断項目への回答（許可/禁止/警告付き許可）
+2. 判断理由と参照コンテキスト
+3. 自信度（%）
+4. 自信度 < 50% の場合は「停止」を明示
+
+判断ログを .claude/spec/issues/${ISSUE_ID}-auto-decisions.md に出力してください。
+")
+```
+
+4. **停止判断の処理**
+
+auto-reviewer が「停止」を返した場合：
+```bash
+gh issue comment $ISSUE_ID --body "## ⚠️ 自動処理停止
+
+仕様レビューで判断できない項目があります。
+
+### 確認が必要な項目
+[auto-reviewer からの項目リスト]
+
+手動で \`/issue/start #${ISSUE_ID}\` を実行して仕様を確定してください。"
+
+echo "Issue #${ISSUE_ID} で停止。残りのIssue: ${REMAINING_IDS}"
+exit 1
 ```
 
 #### Step 2: 実装作業
-Taskエージェントを使用して実装:
+
+**仕様ファイルを参照して実装**:
+
 ```
 Task(subagent_type="general-purpose", prompt="
 Issue #${ISSUE_ID} の実装を行ってください。
 
-Issue内容:
+## Issue内容
 ${ISSUE_BODY}
 
-完了条件:
-1. Issue要件を満たす実装
-2. 必要なテストの追加
-3. ドキュメント更新（必要な場合）
+## 仕様ファイル（必ず参照）
+.claude/spec/issues/${ISSUE_ID}-*.md
 
-実装が完了したら、変更内容のサマリーを報告してください。
+## 判断ログ（承認済みFallback等）
+.claude/spec/issues/${ISSUE_ID}-auto-decisions.md
+
+## 完了条件
+1. 仕様ファイルの検証チェックリストを全て満たす
+2. 状態遷移図に沿った実装
+3. 承認済みFallbackホワイトリスト以外のfallbackを使わない
+4. ファイル構成計画に従う
+5. 必要なテストの追加
+
+実装が完了したら、検証チェックリストの各項目への対応状況を報告してください。
 ")
 ```
 
@@ -150,19 +215,22 @@ $(git diff --stat main)
 ```
 
 #### Step 4: 品質チェック（自動評価）
-```bash
-# 品質チェックツール実行
-QUALITY_OK=true
 
-# ruff check
-if [ -f "pyproject.toml" ]; then
-  uv run ruff check src/ || QUALITY_OK=false
-  uv run ruff format --check src/ || QUALITY_OK=false
-  uv run mypy src/ || QUALITY_OK=false
-  uv run pytest || QUALITY_OK=false
+##### 4-1: コード品質チェック
+
+**プロジェクト固有の品質チェックスクリプトを実行**:
+
+```bash
+# scripts/quality-check.sh を実行
+if [ -x "./scripts/quality-check.sh" ]; then
+  ./scripts/quality-check.sh
+  QUALITY_OK=$?
+else
+  echo "Warning: scripts/quality-check.sh not found"
+  QUALITY_OK=0
 fi
 
-if [ "$QUALITY_OK" = false ]; then
+if [ "$QUALITY_OK" -ne 0 ]; then
   echo "品質チェック失敗。処理を停止します。"
   gh issue comment $ISSUE_ID --body "## ⚠️ 品質チェック失敗
 
@@ -171,54 +239,77 @@ if [ "$QUALITY_OK" = false ]; then
 fi
 ```
 
-#### Step 5: コミット＆マージ
-```bash
-# /commit/merge 相当（Phase 0承認済みなので自動実行）
-git add .
-git commit -m "feat: ${ISSUE_TITLE}
+**注意**: 品質チェックの具体的なコマンドは `scripts/quality-check.sh` で定義される。
+プロジェクトの言語やツールに応じてスクリプトをカスタマイズすること。
 
-Closes #${ISSUE_ID}
+##### 4-2: 仕様整合性チェック
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-Co-Authored-By: Claude <noreply@anthropic.com>"
+Task tool で仕様ファイルとの整合性を検証：
 
-git push -u origin "$BRANCH_NAME"
+```
+Task(subagent_type="general-purpose", prompt="
+実装が仕様ファイルに適合しているか検証してください。
 
-# PR作成＆マージ
-gh pr create --title "${ISSUE_TITLE} (#${ISSUE_ID})" \
-  --body "Closes #${ISSUE_ID}
+## 仕様ファイル
+.claude/spec/issues/${ISSUE_ID}-*.md
 
-## 自動処理
-\`/issue/auto\` による自動処理で作成されました。
+## 判断ログ
+.claude/spec/issues/${ISSUE_ID}-auto-decisions.md
 
-## 品質チェック
-- ✅ ruff check
-- ✅ ruff format
-- ✅ mypy
-- ✅ pytest"
+## 検証項目
 
-gh pr merge --squash --delete-branch
+### 1. 検証チェックリスト
+仕様ファイルの「検証チェックリスト」の各項目が満たされているか確認。
+
+### 2. 状態遷移
+状態遷移図に定義された全ての状態と遷移が実装されているか確認。
+
+### 3. Fallback ホワイトリスト
+承認済みFallbackホワイトリスト以外のfallbackが使われていないか確認。
+
+### 4. ファイル構成
+ファイル構成計画に従っているか確認。
+
+### 5. invariants.md
+specs/invariants.md に反する実装がないか確認。
+
+## 出力
+各項目について ✅ / ❌ で判定し、❌ がある場合は詳細を報告。
+❌ が1つでもあれば「不合格」と明示。
+")
 ```
 
-#### Step 6: クリーンアップ
+不合格の場合：
 ```bash
-# Worktree削除
-MAIN_REPO=$(git worktree list | head -1 | awk '{print $1}')
-cd "$MAIN_REPO"
-git checkout main
-git pull
-git worktree remove "$WORKTREE_PATH" 2>/dev/null || true
+gh issue comment $ISSUE_ID --body "## ⚠️ 仕様整合性チェック失敗
+
+実装が仕様ファイルに適合していません。
+
+### 不合格項目
+[検証結果からの項目]
+
+手動で修正してください。"
+exit 1
 ```
 
-#### Step 7: 完了報告
-```bash
-gh issue comment $ISSUE_ID --body "## ✅ 自動処理完了
+#### Step 5: タスク完了
 
-- ✅ 実装完了
-- ✅ 品質チェック通過
-- ✅ PR作成＆マージ
-- ✅ クリーンアップ完了"
+**`/issue/finish` スキルを呼び出してコミット、PR作成、マージ、クリーンアップを実行**:
+
 ```
+Skill(skill="issue/finish")
+```
+
+これにより以下が自動実行される（`/commit/merge` 経由）：
+- 仕様ファイルのステータス更新
+- コミット＆プッシュ
+- PR作成＆マージ
+- Worktree削除
+- 完了報告のコメント投稿
+- Issueクローズ
+
+**注意**: `/issue/finish` は品質チェック（`scripts/quality-check.sh`）を再度実行する。
+Step 4-1 で既に通過しているため、通常は成功するはず。
 
 ### Phase Final: 完了報告
 
@@ -261,15 +352,41 @@ gh issue comment $ISSUE_ID --body "## ✅ 自動処理完了
 
 ## Implementation Notes
 
-1. **Taskエージェントの使用**: 各Issue実装にはTaskエージェントを使用し、メインコンテキストを節約
+1. **子スキルの使用**: `/issue/start` と `/issue/finish` を呼び出すことで、コードの重複を避け、一貫性を保つ
 
-2. **compact の実行**: 各Issue完了後に `/compact` を実行してコンテキストを整理
+2. **品質チェックスクリプト**: `scripts/quality-check.sh` を使用することで、プロジェクト固有の品質チェックを柔軟に定義可能
 
-3. **エラー時のリカバリー**: スナップショットがあるので、いつでも元に戻せる
+3. **Taskエージェントの使用**: 各Issue実装にはTaskエージェントを使用し、メインコンテキストを節約
+
+4. **compact の実行**: 各Issue完了後に `/compact` を実行してコンテキストを整理
+
+5. **エラー時のリカバリー**: スナップショットがあるので、いつでも元に戻せる
 
 ## Safety Checks
 
 - ✅ 実行前にスナップショット作成
 - ✅ ユーザー承認後に開始
+- ✅ **review-spec による仕様レビュー**（Step 1.5）
+- ✅ **auto-reviewer による代理判断**（自信度 < 50% で停止）
 - ✅ 品質チェック失敗で停止
+- ✅ **仕様整合性チェック**（Step 4-2）
 - ✅ ロールバック方法を常に表示
+
+## Agent References
+
+| エージェント | ファイル | 用途 |
+|-------------|---------|------|
+| auto-reviewer | `agents/auto-reviewer.md` | review-spec の結果に対する代理判断 |
+
+## Script References
+
+| スクリプト | ファイル | 用途 |
+|-----------|---------|------|
+| 品質チェック | `scripts/quality-check.sh` | プロジェクト固有の品質チェック（lint, test等） |
+
+## Skill References
+
+| スキル | 用途 |
+|-------|------|
+| `/issue/start` | Issue開始、Worktree作成、ブランチ作成 |
+| `/issue/finish` | タスク完了、コミット、PR、マージ、クリーンアップ |

@@ -24,6 +24,7 @@ argument-hint: [--auto | auto]
 **Auto-Approval の動作**:
 - 品質チェック（`scripts/quality-check.sh`）がパス → 自動で Phase 1 へ進む
 - 品質チェック失敗 → 自動修正を試行 → 再失敗なら停止
+- 観点レビュー（Step 3）で重大な問題 → 停止してエラー報告
 
 `/issue/auto` から呼び出された場合は自動的に auto モードで動作する。
 
