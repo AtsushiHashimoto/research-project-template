@@ -36,6 +36,88 @@ description: Finish task with quality review by invoking commit/merge workflow (
 
 ## Implementation
 
+### Step 0: 未回答のQA質問を確認
+
+`/qa/ask` で投稿した質問に未回答がないか確認します。
+
+```python
+from pathlib import Path
+import json
+
+questions_file = Path("docs/qa/questions.jsonl")
+answers_file = Path("docs/qa/answers.jsonl")
+
+# 質問がなければスキップ
+if not questions_file.exists():
+    # QAなし、続行
+    pass
+else:
+    # 質問IDを収集
+    question_ids = set()
+    for line in questions_file.read_text().strip().split('\n'):
+        if line:
+            q = json.loads(line)
+            question_ids.add(q['id'])
+
+    # 回答済みIDを収集
+    answered_ids = set()
+    if answers_file.exists():
+        for line in answers_file.read_text().strip().split('\n'):
+            if line:
+                a = json.loads(line)
+                answered_ids.add(a['id'])
+
+    # 未回答の質問
+    unanswered = question_ids - answered_ids
+    if unanswered:
+        # 未回答の質問ごとにIssueを作成
+        for qid in unanswered:
+            create_qa_followup_issue(qid)
+```
+
+未回答の質問がある場合、各質問に対してフォローアップIssueを作成します。
+
+```python
+def create_qa_followup_issue(question_id: str) -> None:
+    """未回答の質問に対するフォローアップIssueを作成"""
+    store = QAStore(Path("docs/qa"))
+    question = store.get_question_by_id(question_id)
+
+    if not question:
+        return
+
+    title = f"[QA] {question_id}: {question.question[:50]}"
+    body = f"""## 概要
+
+Issue #{question.issue} で仮決定した内容について、確認が必要です。
+
+## 質問内容
+
+{question.question}
+
+## 仮決定
+
+{question.decision or "なし"}
+
+## 対応
+
+- [ ] 回答を確認
+- [ ] 必要に応じて実装を修正
+
+## 関係
+
+- Parent: #{question.issue}
+"""
+
+    # gh コマンドでIssue作成
+    # gh issue create --title "..." --body "..." --label "qa-pending"
+```
+
+作成されるIssue:
+- タイトル: `[QA] Q001: 質問内容...`
+- ラベル: `qa-pending`
+- 親Issueへのリンク付き
+
 ### Step 1: 仕様ファイルのステータス更新
 
 ```bash
