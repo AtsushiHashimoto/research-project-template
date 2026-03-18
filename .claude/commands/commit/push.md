@@ -27,7 +27,23 @@ description: Commit and push changes (途中保存)
 
 ### Phase 0: 簡易レビュー
 
-1. **変更内容を確認**
+#### Step 0: QA回答の確認
+
+コミット前に未確認のQA回答がないか確認：
+
+```bash
+# docs/qa/answers.jsonl をチェック
+if [ -f "docs/qa/questions.jsonl" ]; then
+  echo "QA回答を確認中..."
+fi
+```
+
+新しい回答がある場合：
+- 回答内容を表示
+- 仮決定と異なる場合は、変更が必要か確認
+- 必要に応じて実装を修正してからコミット
+
+#### Step 1: 変更内容を確認
    ```bash
    git status
    git diff --stat

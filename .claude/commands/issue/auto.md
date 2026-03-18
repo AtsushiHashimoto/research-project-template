@@ -43,7 +43,43 @@ git checkout pre-auto/YYYYMMDD-HHMMSS
 
 ### Phase 0: 事前準備
 
-1. **引数解析**
+#### Step 0: QA回答の確認
+
+**前回セッションで投げた質問への回答を確認**:
+
+```bash
+# docs/qa/answers.jsonl をチェック
+if [ -f "docs/qa/questions.jsonl" ]; then
+  echo "QA回答を確認中..."
+  # /qa/check 相当の処理を実行
+fi
+```
+
+未確認の回答がある場合：
+```
+📬 新しいQA回答があります:
+
+### Q001: データフォーマットの選択
+- 質問: CSV と JSON どちらが好ましいですか？
+- 仮決定: JSON
+- 回答: JSON で問題ありません
+- 回答者: hashimoto
+
+✅ 仮決定と一致。追加対応不要。
+
+---
+
+### Q002: 認証方式
+- 質問: OAuth2 と API Key どちらを使いますか？
+- 仮決定: なし（deferred）
+- 回答: OAuth2 を使ってください
+
+⚠️ 実装が必要です。関連Issue: #21
+```
+
+回答に基づいて作業計画を調整してから、後続のステップに進む。
+
+#### Step 1: 引数解析
    ```bash
    # Issue IDのリストを取得
    ISSUE_IDS="$ARGUMENTS"
@@ -365,6 +401,17 @@ Step 4-1 で既に通過しているため、通常は成功するはず。
 │   git push -f origin main                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Phase Cleanup: コンテキスト整理
+
+全Issue処理完了後、コンテキストを整理：
+
+```
+/compact
+```
+
+**注意**: 各Issue完了時に `/issue/finish` → `/commit/merge` 経由で `/compact` が実行されるが、
+全体処理完了後にも実行して最終的なコンテキストを整理する。
 
 ## Error Handling
 

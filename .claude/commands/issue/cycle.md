@@ -39,6 +39,13 @@ argument-hint: [issue_ids...] [max_cycles]
 │   └───────────────┘    └───────────────┘                   │
 │                              │                              │
 │                              v                              │
+│   ┌───────────────────────────────────┐                    │
+│   │ Backlog Check                     │                    │
+│   │ docs/backlog.md をスキャン        │                    │
+│   │ -> 着手可能: BL-006              │  (Issue作成提案)    │
+│   └───────────────────────────────────┘                    │
+│                              │                              │
+│                              v                              │
 │   Convergence! (収束)                                       │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
@@ -139,6 +146,116 @@ CYCLE_SNAPSHOT="cycle-${CYCLE_NUM}/$(date +%Y%m%d-%H%M%S)"
 git branch "$CYCLE_SNAPSHOT" HEAD
 ```
 
+### Phase Backlog: バックログチェック（収束後）
+
+Issue/gaps のサイクルが収束した後、`docs/backlog.md` をチェックして着手可能な項目がないか確認します。
+
+#### Step 1: バックログ読み込み
+
+```bash
+# docs/backlog.md を読み込み
+BACKLOG_FILE="docs/backlog.md"
+if [ -f "$BACKLOG_FILE" ]; then
+  BACKLOG_CONTENT=$(cat "$BACKLOG_FILE")
+else
+  echo "バックログファイルが存在しません"
+  BACKLOG_CONTENT=""
+fi
+```
+
+#### Step 2: 各項目の着手可否判定
+
+```
+Task(subagent_type="general-purpose", prompt="
+docs/backlog.md の各バックログ項目について、着手可能かどうかを判定してください。
+
+## 判定基準
+
+各項目の「後回しにした理由」を確認し、その理由が解消されているかをコードベースと照合します。
+
+例:
+- BL-001 (FeedbackMonitor): 「パイプライン全体を動かすことを優先」
+  → Phase 1/2 E2Eテストが完了していれば着手可能
+- BL-006 (duo-planner統合): 「duo-core単体で動作確認が取れてから」
+  → Phase 2 E2Eテストが完了していれば着手可能
+- BL-007 (ROS2 Executor): 「HTTPExecutorの実装が固まった後」
+  → HTTPExecutorが実装済みなら着手可能
+
+## 出力形式
+
+| BL ID | タイトル | 着手可否 | 理由 |
+|-------|---------|---------|------|
+| BL-001 | FeedbackMonitor | ✅ 可能 | Phase 2 E2E完了済み |
+| BL-002 | Notifier | ❌ 不可 | BL-001が先に必要 |
+| ...
+
+## 着手可能な項目がある場合
+
+Issue作成を提案:
+- タイトル案
+- 推奨ラベル
+- 依存関係
+")
+```
+
+#### Step 3: Issue作成提案
+
+着手可能な項目がある場合、ユーザーに確認を求めます:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ バックログから着手可能な項目が見つかりました                │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ ✅ BL-006: duo-planner との統合                            │
+│    理由: Phase 2 E2Eテストが完了し、duo-core単体動作確認済み│
+│                                                             │
+│ ✅ BL-007: ROS2 Executor                                   │
+│    理由: HTTPExecutor が実装済み                            │
+│                                                             │
+│ Issueを作成しますか？                                       │
+│ [はい、全て作成]                                            │
+│ [選択して作成]                                              │
+│ [いいえ、スキップ]                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Step 4: Issue作成（承認時）
+
+```bash
+for BL_ITEM in $READY_BACKLOG_ITEMS; do
+  BL_ID=$(echo "$BL_ITEM" | jq -r '.id')
+  BL_TITLE=$(echo "$BL_ITEM" | jq -r '.title')
+  BL_DESCRIPTION=$(echo "$BL_ITEM" | jq -r '.description')
+  BL_CONSIDERATIONS=$(echo "$BL_ITEM" | jq -r '.considerations')
+
+  gh issue create \
+    --title "feat: ${BL_TITLE}" \
+    --body "## 概要
+
+${BL_DESCRIPTION}
+
+## 背景
+
+バックログ項目 ${BL_ID} より。
+\`/issue/cycle\` のバックログチェックで着手可能と判定されました。
+
+## 実装時の考慮点
+
+${BL_CONSIDERATIONS}
+
+## 関係
+- Backlog: ${BL_ID}
+
+---
+*このIssueは /issue/cycle のバックログチェックにより自動生成されました*" \
+    --label "feature"
+
+  # バックログファイルに着手開始を記録
+  echo "<!-- Started: $(date +%Y-%m-%d) as Issue #XX -->" >> docs/backlog.md
+done
+```
+
 ### Phase Final: 完了報告
 
 ```markdown
@@ -180,6 +297,14 @@ git branch "$CYCLE_SNAPSHOT" HEAD
 | Cycle 1後 | cycle-1/20260318-121500 |
 | Cycle 2後 | cycle-2/20260318-123000 |
 
+## バックログチェック結果
+
+| BL ID | タイトル | 状態 | アクション |
+|-------|---------|------|-----------|
+| BL-006 | duo-planner統合 | ✅ 着手可能 | Issue #15 作成 |
+| BL-007 | ROS2 Executor | ✅ 着手可能 | Issue #16 作成 |
+| BL-001 | FeedbackMonitor | ❌ 未着手 | 依存: BL-002 |
+
 ## ロールバック
 
 特定サイクルに戻す場合:
@@ -193,6 +318,14 @@ git reset --hard cycle-1/20260318-121500
 git checkout pre-cycle/20260318-120000
 git reset --hard pre-cycle/20260318-120000
 ```
+```
+
+### Phase Cleanup: コンテキスト整理
+
+全サイクル完了後、コンテキストを整理：
+
+```
+/compact
 ```
 
 ## Safety Features
@@ -247,6 +380,8 @@ git branch | grep "cycle-"
 | `--dry-run` | 実際の変更は行わず、計画のみ表示 |
 | `--no-confirm` | 確認プロンプトをスキップ |
 | `--resume BRANCH` | 指定ブランチから再開 |
+| `--skip-backlog` | バックログチェックをスキップ |
+| `--backlog-only` | バックログチェックのみ実行（サイクルなし） |
 
 ## Natural Language Parsing
 
