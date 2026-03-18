@@ -14,6 +14,7 @@ RUN apt-get update && \
     tree \
     htop \
     sudo \
+    tmux \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 非rootユーザーを作成（既存のUID/GIDがあれば再利用）
@@ -55,3 +56,11 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # claudeコマンドのaliasを設定（全ユーザー向け）
 RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /etc/bash.bashrc
+
+# autoclaude をインストール（レート制限後の自動再開用）
+RUN curl -L https://github.com/henryaj/autoclaude/releases/download/v0.1.2/autoclaude_0.1.2_linux_amd64.tar.gz \
+    -o /tmp/autoclaude.tar.gz && \
+    tar -xzf /tmp/autoclaude.tar.gz -C /tmp && \
+    mv /tmp/autoclaude /usr/local/bin/autoclaude && \
+    chmod +x /usr/local/bin/autoclaude && \
+    rm -rf /tmp/autoclaude*
