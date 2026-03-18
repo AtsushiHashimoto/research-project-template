@@ -1,13 +1,17 @@
 # Research Project Template
 
-Claude Code を活用した研究プロジェクト用テンプレートです。
+Claude Code を活用した研究プロジェクト用テンプレートです。**VS Code DevContainer** でGPU対応の開発環境が一発で起動します。
+
+[English](README.md) | [中文](README-zh.md)
 
 ## 特徴
 
-- **Issue駆動開発**: GitHub Issueを中心としたワークフロー
+- **VS Code DevContainer**: GPU対応、Claude Code・GitHub CLI・autoclaude等がプリインストール済み
+- **Issue駆動開発**: GitHub Issueを中心としたワークフロー、`/issue/auto` による一括処理対応
 - **Git Worktree管理**: 並行タスクを独立したディレクトリで管理
 - **データ保護**: 重要データとWorktreeの分離
-- **Claude Code統合**: カスタムスキルによる自動化
+- **Claude Code統合**: カスタムスキルによる自動化、`claude-san` でrate limit時自動再開
+- **Human-in-the-Loop QA**: Slack/Discord経由でタスク実行中に人間へ質問
 
 ---
 
@@ -58,7 +62,9 @@ git push -u origin main
 VS Code で Dev Container を使用する場合:
 1. VS Code でプロジェクトを開く
 2. "Reopen in Container" を選択
-3. Claude Code を起動: `claude`
+3. Claude Code を起動: `claude-san`（rate limit時に自動再開、tmux + [autoclaude](https://github.com/henryaj/autoclaude)）
+
+> 詳細は [docs/claude-san.md](docs/claude-san.md) を参照。通常の `claude` コマンドも使用可能です。
 
 ---
 
@@ -105,10 +111,15 @@ my-project/
 | `/issue/branch [説明]` | 現在のWorktree内で子タスクを作成 |
 | `/issue/report` | 進捗をIssueに報告 |
 | `/issue/finish` | タスクを完了（レビュー + マージ + クリーンアップ） |
+| `/issue/auto [ids...]` | 複数Issueを自動処理（スナップショット付き） |
 | `/commit` | ローカルにコミット |
 | `/commit/push` | コミット＆プッシュ（途中保存） |
 | `/commit/merge` | コミット＆マージ（タスク完了） |
 | `/review` | 多角的コードレビュー |
+| `/review-spec` | 実装前の仕様レビュー・検証 |
+| `/qa/setup` | QAシステムのセットアップ（Slack/Discord） |
+| `/qa/ask` | 人間に質問を送信 |
+| `/qa/check` | 未回答の質問を確認 |
 | `/template/sync` | テンプレートの最新更新を取り込み |
 | `/template/contribute` | テンプレートへの改善PRを作成 |
 
@@ -123,6 +134,16 @@ my-project/
 - **`.devcontainer/devcontainer.json`**: VS Code拡張機能、環境変数
 
 詳細なカスタマイズ手順は `.claude/CLAUDE.md` を参照してください。
+
+---
+
+## ドキュメント
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [docs/claude-san.md](docs/claude-san.md) | claude-san の使い方（tmux + autoclaude） |
+| [docs/devcontainer-internals.md](docs/devcontainer-internals.md) | DevContainer 自動化の仕組み |
+| [docs/security.md](docs/security.md) | 自動化機能のセキュリティ分析 |
 
 ---
 
