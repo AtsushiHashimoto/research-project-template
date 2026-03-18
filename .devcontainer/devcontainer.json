@@ -43,5 +43,9 @@
     "OLLAMA_MODELS": "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
   },
 
-  "postCreateCommand": "sudo chown -R $(id -u):$(id -g) /home/vscode/.claude && ln -sf /home/vscode/.claude/.claude.json /home/vscode/.claude.json && echo -n 'devcontainer-${localWorkspaceFolderBasename}' | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null && mkdir -p \"/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models\""
+  "initializeCommand": "bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
+
+  "postCreateCommand": "sudo chown -R $(id -u):$(id -g) /home/vscode/.claude && ln -sf /home/vscode/.claude/.claude.json /home/vscode/.claude.json && echo -n 'devcontainer-${localWorkspaceFolderBasename}' | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null && mkdir -p \"/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models\"",
+
+  "postStartCommand": "nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost. Container restart required.' >&2"
 }
