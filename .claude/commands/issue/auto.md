@@ -7,27 +7,15 @@ argument-hint: [issue_ids...]
 
 複数のIssueを自動的に順番に処理します。
 
-## ★★★ 重要: 完全自動モード ★★★
-
-**このコマンドは「自動」処理です。以下を厳守してください：**
-
-1. **ユーザー確認は最初の1回のみ** - 処理開始前の確認だけ
-2. **各Issueの完了時に確認しない** - 品質チェック通過で自動マージ
-3. **エラー時のみ停止** - 品質チェック失敗や重大な問題がある場合のみ
-4. **途中で質問しない** - 判断が必要な場合は安全側に倒して続行
-
-**禁止事項:**
-- 「次のIssueに進みますか？」と聞く
-- 「マージしてよいですか？」と聞く
-- 各Issue完了時にユーザー入力を待つ
-
 ## Usage
 
 ```
 /issue/auto 2 3 4        # Issue #2, #3, #4 を順番に処理
 /issue/auto 2,3,4        # カンマ区切りも可
-/issue/auto --all-open   # 全てのopen Issueを処理
+/issue/auto --all-open   # 全てのopen Issueを処理（out-of-dateを除く）
 ```
+
+**注意**: `out-of-date` ラベルが付いたIssueは自動的にスキップされます。
 
 ## Safety Features
 
@@ -42,14 +30,14 @@ git branch "pre-auto/$(date +%Y%m%d-%H%M%S)" main
 git checkout pre-auto/YYYYMMDD-HHMMSS
 ```
 
-### 2. 実行前確認（最初の1回のみ）
+### 2. 実行前確認
 処理開始前にユーザーに確認:
 - 処理対象Issue一覧
 - 実行順序（依存関係考慮）
-- **確認後は全て自動で完了まで進む**
+- 自動承認の範囲
 
 ### 3. 品質チェック自動評価
-各Issue完了時に品質チェックを実施し、**通過すれば自動マージ**。問題があれば停止。
+各Issue完了時に品質チェックを実施し、問題があれば停止。
 
 ## Workflow
 
@@ -63,7 +51,38 @@ git checkout pre-auto/YYYYMMDD-HHMMSS
    ISSUE_IDS=$(echo "$ISSUE_IDS" | tr ',' ' ')
    ```
 
-2. **依存関係の解析**
+2. **スキップ対象フィルタリング**
+   ```bash
+   # スキップ対象ラベルが付いたIssueをフィルタリング
+   # - in-progress: 既に作業中
+   # - out-of-date: 古くなったIssue
+   FILTERED_IDS=""
+   SKIPPED_IDS=""
+   for ID in $ISSUE_IDS; do
+     LABELS=$(gh issue view $ID --json labels -q '.labels[].name')
+     if echo "$LABELS" | grep -q "in-progress"; then
+       SKIPPED_IDS="$SKIPPED_IDS $ID"
+       echo "Skip #$ID (in-progress)"
+     elif echo "$LABELS" | grep -q "out-of-date"; then
+       SKIPPED_IDS="$SKIPPED_IDS $ID"
+       echo "Skip #$ID (out-of-date)"
+     else
+       FILTERED_IDS="$FILTERED_IDS $ID"
+     fi
+   done
+   ISSUE_IDS="$FILTERED_IDS"
+   ```
+
+   スキップされたIssueがある場合、ユーザーに通知:
+   ```
+   ⚠️ 以下のIssueはスキップされます:
+   - #3: 初期仕様 (out-of-date)
+   - #5: 認証機能 (in-progress)
+
+   ラベルを外せば処理対象になります。
+   ```
+
+3. **依存関係の解析**
    ```bash
    # 各Issueの情報を取得
    for ID in $ISSUE_IDS; do
@@ -73,18 +92,18 @@ git checkout pre-auto/YYYYMMDD-HHMMSS
 
    Issue本文に `depends on #N` や `blocked by #N` があれば順序を調整。
 
-3. **処理順序の決定**
+4. **処理順序の決定**
    - 依存関係がないIssueは番号順
    - 依存関係があるIssueは被依存側を先に
 
-4. **スナップショット作成**
+5. **スナップショット作成**
    ```bash
    SNAPSHOT_BRANCH="pre-auto/$(date +%Y%m%d-%H%M%S)"
    git branch "$SNAPSHOT_BRANCH" main
    echo "スナップショット作成: $SNAPSHOT_BRANCH"
    ```
 
-5. **ユーザー確認**
+6. **ユーザー確認**
    ```
    ┌─────────────────────────────────────────────────────────────┐
    │ /issue/auto 実行確認                                       │
@@ -115,7 +134,7 @@ git checkout pre-auto/YYYYMMDD-HHMMSS
 **`/issue/start` スキルを呼び出してWorktreeとブランチを作成**:
 
 ```
-Skill(skill="issue:start", args="#${ISSUE_ID}")
+Skill(skill="issue/start", args="#${ISSUE_ID}")
 ```
 
 これにより以下が自動実行される：
@@ -213,6 +232,10 @@ ${ISSUE_BODY}
 4. ファイル構成計画に従う
 5. 必要なテストの追加
 
+## 重要な制約
+- **コミットは行わないでください**。コミットは後のステップ（/issue/finish）で自動実行されます。
+- /commit、/commit/only、/commit/push、/commit/merge などのスキルを呼び出さないでください。
+
 実装が完了したら、検証チェックリストの各項目への対応状況を報告してください。
 ")
 ```
@@ -308,16 +331,13 @@ exit 1
 
 #### Step 5: タスク完了
 
-**`/issue/finish --auto` スキルを呼び出してコミット、PR作成、マージ、クリーンアップを実行**:
+**`/issue/finish` スキルを呼び出してコミット、PR作成、マージ、クリーンアップを実行**:
 
 ```
-Skill(skill="issue:finish", args="--auto")
+Skill(skill="issue/finish")
 ```
 
-**重要**: `/issue/auto` から呼び出すため `--auto` を付与する。
-これにより品質チェック通過後にユーザー確認なしで自動マージされる。
-
-これにより以下が自動実行される（`/commit/merge --auto` 経由）：
+これにより以下が自動実行される（`/commit/merge` 経由）：
 - 仕様ファイルのステータス更新
 - コミット＆プッシュ
 - PR作成＆マージ
@@ -383,6 +403,7 @@ Step 4-1 で既に通過しているため、通常は成功するはず。
 
 - ✅ 実行前にスナップショット作成
 - ✅ ユーザー承認後に開始
+- ✅ **out-of-date ラベル付きIssueを自動スキップ**
 - ✅ **review-spec による仕様レビュー**（Step 1.5）
 - ✅ **auto-reviewer による代理判断**（自信度 < 50% で停止）
 - ✅ 品質チェック失敗で停止

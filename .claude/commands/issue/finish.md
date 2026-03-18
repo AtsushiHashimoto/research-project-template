@@ -13,11 +13,12 @@ description: Finish task with quality review by invoking commit/merge workflow (
 以下を実行します：
 1. 品質レビュー（Issue目的との整合性確認）
 2. **仕様ファイルのステータス更新**（completed）
-3. Commit & Push
-4. PR作成 & マージ
-5. **Issueクローズ**
-6. Worktree削除
-7. コンテキスト整理（/compact）
+3. **`in-progress` ラベルを削除**
+4. Commit & Push
+5. PR作成 & マージ
+6. **Issueクローズ**
+7. Worktree削除
+8. コンテキスト整理（/compact）
 
 ## Usage
 
@@ -133,6 +134,12 @@ SPEC_FILE=$(ls .claude/spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
 - `ステータス: draft` → `ステータス: completed`
 - `完了日: YYYY-MM-DD` を追加
 - 変更履歴に完了記録を追加
+
+### Step 1.5: in-progress ラベルを削除
+
+```bash
+gh issue edit "$ISSUE_ID" --remove-label "in-progress"
+```
 
 ### Step 2: /commit/merge 実行
 
