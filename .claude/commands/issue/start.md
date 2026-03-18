@@ -81,7 +81,7 @@ git worktree list
 
 Issue を作成（自分をAssigneeに設定して通知を受け取る）:
 ```bash
-gh issue create --title "$TASK_DESCRIPTION" --body "詳細な説明" --label "$LABEL" --assignee @me
+gh issue create --title "$TASK_DESCRIPTION" --body "詳細な説明" --label "$LABEL" --label "in-progress" --assignee @me
 ```
 
 Worktree とブランチを作成:
