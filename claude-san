@@ -1,0 +1,37 @@
+#!/bin/bash
+# Claude Code + autoclaude セットアップスクリプト
+# rate limit 後に自動再開するための環境を起動
+
+# セッション名を生成（引数のハッシュまたはデフォルト）
+if [ $# -eq 0 ]; then
+    SESSION_NAME="claude-work"
+else
+    SESSION_NAME="claude-$(echo "$*" | md5sum | cut -c1-8)"
+fi
+
+# 引数をそのままclaudeに渡す
+CLAUDE_ARGS="$*"
+CLAUDE_CMD="claude --dangerously-skip-permissions $CLAUDE_ARGS"
+
+# 既存セッションがあれば接続、なければ新規作成
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "既存セッションに接続: $SESSION_NAME"
+    tmux attach -t "$SESSION_NAME"
+else
+    echo "新規セッション作成: $SESSION_NAME"
+    echo "Claude args: $CLAUDE_ARGS"
+    tmux new-session -d -s "$SESSION_NAME"
+    tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" Enter
+    tmux split-window -h -l 50% -t "$SESSION_NAME"
+    tmux send-keys -t "$SESSION_NAME" 'autoclaude' Enter
+    tmux select-pane -t "$SESSION_NAME":0.0
+    tmux resize-pane -Z  # Claudeペインを最大化
+    tmux attach -t "$SESSION_NAME"
+fi
+
+# 使い方:
+#   claude-san                    # 対話モード
+#   claude-san -c                 # 前回の会話を継続
+#   claude-san --continue         # 同上
+#   claude-san -r <session-id>    # 特定セッション再開
+#   claude-san -p "prompt"        # 非対話モード
