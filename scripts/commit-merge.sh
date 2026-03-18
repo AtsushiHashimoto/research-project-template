@@ -1,18 +1,21 @@
 #!/bin/bash
 # scripts/commit-merge.sh
 #
-# Worktree内からでも安全にPRをマージし、クリーンアップを実行するスクリプト
+# PRをマージし、worktreeをクリーンアップするスクリプト
 #
 # Usage:
-#   ./scripts/commit-merge.sh <PR_NUMBER>
+#   ./scripts/commit-merge.sh <PR_NUMBER> [WORKTREE_PATH]
+#
+# Arguments:
+#   PR_NUMBER     - マージするPR番号
+#   WORKTREE_PATH - 削除するworktreeのパス（オプション）
 #
 # このスクリプトは以下を実行します:
-# 1. メインリポジトリへ移動（worktree対応）
-# 2. PRをsquash merge
-# 3. mainブランチを更新
-# 4. worktreeを削除（ブランチ削除より先に行う）
-# 5. リモートブランチを削除
-# 6. ローカルブランチを削除
+# 1. PRをsquash merge
+# 2. mainブランチを更新
+# 3. worktreeを削除（指定された場合）
+# 4. リモートブランチを削除
+# 5. ローカルブランチを削除
 
 set -e
 
@@ -36,30 +39,29 @@ log_error() {
 
 # 引数チェック
 if [ -z "$1" ]; then
-    log_error "Usage: $0 <PR_NUMBER>"
+    log_error "Usage: $0 <PR_NUMBER> [WORKTREE_PATH]"
     exit 1
 fi
 
 PR_NUMBER="$1"
+WORKTREE_PATH="$2"  # オプション: 削除するworktreeのパス
 
-# 現在のworktreeパスを記録（後で削除するため）
-CURRENT_DIR=$(pwd)
-CURRENT_BRANCH=$(git branch --show-current)
+# worktreeからブランチ名を取得（指定された場合）
+BRANCH_TO_DELETE=""
+if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+    BRANCH_TO_DELETE=$(git -C "$WORKTREE_PATH" branch --show-current 2>/dev/null || true)
+    log_info "Worktree指定: $WORKTREE_PATH (branch: $BRANCH_TO_DELETE)"
+fi
 
 # メインリポジトリのパスを取得
 MAIN_REPO=$(git worktree list | head -1 | awk '{print $1}')
 
-# worktree内かどうかを判定
-IS_WORKTREE=false
+# メインリポジトリにいることを確認
+CURRENT_DIR=$(pwd)
 if [ "$CURRENT_DIR" != "$MAIN_REPO" ]; then
-    IS_WORKTREE=true
-    log_info "Worktree内で実行中: $CURRENT_DIR"
-    log_info "メインリポジトリ: $MAIN_REPO"
+    log_info "メインリポジトリへ移動..."
+    cd "$MAIN_REPO"
 fi
-
-# メインリポジトリへ移動
-log_info "メインリポジトリへ移動..."
-cd "$MAIN_REPO"
 
 # PRをマージ（--delete-branchは使わない。worktree削除後にブランチを削除する）
 log_info "PR #${PR_NUMBER} をマージ中..."
@@ -75,28 +77,28 @@ log_info "mainブランチを更新中..."
 git checkout main 2>/dev/null || true
 git pull
 
-# worktreeの削除（worktree内から実行された場合のみ）
+# worktreeの削除（パスが指定された場合）
 # ブランチ削除より先に行う必要がある
-if [ "$IS_WORKTREE" = true ]; then
-    log_info "Worktreeを削除中: $CURRENT_DIR"
-    git worktree remove "$CURRENT_DIR" 2>/dev/null || {
+if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+    log_info "Worktreeを削除中: $WORKTREE_PATH"
+    git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || {
         log_warn "Worktreeの自動削除に失敗しました。手動で削除してください:"
-        log_warn "  git worktree remove $CURRENT_DIR"
+        log_warn "  git worktree remove $WORKTREE_PATH --force"
     }
 fi
 
 # リモートブランチの削除
-if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "main" ]; then
-    log_info "リモートブランチを削除中: $CURRENT_BRANCH"
-    git push origin --delete "$CURRENT_BRANCH" 2>/dev/null || {
+if [ -n "$BRANCH_TO_DELETE" ] && [ "$BRANCH_TO_DELETE" != "main" ]; then
+    log_info "リモートブランチを削除中: $BRANCH_TO_DELETE"
+    git push origin --delete "$BRANCH_TO_DELETE" 2>/dev/null || {
         log_warn "リモートブランチの削除に失敗しました（既に削除済みの可能性）"
     }
 fi
 
 # ローカルブランチの削除
-if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "main" ]; then
-    log_info "ローカルブランチを削除中: $CURRENT_BRANCH"
-    git branch -d "$CURRENT_BRANCH" 2>/dev/null || {
+if [ -n "$BRANCH_TO_DELETE" ] && [ "$BRANCH_TO_DELETE" != "main" ]; then
+    log_info "ローカルブランチを削除中: $BRANCH_TO_DELETE"
+    git branch -D "$BRANCH_TO_DELETE" 2>/dev/null || {
         log_warn "ローカルブランチの削除に失敗しました（既に削除済みの可能性）"
     }
 fi
