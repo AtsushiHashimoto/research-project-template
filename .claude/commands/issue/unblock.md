@@ -152,16 +152,49 @@ ${ISSUE_BODY}
 done
 ```
 
-### Phase 5: ユーザー確認必要項目の通知
+### Phase 5: ユーザー確認必要項目のIssue化と通知
 
-👤 ユーザー確認必要と判定された項目がある場合、`/qa/ask` で通知します:
+👤 ユーザー確認必要と判定された項目もIssue化し、`user-action` ラベルを付与します。
+その後、`/qa/ask` でユーザーに通知します。
 
 ```bash
 if [ -n "$USER_ACTION_REQUIRED_ITEMS" ]; then
-  # QA質問を投稿
-  /qa/ask --type deferred "バックログのユーザー確認待ち項目があります。
+  CREATED_USER_ACTION_ISSUES=""
 
-以下の項目は実ハードウェア/実運用での確認が必要です:
+  # ユーザーアクション必要項目をIssue化
+  for ITEM in $USER_ACTION_REQUIRED_ITEMS; do
+    BL_ID=$(echo "$ITEM" | jq -r '.id')
+    BL_TITLE=$(echo "$ITEM" | jq -r '.title')
+    REQUIRED_ACTION=$(echo "$ITEM" | jq -r '.required_action')
+    LABEL=$(echo "$ITEM" | jq -r '.label // "validation"')
+
+    # Issue作成（user-action ラベル付き）
+    ISSUE_URL=$(gh issue create \
+      --title "${LABEL}: ${BL_TITLE}" \
+      --body "## 概要
+
+${BL_TITLE} のユーザー確認作業です。
+
+## 必要なアクション
+
+${REQUIRED_ACTION}
+
+## 関係
+- Unblocks: ${BL_ID} in docs/backlog.md
+
+---
+*このIssueは /issue/unblock により自動生成されました*
+*⚠️ user-action: ユーザーによる確認・検証が必要です*" \
+      --label "${LABEL}" \
+      --label "user-action")
+
+    CREATED_USER_ACTION_ISSUES="$CREATED_USER_ACTION_ISSUES $ISSUE_URL"
+  done
+
+  # QA通知を投稿
+  /qa/ask --type deferred "## 📋 ユーザー対応Issueが作成されました
+
+以下のIssueは実ハードウェア/実運用での確認が必要です:
 
 $(for ITEM in $USER_ACTION_REQUIRED_ITEMS; do
   BL_ID=$(echo "$ITEM" | jq -r '.id')
@@ -171,11 +204,17 @@ $(for ITEM in $USER_ACTION_REQUIRED_ITEMS; do
   echo "  必要なアクション: ${REQUIRED_ACTION}"
 done)
 
-確認完了後、該当項目のIssueを手動で作成してください。"
+**作成されたIssue**: ${CREATED_USER_ACTION_ISSUES}
+
+これらのIssueには \`user-action\` ラベルが付いており、\`/issue/auto\` ではスキップされます。
+確認完了後、ラベルを外すか Issue をクローズしてください。"
 fi
 ```
 
-これにより、ユーザーが不在でも Slack/Discord で通知を受け取れます。
+これにより:
+- ユーザーアクション必要項目もIssue化される
+- `user-action` ラベルにより `/issue/auto` でスキップされる
+- ユーザーが不在でも Slack/Discord で通知を受け取れる
 
 ### Phase 6: 完了報告
 
@@ -190,34 +229,37 @@ fi
 
 | BL ID | タイトル | 分類 | 状態 |
 |-------|---------|------|------|
-| BL-001 | FeedbackMonitor | 👤 ユーザー | 実ハードウェア確認待ち |
+| BL-001 | FeedbackMonitor | 👤 ユーザー | Issue #XX 作成 (user-action) |
 | BL-002 | Notifier | ⏸️ 依存待ち | BL-001完了後 |
 | BL-003 | SONAR移行 | 🤖 自動 | Issue #XX 作成 |
 | BL-008 | duo publish | 🤖 自動 | Issue #XX 作成 |
 
-## 作成したIssue
+## 作成したIssue（自動処理可能）
 
-| Issue | タイトル | Unblocks |
-|-------|---------|----------|
-| #XX | test(retriever): Add real FAISS E2E tests | BL-003, BL-005 |
-| #XX | feat(cli): Implement duo-ctl add | BL-008 |
+| Issue | タイトル | Unblocks | ラベル |
+|-------|---------|----------|-------|
+| #XX | test(retriever): Add real FAISS E2E tests | BL-003, BL-005 | feature |
+| #XX | feat(cli): Implement duo-ctl add | BL-008 | feature |
 
-## ユーザーアクション必要
+## 作成したIssue（ユーザーアクション必要）
 
-以下の項目はユーザーによる確認/テストが必要です:
+以下のIssueはユーザーによる確認/テストが必要です。`user-action` ラベル付き。
 
-| BL ID | タイトル | 必要なアクション |
-|-------|---------|-----------------|
-| BL-001 | FeedbackMonitor | 実APIサーバーとの統合テスト実施 |
-| BL-007 | ROS2 Executor | HTTPExecutorの実運用検証 |
+| Issue | タイトル | Unblocks | 必要なアクション |
+|-------|---------|----------|-----------------|
+| #XX | validation: FeedbackMonitor | BL-001 | 実APIサーバーとの統合テスト実施 |
+| #XX | validation: ROS2 Executor | BL-007 | HTTPExecutorの実運用検証 |
+
+⚠️ これらのIssueは `/issue/auto` でスキップされます。
+ユーザーが確認完了後、`user-action` ラベルを外すか Issue をクローズしてください。
 
 ---
 
 ## 次のステップ
 
-1. 作成されたIssueを `/issue/auto` で処理
-2. ユーザーアクション項目を手動で確認
-3. 確認完了後、該当BL項目のIssueを手動作成
+1. 自動処理可能なIssueを `/issue/auto` で処理
+2. ユーザーアクションIssueを手動で確認・完了
+3. 確認完了後、`user-action` ラベルを外すか Issue をクローズ
 ```
 
 ## Options

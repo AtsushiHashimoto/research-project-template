@@ -35,7 +35,10 @@ argument-hint: [issue_ids...]
 /issue/auto --all-open   # 全てのopen Issueを処理（out-of-dateを除く）
 ```
 
-**注意**: `out-of-date` ラベルが付いたIssueは自動的にスキップされます。
+**注意**: 以下のラベルが付いたIssueは自動的にスキップされます:
+- `out-of-date`: 古くなったIssue
+- `in-progress`: 作業中のIssue
+- `user-action`: ユーザー対応が必要なIssue
 
 ## Safety Features
 
@@ -112,6 +115,7 @@ fi
    # スキップ対象ラベルが付いたIssueをフィルタリング
    # - in-progress: 既に作業中
    # - out-of-date: 古くなったIssue
+   # - user-action: ユーザー対応が必要
    FILTERED_IDS=""
    SKIPPED_IDS=""
    for ID in $ISSUE_IDS; do
@@ -122,6 +126,9 @@ fi
      elif echo "$LABELS" | grep -q "out-of-date"; then
        SKIPPED_IDS="$SKIPPED_IDS $ID"
        echo "Skip #$ID (out-of-date)"
+     elif echo "$LABELS" | grep -q "user-action"; then
+       SKIPPED_IDS="$SKIPPED_IDS $ID"
+       echo "Skip #$ID (user-action) - ユーザー対応が必要"
      else
        FILTERED_IDS="$FILTERED_IDS $ID"
      fi
@@ -134,8 +141,10 @@ fi
    ⚠️ 以下のIssueはスキップされます:
    - #3: 初期仕様 (out-of-date)
    - #5: 認証機能 (in-progress)
+   - #7: API統合テスト (user-action) - ユーザー対応が必要
 
    ラベルを外せば処理対象になります。
+   user-action ラベルのIssueはユーザーが完了させてください。
    ```
 
 3. **依存関係の解析**
@@ -471,6 +480,7 @@ Step 4-1 で既に通過しているため、通常は成功するはず。
 - ✅ 実行前にスナップショット作成
 - ✅ ユーザー承認後に開始
 - ✅ **out-of-date ラベル付きIssueを自動スキップ**
+- ✅ **user-action ラベル付きIssueを自動スキップ**（ユーザー対応必須）
 - ✅ **review-spec による仕様レビュー**（Step 1.5）
 - ✅ **auto-reviewer による代理判断**（自信度 < 50% で停止）
 - ✅ 品質チェック失敗で停止
