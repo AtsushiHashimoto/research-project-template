@@ -525,11 +525,24 @@ Task tool で `subagent_type=general-purpose` を使用。
 - 初版作成
 ```
 
-### Step 5: ユーザーへの確認
+### Step 5: ユーザーへの確認とQA投稿
 
 1. **Fallback分岐の承認**: 許可するfallbackをユーザーに選択してもらう
+
 2. **質問への回答**: 質問リストの項目についてユーザーに確認
-3. **仕様ファイルの保存**: `.claude/spec/issues/{issue_id}-{description}.md` に保存
+   - ユーザーが即座に回答できる場合 → 直接対話で解決
+   - **ユーザーが不在・後で確認したい場合** → `/qa/ask` で Slack に質問を投げる
+
+   ```bash
+   # 例: 質問リストの項目をQAに投稿
+   /qa/ask --type provisional --decision "案A" "質問リストの項目1について、案Aと案Bどちらが好ましいですか？"
+   ```
+
+3. **重要な決定事項のQA記録**
+   - 仕様に関する重要な決定は、後から参照できるよう `/qa/ask` で記録することを推奨
+   - 特に「なぜその選択をしたか」の理由を残す
+
+4. **仕様ファイルの保存**: `.claude/spec/issues/{issue_id}-{description}.md` に保存
 
 ### Step 6: 仕様ファイルの保存
 

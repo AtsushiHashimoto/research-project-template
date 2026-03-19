@@ -45,7 +45,27 @@ argument-hint: [--auto | auto]
 
 **目的**: AI生成コードの品質を保証し、Issue目的との整合性を確認
 
-1. **変更内容を確認**
+#### Step 0: QA回答の確認
+
+タスク完了前に未確認のQA回答がないか確認：
+
+```bash
+# docs/qa/answers.jsonl をチェック
+if [ -f "docs/qa/questions.jsonl" ]; then
+  echo "QA回答を確認中..."
+fi
+```
+
+新しい回答がある場合：
+- 回答内容を表示
+- 仮決定と異なる場合は、変更が必要か確認
+- **仮決定と異なる回答があれば、実装を修正してから続行**
+
+未回答の質問がある場合：
+- 質問リストを表示
+- タスク完了後にフォローアップIssueを作成（`/issue/finish` の Step 0 で処理）
+
+#### Step 1: 変更内容を確認
    ```bash
    git status
    git diff --stat
