@@ -142,7 +142,7 @@ for NEW_ISSUE in $NEW_ISSUE_CANDIDATES; do
       BRANCH_NAME=$(gh issue view $ISSUE_NUM --json body -q '.body' | grep -oP 'feature/\d+-\S+' | head -1)
       if [ -n "$BRANCH_NAME" ]; then
         # worktreeの変更ファイルを確認
-        MODIFIED_FILES=$(git -C worktrees/issue${ISSUE_NUM} diff --name-only 2>/dev/null || echo "")
+        MODIFIED_FILES=$(git -C .worktrees/issue${ISSUE_NUM} diff --name-only 2>/dev/null || echo "")
 
         # 新規Issueが同じファイルに影響するかチェック
         for FILE in $NEW_ISSUE_TARGET_FILES; do
