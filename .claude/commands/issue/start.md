@@ -26,7 +26,7 @@ argument-hint: [short-description]
    - 例: `feature/5-add-dataset-loader`, `survey/3-related-work`
 
 3. **Worktree を作成**
-   - パス: `../project-name-issueN`
+   - パス: `.worktrees/issueN`
    - ブランチと連携
 
 4. **作業開始の準備**
@@ -91,8 +91,7 @@ Worktree とブランチを作成:
 ISSUE_ID=$(gh issue list --limit 1 --json number --jq '.[0].number')
 DESCRIPTION=$(echo "$TASK_DESCRIPTION" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
 REPO_ROOT=$(git rev-parse --show-toplevel)
-REPO_NAME=$(basename "$REPO_ROOT")
-WORKTREE_PATH="../${REPO_NAME}-issue${ISSUE_ID}"
+WORKTREE_PATH="${REPO_ROOT}/.worktrees/issue${ISSUE_ID}"
 
 git worktree add "$WORKTREE_PATH" -b "${BRANCH_PREFIX}/${ISSUE_ID}-${DESCRIPTION}"
 ```
