@@ -65,6 +65,8 @@ fi
 - 質問リストを表示
 - タスク完了後にフォローアップIssueを作成（`/issue/finish` の Step 0 で処理）
 
+**Auto-Approval モード時**: QA回答の確認はスキップする（`/issue/auto` の Phase 0 で既に処理済み）。
+
 #### Step 1: 変更内容を確認
    ```bash
    git status
@@ -247,7 +249,7 @@ fi
 
 Phase 0-5 を順次実行してください。
 
-**重要**: Phase 0 のユーザー承認なしでは Phase 1 以降に進まないこと。
+**重要**: Phase 0 のユーザー承認なしでは Phase 1 以降に進まないこと（Auto-Approval モード時は品質チェック通過をもって自動承認とする）。
 
 ## Safety Checks
 
