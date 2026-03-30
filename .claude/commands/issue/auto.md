@@ -21,6 +21,11 @@ argument-hint: [issue_ids...]
 - 「マージしてよいですか？」と聞く
 - 各Issue完了時にユーザー入力を待つ
 
+**Permission Mode の維持:**
+- このコマンドは **bypass permissions on** の状態で実行されることを前提とする
+- 各Issue処理の開始時に permission mode が bypass permissions であることを確認し、もし accept edits に変わっていたら bypass permissions に戻すこと
+- サブエージェント（Agent tool）完了後やSkill呼び出し後に permission mode がリセットされる場合があるため、各ステップ間で注意すること
+
 
 ## Usage
 
