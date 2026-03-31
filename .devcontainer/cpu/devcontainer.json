@@ -1,0 +1,27 @@
+{
+  "name": "Research-Project-Dev-Env (CPU)",
+  "shutdownAction": "none",
+
+  // --- [Template] docker-compose で共通設定 + CPU override ---
+  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.override.yml"],
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+
+  // --- [Template] devcontainer 固有の共通設定 ---
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "mounts": [
+    "source=claude-code-config-${localWorkspaceFolderBasename},target=/home/vscode/.claude,type=volume"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}"
+}

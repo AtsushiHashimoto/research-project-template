@@ -1,0 +1,25 @@
+# ============================================================
+# Base service definition (shared between CPU and GPU)
+# [Template] research-project-template 由来
+# ============================================================
+services:
+  devcontainer:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        USER_UID: ${UID:-1000}
+        USER_GID: ${GID:-1000}
+    hostname: devcontainer
+    shm_size: "8gb"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - ..:/workspace:cached
+      - ${HOME}/.gitconfig:/home/vscode/.gitconfig:cached
+      - ${HOME}/.config/gh:/home/vscode/.config/gh:cached
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      TZ: ${TZ:-}

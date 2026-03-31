@@ -7,20 +7,46 @@
 DevContainer は以下を自動的にセットアップします：
 
 - Claude Code + autoclaude のインストール
-- GPU アクセスの設定
+- CPU / GPU の自動切り替え（docker-compose による構成分離）
 - Git / GitHub CLI の認証引き継ぎ
 - Claude Code の認証永続化（コンテナ再ビルド後もログイン不要）
-- Ollama のモデル永続化
+
+## ファイル構成
+
+```
+.devcontainer/
+├── Dockerfile                        # [Template] 共通イメージ（CPU/GPU対応）
+├── docker-compose.yml                # [Template] 共通サービス定義
+├── post-create.sh                    # [Template] 共通ライフサイクル処理
+├── cpu/
+│   ├── devcontainer.json             # CPU固有設定
+│   └── docker-compose.override.yml   # CPU override（BASE_IMAGE等）
+└── gpu/
+    ├── devcontainer.json             # GPU固有設定
+    └── docker-compose.override.yml   # GPU override（nvidia, shm等）
+```
+
+**設計方針**: CPU と GPU で共通の設定は `docker-compose.yml`、`Dockerfile`、`post-create.sh` に集約し、差分のみを各 `override.yml` と `devcontainer.json` に記述します。
+
+### `[Template]` / `[Project]` タグ
+
+ファイル内のコメントで設定の由来を明示しています：
+
+- `[Template]`: テンプレート由来。`/template-sync` で自動更新可能
+- `[Project]`: プロジェクト固有。同期時にスキップされる
 
 ## Dockerfile の構成
 
 ### ベースイメージ
 
 ```dockerfile
-FROM nvcr.io/nvidia/pytorch:24.12-py3
+ARG BASE_IMAGE=python:3.11
+FROM ${BASE_IMAGE}
 ```
 
-NVIDIA PyTorch コンテナをベースに使用。GPU 対応済み。CPU のみの場合は `python:3.11-slim` に変更可能。
+`BASE_IMAGE` は docker-compose の override で切り替えます：
+- **CPU**: `python:3.11`
+- **GPU**: `nvcr.io/nvidia/pytorch:24.12-py3`
 
 ### インストールされるツール
 
@@ -30,7 +56,7 @@ NVIDIA PyTorch コンテナをベースに使用。GPU 対応済み。CPU のみ
 | gh (GitHub CLI) | Issue/PR 操作 |
 | Node.js 20 | Claude Code の実行環境 |
 | Claude Code | AI コーディングアシスタント |
-| autoclaude | Rate limit 自動再開 |
+| autoclaude | Rate limit 自動再開（マルチアーキテクチャ対応） |
 | tmux | セッション管理（claude-san用） |
 | jq, ripgrep, fzf | 検索・データ処理 |
 
@@ -42,44 +68,94 @@ RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /etc/bash.bas
 
 `claude` コマンド実行時に自動的に `--dangerously-skip-permissions` を付与。セキュリティへの影響は [docs/security.md](security.md) を参照。
 
+### CPU-only PyTorch
+
+```dockerfile
+ARG INSTALL_TORCH_CPU=false
+RUN if [ "$INSTALL_TORCH_CPU" = "true" ]; then \
+    pip install torch --index-url https://download.pytorch.org/whl/cpu; \
+fi
+```
+
+GPU ベースイメージには PyTorch が含まれていますが、CPU イメージには含まれないため、`INSTALL_TORCH_CPU=true` で CPU 版 PyTorch をインストールします。
+
+## docker-compose の構成
+
+### 共通設定（docker-compose.yml）
+
+```yaml
+services:
+  devcontainer:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    hostname: devcontainer
+    shm_size: "8gb"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - ..:/workspace:cached          # ワークスペースマウント
+      - ${HOME}/.gitconfig:...        # Git 認証引き継ぎ
+      - ${HOME}/.config/gh:...        # GitHub CLI 認証引き継ぎ
+      - /etc/localtime:...            # タイムゾーン
+```
+
+### GPU override（gpu/docker-compose.override.yml）
+
+```yaml
+services:
+  devcontainer:
+    build:
+      args:
+        BASE_IMAGE: "nvcr.io/nvidia/pytorch:24.12-py3"
+        INSTALL_TORCH_CPU: "false"
+    shm_size: "64gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
+
 ## devcontainer.json の構成
 
 ### マウント
 
 ```jsonc
 "mounts": [
-  // 1. ホストの Git 設定を引き継ぎ
-  "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
-
-  // 2. ホストの GitHub CLI 認証を引き継ぎ
-  "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind",
-
-  // 3. Claude Code の設定・認証を Named Volume で永続化
+  // Claude Code の設定・認証を Named Volume で永続化
   "source=claude-code-config-${localWorkspaceFolderBasename},target=/home/vscode/.claude,type=volume"
 ]
 ```
 
-**ポイント**: Git と GitHub CLI はホストの認証をそのまま使用。Claude Code は **プロジェクト専用の Named Volume** に保存されるため、コンテナ再ビルド後も認証が維持されます。
+**ポイント**: Git と GitHub CLI のマウントは docker-compose.yml 側で定義。Claude Code の Named Volume はdevcontainer 変数（`${localWorkspaceFolderBasename}`）を使うため devcontainer.json 側で定義しています。
 
-### postCreateCommand
+### post-create.sh
 
-コンテナ作成後に実行される一連の処理：
+コンテナ作成後に実行される共通処理：
 
 ```bash
 # 1. Claude 設定ディレクトリの所有権修正
-sudo chown -R $(id -u):$(id -g) /home/vscode/.claude
+sudo chown -R "$(id -u):$(id -g)" /home/vscode/.claude
 
 # 2. Claude の設定ファイルシンボリックリンク
 ln -sf /home/vscode/.claude/.claude.json /home/vscode/.claude.json
 
 # 3. 決定論的 machine-id の生成
-echo -n 'devcontainer-${localWorkspaceFolderBasename}' | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null
+echo -n "devcontainer-${PROJECT_NAME}" | md5sum | cut -c1-32 | sudo tee /etc/machine-id > /dev/null
 
-# 4. Ollama モデルディレクトリの作成
-mkdir -p "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
+# 4. claude-san のシンボリックリンク
+sudo ln -sf "$(pwd)/claude-san" /usr/local/bin/claude-san
+```
 
-# 5. claude-san のシンボリックリンク
-sudo ln -sf "/workspaces/${localWorkspaceFolderBasename}/claude-san" /usr/local/bin/claude-san
+プロジェクト固有の追加セットアップは `devcontainer.json` の `postCreateCommand` で `post-create.sh` の後に追記します：
+
+```jsonc
+// gpu/devcontainer.json の例
+"postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename} && mkdir -p data/shared/ollama_models"
 ```
 
 ## 認証永続化のメカニズム
@@ -123,44 +199,45 @@ Claude Code は設定を2箇所から読む場合があります：
 - `/home/vscode/.claude/.claude.json` (Volume 内)
 - `/home/vscode/.claude.json` (ホームディレクトリ直下)
 
-`postCreateCommand` でシンボリックリンクを作成し、両方が同じファイルを指すようにしています。
+`post-create.sh` でシンボリックリンクを作成し、両方が同じファイルを指すようにしています。
 
 ## GPU アクセス
 
-### 起動時の設定
+### docker-compose による GPU 設定
 
-```jsonc
-"runArgs": [
-  "--gpus=all",           // 全GPUをコンテナに公開
-  "--shm-size=64gb",      // 共有メモリ（DataLoader等で使用）
-  "--ulimit", "memlock=-1" // メモリロック制限なし
-]
+```yaml
+# gpu/docker-compose.override.yml
+deploy:
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
 ```
 
-### 起動時チェック
+### 起動時チェック（GPU のみ）
 
 ```jsonc
+// gpu/devcontainer.json
+"initializeCommand": "bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
 "postStartCommand": "nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost.'"
 ```
 
 コンテナ起動ごとに GPU アクセスを確認。ホストの再起動等で GPU アクセスが失われた場合に警告を表示します。
 
-## Ollama 設定
+## Ollama 設定（プロジェクト固有）
 
-### モデルの永続化
+Ollama を使用するプロジェクトでは、GPU の `docker-compose.override.yml` に環境変数を追加します：
 
-```jsonc
-"containerEnv": {
-  "OLLAMA_MODELS": "/workspaces/${localWorkspaceFolderBasename}/data/shared/ollama_models"
-}
+```yaml
+# gpu/docker-compose.override.yml に追記
+environment:
+  OLLAMA_MODELS: /workspace/data/shared/ollama_models
 ```
 
-Ollama のモデルデータをプロジェクトの `data/shared/ollama_models/` に保存。Worktree 間で共有され、コンテナ再ビルド後も維持されます。
+`devcontainer.json` の `postCreateCommand` でディレクトリ作成を追記：
 
-### Ollama の有効化
-
-デフォルトではモデルディレクトリのみ設定済み。Ollama 本体を使用するには Dockerfile に追加：
-
-```dockerfile
-RUN curl -fsSL https://ollama.com/install.sh | sh
+```jsonc
+"postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename} && mkdir -p data/shared/ollama_models"
 ```

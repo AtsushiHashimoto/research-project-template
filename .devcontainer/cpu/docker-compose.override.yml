@@ -1,0 +1,10 @@
+# ============================================================
+# CPU-specific overrides
+# [Template] research-project-template 由来
+# ============================================================
+services:
+  devcontainer:
+    build:
+      args:
+        BASE_IMAGE: "python:3.11"
+        INSTALL_TORCH_CPU: "true"

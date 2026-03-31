@@ -1,0 +1,31 @@
+{
+  "name": "Research-Project-Dev-Env (GPU)",
+  "shutdownAction": "none",
+
+  // --- [Template] docker-compose で共通設定 + GPU override ---
+  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.override.yml"],
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+
+  // --- [Template] devcontainer 固有の共通設定 ---
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "mounts": [
+    "source=claude-code-config-${localWorkspaceFolderBasename},target=/home/vscode/.claude,type=volume"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
+    }
+  },
+
+  // --- [Template] GPU 固有のライフサイクル ---
+  "initializeCommand": "bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
+  "postStartCommand": "nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost. Container restart required.' >&2",
+
+  // --- [Project] プロジェクト固有の追加セットアップをここに追記 ---
+  "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}"
+}
