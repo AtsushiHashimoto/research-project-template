@@ -147,19 +147,19 @@ data/shared/experiments/
 
 | スキル | 用途 |
 |-------|------|
-| `/issue/start [説明]` | 新しいタスクを開始（Issue作成→ブランチ→Worktree） |
-| `/issue/branch [説明]` | 現在のWorktree内で子タスクを作成 |
-| `/issue/report` | 現在の進捗をIssueに報告 |
-| `/issue/finish` | タスクを完了（レビュー→マージ→Issueクローズ） |
-| `/issue/auto [ids...]` | 複数Issueを自動処理（スナップショット付き） |
+| `/issue-start [説明]` | 新しいタスクを開始（Issue作成→ブランチ→Worktree） |
+| `/issue-branch [説明]` | 現在のWorktree内で子タスクを作成 |
+| `/issue-report` | 現在の進捗をIssueに報告 |
+| `/issue-finish` | タスクを完了（レビュー→マージ→Issueクローズ） |
+| `/issue-auto [ids...]` | 複数Issueを自動処理（スナップショット付き） |
 
 ### コミット
 
 | スキル | 用途 | Issueクローズ |
 |-------|------|--------------|
 | `/commit` | ローカルにコミットのみ | ❌ |
-| `/commit/push` | コミット＆プッシュ（途中保存） | ❌ |
-| `/commit/merge` | コミット＆マージ（タスク完了） | ✅ |
+| `/commit-push` | コミット＆プッシュ（途中保存） | ❌ |
+| `/commit-merge` | コミット＆マージ（タスク完了） | ✅ |
 
 ### レビュー
 
@@ -171,16 +171,16 @@ data/shared/experiments/
 
 | スキル | 用途 |
 |-------|------|
-| `/template/sync` | テンプレートの最新更新を取り込み |
-| `/template/contribute` | テンプレートへの改善PRを作成 |
+| `/template-sync` | テンプレートの最新更新を取り込み |
+| `/template-contribute` | テンプレートへの改善PRを作成 |
 
 ### Worktree管理
 
 | スキル | 用途 |
 |-------|------|
-| `/worktree/init` | 初回セットアップ（共有データパス設定） |
-| `/worktree/setup` | Worktreeにデータディレクトリを作成 |
-| `/worktree/safe-remove` | Worktreeを安全に削除 |
+| `/worktree-init` | 初回セットアップ（共有データパス設定） |
+| `/worktree-setup` | Worktreeにデータディレクトリを作成 |
+| `/worktree-safe-remove` | Worktreeを安全に削除 |
 
 ---
 
