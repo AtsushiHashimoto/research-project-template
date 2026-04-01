@@ -127,7 +127,7 @@ BRANCH=$(git branch --show-current)
 ISSUE_ID=$(echo "$BRANCH" | grep -oE '[0-9]+' | head -1)
 
 # 仕様ファイルを特定
-SPEC_FILE=$(ls .claude/spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
+SPEC_FILE=$(ls .spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
 ```
 
 仕様ファイルが存在する場合、メタ情報を更新：

@@ -31,7 +31,7 @@ gh issue view "$ISSUE_ID" --json title,body,comments
 
 ```bash
 # 既存の仕様ファイルがあれば読み込み
-SPEC_FILE=".claude/spec/issues/${ISSUE_ID}-*.md"
+SPEC_FILE=".spec/issues/${ISSUE_ID}-*.md"
 ls $SPEC_FILE 2>/dev/null
 ```
 
@@ -542,13 +542,13 @@ Task tool で `subagent_type=general-purpose` を使用。
    - 仕様に関する重要な決定は、後から参照できるよう `/qa/ask` で記録することを推奨
    - 特に「なぜその選択をしたか」の理由を残す
 
-4. **仕様ファイルの保存**: `.claude/spec/issues/{issue_id}-{description}.md` に保存
+4. **仕様ファイルの保存**: `.spec/issues/{issue_id}-{description}.md` に保存
 
 ### Step 6: 仕様ファイルの保存
 
 ```bash
 # ディレクトリ作成
-mkdir -p .claude/spec/issues
+mkdir -p .spec/issues
 
 # ファイル保存
 # ファイル名: {issue_id}-{short-description}.md

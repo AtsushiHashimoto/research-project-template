@@ -94,7 +94,7 @@
 
 ## 出力形式
 
-### 判断ログ（`.claude/spec/issues/{id}-auto-decisions.md`）
+### 判断ログ（`.spec/issues/{id}-auto-decisions.md`）
 
 ```markdown
 # Issue #{id} 自動判断ログ
