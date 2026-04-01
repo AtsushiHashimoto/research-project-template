@@ -43,6 +43,10 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     apt-get update && apt-get install -y gh && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# uv をインストール（高速Pythonパッケージマネージャー）
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
 # Node.js 20をインストール（Claude Code用）
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
