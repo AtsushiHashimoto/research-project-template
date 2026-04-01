@@ -5,7 +5,7 @@ argument-hint: [issue_ids...] [max_cycles]
 
 # Issue Cycle
 
-`/issue/auto` → `/issue/gaps` → `/issue/auto` のループを収束まで実行します。
+`/issue/auto` → `/issue/gaps` → `/review-integrity` → `/issue/auto` のループを収束まで実行します。
 
 ## Usage
 
@@ -21,37 +21,32 @@ argument-hint: [issue_ids...] [max_cycles]
 ## Concept
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    /issue/cycle                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   ┌──────────────────── Main Loop ────────────────────┐    │
-│   │                                                    │    │
-│   │   Cycle 1:                                         │    │
-│   │   ┌───────────────┐    ┌───────────────┐          │    │
-│   │   │ /issue/auto   │ -> │ /issue/gaps   │          │    │
-│   │   │ #5, #7        │    │ -> #10, #11   │          │    │
-│   │   └───────────────┘    └───────────────┘          │    │
-│   │                              │                     │    │
-│   │                   新Issue? ──Yes──→ 次サイクルへ   │    │
-│   │                              │                     │    │
-│   │                             No                     │    │
-│   │                              ↓                     │    │
-│   │   ┌───────────────────────────────────┐           │    │
-│   │   │ /issue/backlog                    │           │    │
-│   │   │  1. /issue/unblock (ブロッカー解消)│           │    │
-│   │   │  2. 着手可能項目をIssue化         │           │    │
-│   │   │  3. backlog.mdから削除            │           │    │
-│   │   └───────────────────────────────────┘           │    │
-│   │                              │                     │    │
-│   │                   新Issue? ──Yes──→ 次サイクルへ   │    │
-│   │                              │                     │    │
-│   │                             No                     │    │
-│   └──────────────────────────────┼─────────────────────┘    │
-│                                  ↓                          │
-│                        完全収束 ✅                          │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    /issue/cycle                                  │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Cycle 1:                                                       │
+│   ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐  │
+│   │ /issue/auto  │ → │ /issue/gaps  │ → │/review-integrity  │  │
+│   │ #5, #7       │   │ → #10, #11   │   │ → #12 (bug found) │  │
+│   └──────────────┘   └──────────────┘   └───────────────────┘  │
+│                                                │                 │
+│                                                v                 │
+│   Cycle 2:                                                       │
+│   ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐  │
+│   │ /issue/auto  │ → │ /issue/gaps  │ → │/review-integrity  │  │
+│   │ #10-#12      │   │ → (なし)     │   │ → (クリーン)      │  │
+│   └──────────────┘   └──────────────┘   └───────────────────┘  │
+│                                                │                 │
+│                                                v                 │
+│   ┌─────────────────────────────────┐                           │
+│   │ Backlog Check                   │                           │
+│   └─────────────────────────────────┘                           │
+│                    │                                             │
+│                    v                                             │
+│   Convergence! (gaps=0 AND integrity=clean)                     │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ## Workflow
@@ -104,7 +99,8 @@ argument-hint: [issue_ids...] [max_cycles]
    │ 各サイクルで:                                               │
    │   1. /issue/auto で処理                                     │
    │   2. /issue/gaps で乖離検出・Issue作成                      │
-   │   3. 新規Issueがあれば次サイクルへ                          │
+   │   3. /review-integrity でバグパターン・品質チェック          │
+   │   4. 新規Issueがあれば次サイクルへ                          │
    │                                                             │
    │ 実行しますか？                                              │
    └─────────────────────────────────────────────────────────────┘
@@ -126,9 +122,80 @@ Skill(skill="issue/auto", args="${CURRENT_ISSUE_IDS}")
 Skill(skill="issue/gaps")
 ```
 
+→ 新規Issue が作成された場合、gaps_issues に追加
+
+#### Step 2.5: /review-integrity
+
+```
+Skill(skill="review-integrity")
+```
+
+→ バグパターン・デッドコード・配線不備を検出
+→ **全ての深刻度（Critical / High / Medium / Low）の問題に対して Issue を作成**し integrity_issues に追加
+
+**★★★ 重要: 全深刻度をIssue化する ★★★**
+
+`/review-integrity` で検出された問題は、深刻度に関わらず **全て** Issue を作成して次サイクルで修正する。
+「Low だから放置」「Medium だから後回し」は禁止。コードベースの品質を徹底的に維持する。
+
+```python
+# review-integrity の結果を処理
+for finding in integrity_findings:
+    # Critical/High/Medium/Low 全てIssue化
+    issue_id = gh_issue_create(
+        title=f"{finding.severity_label}: {finding.title}",
+        body=f"""## 概要
+{finding.description}
+
+## 該当箇所
+- {finding.file}:{finding.line}
+
+## 修正案
+{finding.fix_suggestion}
+
+## 深刻度
+{finding.severity}
+
+## 発見経緯
+/review-integrity で検出。
+
+---
+*このIssueは /issue/cycle の review-integrity により自動生成されました*""",
+        labels=[finding.label, "integrity"]
+    )
+    integrity_issues.append(issue_id)
+```
+
+深刻度に応じたIssue化ルール:
+
+| 深刻度 | ラベル | Issue化 | 例 |
+|--------|--------|---------|-----|
+| Critical | bug | **個別Issue** | 型不一致、未実装Protocol |
+| High | bug | **個別Issue** | 配線不備、セキュリティ |
+| Medium | chore | **まとめて1 Issue** | テスト不足、DRY違反 |
+| Low | chore | **まとめて1 Issue** | TODO棚卸し、命名統一 |
+
+**まとめルール**: Medium 以下の問題は 1つの Issue にまとめて効率的に処理する。
+タイトル例: `chore: integrity review — Medium/Low N件修正`
+本文に全件のチェックリストを含め、一括で修正する。
+
+```python
+# Critical/High は個別Issue
+for finding in [f for f in findings if f.severity in ("critical", "high")]:
+    issue_id = create_individual_issue(finding)
+    integrity_issues.append(issue_id)
+
+# Medium/Low はまとめて1 Issue
+minor_findings = [f for f in findings if f.severity in ("medium", "low")]
+if minor_findings:
+    issue_id = create_batch_issue(minor_findings)
+    integrity_issues.append(issue_id)
+```
+
 #### Step 3: 判定
 
 ```python
+newly_created_issues = gaps_issues + integrity_issues
 if newly_created_issues:
     if cycle_count < max_cycles:
         CURRENT_ISSUE_IDS = newly_created_issues
@@ -137,9 +204,11 @@ if newly_created_issues:
         print("最大サイクル到達。残りIssue:", newly_created_issues)
         break
 else:
-    print("収束しました")
+    print("収束しました（gaps=0 AND integrity=全深刻度クリーン）")
     break
 ```
+
+**収束条件**: gaps で新規 Issue = 0 **かつ** integrity で全深刻度の問題 = 0
 
 #### Step 4: サイクルスナップショット
 
@@ -154,7 +223,7 @@ git branch "$CYCLE_SNAPSHOT" HEAD
 Issue/gaps のサイクルが収束した後、`/issue/backlog` を呼び出してバックログを処理します。
 
 ```
-Skill(skill="issue/backlog")
+Skill(skill="issue-backlog")
 ```
 
 `/issue/backlog` は以下を実行します:
@@ -324,10 +393,11 @@ git branch | grep "cycle-"
 
 | スキル | 関係 |
 |-------|------|
-| `/issue/auto` | 各サイクルで呼び出し |
-| `/issue/gaps` | 各サイクルで呼び出し |
-| `/issue/backlog` | 収束後に呼び出し |
-| `/issue/unblock` | backlog 内部で使用 |
-| `/issue/scan` | gaps 内部で使用 |
-| `/issue/diff` | gaps 内部で使用 |
-| `/qa/ask` | unblock でユーザー確認必要項目を通知 |
+| `/issue-auto` | 各サイクルで呼び出し |
+| `/issue-gaps` | 各サイクルで呼び出し（Issue-実装間の乖離検出） |
+| `/review-integrity` | 各サイクルで呼び出し（バグパターン・品質チェック） |
+| `/issue-backlog` | 収束後に呼び出し |
+| `/issue-unblock` | backlog 内部で使用 |
+| `/issue-scan` | gaps 内部で使用 |
+| `/issue-diff` | gaps 内部で使用 |
+| `/qa-ask` | unblock でユーザー確認必要項目を通知 |
