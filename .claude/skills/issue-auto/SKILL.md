@@ -199,7 +199,7 @@ fi
 **`/issue/start` スキルを呼び出してWorktreeとブランチを作成**:
 
 ```
-Skill(skill="issue/start", args="#${ISSUE_ID}")
+Skill(skill="issue-start", args="#${ISSUE_ID}")
 ```
 
 これにより以下が自動実行される：
@@ -207,11 +207,14 @@ Skill(skill="issue/start", args="#${ISSUE_ID}")
 - ブランチ作成
 - 開始報告のコメント投稿
 
-**注意**: /issue/start は仕様の対話を行うが、/issue/auto では auto-reviewer が代理判断するため、対話はスキップして Step 1.5 に進む。
+**注意**: /issue/start は仕様の対話を行うが、/issue/auto では auto-reviewer が代理判断するため、ユーザーとの対話はスキップして Step 1.5 に進む。
 
 #### Step 1.5: 仕様レビュー（/review-spec）
 
-**重要**: 実装前に必ず仕様をレビューする。
+**★★★ この Step は絶対にスキップしない ★★★**
+
+review-spec はユーザーとの対話ではなく **セルフチェック** です。
+自動処理であっても必ず実行し、仕様の品質を担保してください。
 
 1. **既存仕様ファイルの確認**
 ```bash
@@ -399,7 +402,7 @@ exit 1
 **`/issue/finish` スキルを呼び出してコミット、PR作成、マージ、クリーンアップを実行**:
 
 ```
-Skill(skill="issue/finish")
+Skill(skill="issue-finish")
 ```
 
 これにより以下が自動実行される（`/commit/merge` 経由）：
@@ -503,5 +506,6 @@ Step 4-1 で既に通過しているため、通常は成功するはず。
 
 | スキル | 用途 |
 |-------|------|
-| `/issue/start` | Issue開始、Worktree作成、ブランチ作成 |
-| `/issue/finish` | タスク完了、コミット、PR、マージ、クリーンアップ |
+| `/issue-start` | Issue開始、Worktree作成、ブランチ作成 |
+| `/review-spec` | 仕様レビュー（セルフチェック、スキップ禁止） |
+| `/issue-finish` | タスク完了、コミット、PR、マージ、クリーンアップ |
