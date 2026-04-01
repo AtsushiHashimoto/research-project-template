@@ -23,5 +23,6 @@
       "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
     }
   },
-  "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}"
+  "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}",
+  "postStartCommand": "bash .devcontainer/post-start.sh"
 }

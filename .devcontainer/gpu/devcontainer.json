@@ -24,7 +24,7 @@
 
   // --- [Template] GPU 固有のライフサイクル ---
   "initializeCommand": "bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
-  "postStartCommand": "nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost. Container restart required.' >&2",
+  "postStartCommand": "bash .devcontainer/post-start.sh; nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost. Container restart required.' >&2",
 
   // --- [Project] プロジェクト固有の追加セットアップをここに追記 ---
   "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}"

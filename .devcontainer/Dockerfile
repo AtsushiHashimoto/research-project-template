@@ -61,21 +61,11 @@ ENV PATH="/usr/bin:${PATH}"
 # Claude Codeをグローバルインストール
 RUN npm install -g @anthropic-ai/claude-code
 
-# claudeコマンドのaliasを設定（全ユーザー向け）
-RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /etc/bash.bashrc
-
 # tmux設定（マウススクロール有効化）
 RUN echo 'set -g mouse on' >> /etc/tmux.conf
 
-# autoclaude をインストール（レート制限後の自動再開用、マルチアーキテクチャ対応）
-RUN ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "arm64" ]; then ARCH_SUFFIX="arm64"; else ARCH_SUFFIX="amd64"; fi && \
-    curl -L "https://github.com/henryaj/autoclaude/releases/download/v0.1.2/autoclaude_0.1.2_linux_${ARCH_SUFFIX}.tar.gz" \
-    -o /tmp/autoclaude.tar.gz && \
-    tar -xzf /tmp/autoclaude.tar.gz -C /tmp && \
-    mv /tmp/autoclaude /usr/local/bin/autoclaude && \
-    chmod +x /usr/local/bin/autoclaude && \
-    rm -rf /tmp/autoclaude*
+# Note: --dangerously-skip-permissions は post-start.sh の claude() ラッパーで付与
+# alias は claude-auto-retry の shell wrapper (claude() 関数) と競合するため設定しない
 
 # CPU-only PyTorch をインストール（GPUベースイメージ以外の場合）
 ARG INSTALL_TORCH_CPU=false
