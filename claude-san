@@ -12,10 +12,10 @@ CLAUDE_CMD="claude --dangerously-skip-permissions $CLAUDE_ARGS"
 echo "新規セッション作成: $SESSION_NAME"
 [ -n "$CLAUDE_ARGS" ] && echo "Claude args: $CLAUDE_ARGS"
 
-tmux new-session -d -s "$SESSION_NAME"
-tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" Enter
-tmux split-window -h -l 50% -t "$SESSION_NAME"
-tmux send-keys -t "$SESSION_NAME" 'autoclaude' Enter
+# tmuxセッションを作成し、bash -icでシェル環境を維持しつつ直接起動
+# これにより元のbashが死んでもtmuxセッションは生き残る
+tmux new-session -d -s "$SESSION_NAME" "bash -ic '$CLAUDE_CMD'"
+tmux split-window -h -l 50% -t "$SESSION_NAME" "bash -ic 'autoclaude'"
 
 # バックグラウンドで5秒後に'a'キーを送信（autoclaudeの起動を待つ）
 (sleep 5 && tmux send-keys -t "$SESSION_NAME":0.1 'a') &
