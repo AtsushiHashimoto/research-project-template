@@ -6,7 +6,7 @@
 
 ## 特性
 
-- **VS Code DevContainer**: 一键启动，内置 GPU 支持、Claude Code、GitHub CLI、autoclaude
+- **VS Code DevContainer**: 一键启动，CPU/GPU 切换支持，内置 Claude Code、GitHub CLI、autoclaude
 - **Issue 驱动开发**: 以 GitHub Issue 为中心的工作流，支持 `/issue/auto` 批量处理
 - **Git Worktree 管理**: 在隔离目录中并行处理多个任务
 - **数据保护**: 重要数据与 Worktree 分离管理
@@ -63,8 +63,10 @@ gh repo create YOUR_ORG/my-project --source=. --push --private
 
 使用 VS Code Dev Container：
 1. 在 VS Code 中打开项目
-2. 选择 "Reopen in Container"
+2. 选择 "Reopen in Container"（选择 CPU 或 GPU 版本）
 3. 启动 Claude Code：`claude-san`（通过 tmux + [autoclaude](https://github.com/henryaj/autoclaude) 实现速率限制自动恢复）
+
+> **CPU/GPU 切换**: 配置文件位于 `.devcontainer/cpu/` 和 `.devcontainer/gpu/`。在 Dev Container 选择器中选择环境。共享设置集中在 `docker-compose.yml` 和 `post-create.sh` 中。
 
 > 详见 [docs/claude-san.md](docs/claude-san.md)。也可以直接使用 `claude` 进行普通会话。
 
@@ -80,8 +82,15 @@ my-project/
 │   └── skills/                # 附加技能
 ├── scripts/                   # 独立脚本
 ├── .devcontainer/
-│   ├── devcontainer.json
-│   └── Dockerfile
+│   ├── Dockerfile                # 共享镜像（CPU/GPU）
+│   ├── docker-compose.yml        # 共享服务定义
+│   ├── post-create.sh            # 共享生命周期设置
+│   ├── cpu/                      # CPU 配置
+│   │   ├── devcontainer.json
+│   │   └── docker-compose.override.yml
+│   └── gpu/                      # GPU 配置
+│       ├── devcontainer.json
+│       └── docker-compose.override.yml
 ├── data/
 │   └── shared/                # 共享数据（跨 Worktree）
 │       └── ollama_models/     # Ollama 模型（可选）

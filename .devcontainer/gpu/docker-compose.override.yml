@@ -1,0 +1,19 @@
+# ============================================================
+# GPU-specific overrides
+# [Template] research-project-template 由来
+# --- [Project] プロジェクト固有の環境変数はここに追記 ---
+# ============================================================
+services:
+  devcontainer:
+    build:
+      args:
+        BASE_IMAGE: "nvcr.io/nvidia/pytorch:24.12-py3"
+        INSTALL_TORCH_CPU: "false"
+    shm_size: "64gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

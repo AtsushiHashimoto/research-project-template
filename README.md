@@ -6,7 +6,7 @@ A project template for Claude Code integration with research workflows. Runs as 
 
 ## Features
 
-- **VS Code DevContainer**: One-click setup with GPU support, Claude Code, GitHub CLI, and autoclaude pre-installed
+- **VS Code DevContainer**: One-click setup with CPU/GPU switching, Claude Code, GitHub CLI, and autoclaude pre-installed
 - **Issue-Driven Development**: GitHub Issue-centered workflow with `/issue/auto` for batch processing
 - **Git Worktree Management**: Parallel tasks in isolated directories
 - **Data Protection**: Separation of important data and worktrees
@@ -63,8 +63,10 @@ gh repo create YOUR_ORG/my-project --source=. --push --private
 
 With VS Code Dev Container:
 1. Open project in VS Code
-2. Select "Reopen in Container"
+2. Select "Reopen in Container" (choose CPU or GPU variant)
 3. Start Claude Code: `claude-san` (auto-resumes on rate limit via tmux + [autoclaude](https://github.com/henryaj/autoclaude))
+
+> **CPU/GPU switching**: Configurations are in `.devcontainer/cpu/` and `.devcontainer/gpu/`. Select your environment from the Dev Container picker. Shared settings are in `docker-compose.yml` and `post-create.sh`.
 
 > See [docs/claude-san.md](docs/claude-san.md) for details. You can also use `claude` directly for a plain session.
 
@@ -80,8 +82,15 @@ my-project/
 │   └── skills/                # Additional skills
 ├── scripts/                   # Standalone scripts
 ├── .devcontainer/
-│   ├── devcontainer.json
-│   └── Dockerfile
+│   ├── Dockerfile                # Shared image (CPU/GPU)
+│   ├── docker-compose.yml        # Shared service definition
+│   ├── post-create.sh            # Shared lifecycle setup
+│   ├── cpu/                      # CPU configuration
+│   │   ├── devcontainer.json
+│   │   └── docker-compose.override.yml
+│   └── gpu/                      # GPU configuration
+│       ├── devcontainer.json
+│       └── docker-compose.override.yml
 ├── data/
 │   └── shared/                # Shared data (across worktrees)
 │       └── ollama_models/     # Ollama models (optional)

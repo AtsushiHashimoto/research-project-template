@@ -1,11 +1,14 @@
-# ベースイメージ（必要に応じて変更）
-# GPU使用の場合: nvcr.io/nvidia/pytorch:24.12-py3
-# CPU only の場合: python:3.11-slim
-FROM nvcr.io/nvidia/pytorch:24.12-py3
+# ============================================================
+# [Template] research-project-template 共通 Dockerfile
+# CPU/GPU 両対応: BASE_IMAGE で切り替え
+# ============================================================
+ARG BASE_IMAGE=python:3.11
+FROM ${BASE_IMAGE}
 
 # 開発に必要なツールをインストール
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    curl \
     git \
     git-lfs \
     jq \
@@ -58,16 +61,14 @@ ENV PATH="/usr/bin:${PATH}"
 # Claude Codeをグローバルインストール
 RUN npm install -g @anthropic-ai/claude-code
 
-# claudeコマンドのaliasを設定（全ユーザー向け）
-RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /etc/bash.bashrc
-
 # tmux設定（マウススクロール有効化）
 RUN echo 'set -g mouse on' >> /etc/tmux.conf
 
-# autoclaude をインストール（レート制限後の自動再開用）
-RUN curl -L https://github.com/henryaj/autoclaude/releases/download/v0.1.2/autoclaude_0.1.2_linux_amd64.tar.gz \
-    -o /tmp/autoclaude.tar.gz && \
-    tar -xzf /tmp/autoclaude.tar.gz -C /tmp && \
-    mv /tmp/autoclaude /usr/local/bin/autoclaude && \
-    chmod +x /usr/local/bin/autoclaude && \
-    rm -rf /tmp/autoclaude*
+# Note: --dangerously-skip-permissions は post-start.sh の claude() ラッパーで付与
+# alias は claude-auto-retry の shell wrapper (claude() 関数) と競合するため設定しない
+
+# CPU-only PyTorch をインストール（GPUベースイメージ以外の場合）
+ARG INSTALL_TORCH_CPU=false
+RUN if [ "$INSTALL_TORCH_CPU" = "true" ]; then \
+    pip install torch --index-url https://download.pytorch.org/whl/cpu; \
+fi
