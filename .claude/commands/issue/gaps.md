@@ -191,6 +191,41 @@ done
 | Parent関係 | 新規Issueの内容が既存Issueの一部 | `Parent: #N` |
 | 関連Issue | タイトルや本文に既存Issue番号を含む | `Related: #N` |
 
+### Phase 3.6: ユーザーアクション必要の判定
+
+作成予定のIssueがユーザーによる確認・検証を必要とするかを判定します。
+
+```
+Task(subagent_type="general-purpose", prompt="
+以下のIssue候補について、ユーザーアクションが必要かどうかを判定してください。
+
+## Issue候補
+${NEW_ISSUE_CANDIDATES}
+
+## 判定基準
+
+### user-action ラベルが必要なケース
+- 実ハードウェアでの動作確認が必要
+- 本番環境/実運用環境での検証が必要
+- 外部サービスとの連携テストが必要
+- ユーザーの判断・承認が必要な機能
+- UIの見た目・使い勝手の確認が必要
+
+### user-action ラベルが不要なケース
+- コード実装のみで完結
+- ユニットテスト/統合テストで検証可能
+- Mock/Stubで代替可能
+
+## 出力形式
+各Issue候補について:
+- Issue ID/タイトル
+- user-action: true/false
+- 理由
+")
+```
+
+判定結果を `REQUIRES_USER_ACTION` リストに追加します。
+
 ### Phase 4: Create
 
 不足分のIssueを作成します。
@@ -200,6 +235,19 @@ done
 `PARTIALLY_IMPLEMENTED` のIssueから残作業を抽出してIssue作成:
 
 ```bash
+# ラベルの決定
+LABELS="feature"
+if [ -n "$BLOCKED_BY" ]; then
+  LABELS="${LABELS},blocked"
+fi
+if echo "$REQUIRES_USER_ACTION" | grep -q "$MISSING_FEATURE"; then
+  LABELS="${LABELS},user-action"
+  USER_ACTION_NOTE="
+*⚠️ user-action: ユーザーによる確認・検証が必要です*"
+else
+  USER_ACTION_NOTE=""
+fi
+
 gh issue create \
   --title "feat: ${MISSING_FEATURE}" \
   --body "## 概要
@@ -220,8 +268,8 @@ ${RELATED:+- Related: ${RELATED}}
 ${TASK_DESCRIPTION}
 
 ---
-*このIssueは /issue/gaps により自動生成されました*" \
-  --label "feature${BLOCKED_BY:+,blocked}"
+*このIssueは /issue/gaps により自動生成されました*${USER_ACTION_NOTE}" \
+  --label "$LABELS"
 ```
 
 #### 4-2: 未追跡実装のIssue
@@ -229,6 +277,19 @@ ${TASK_DESCRIPTION}
 Issueなしで実装されたコードに対するドキュメントIssueを作成:
 
 ```bash
+# ラベルの決定
+LABELS="docs"
+if [ -n "$BLOCKED_BY" ]; then
+  LABELS="${LABELS},blocked"
+fi
+if echo "$REQUIRES_USER_ACTION" | grep -q "$UNTRACKED_FEATURE"; then
+  LABELS="${LABELS},user-action"
+  USER_ACTION_NOTE="
+*⚠️ user-action: ユーザーによる確認・検証が必要です*"
+else
+  USER_ACTION_NOTE=""
+fi
+
 gh issue create \
   --title "docs: ${UNTRACKED_FEATURE} のドキュメント作成" \
   --body "## 概要
@@ -251,8 +312,25 @@ ${RELATED:+- Related: ${RELATED}}
 - [ ] 必要に応じてリファクタリング
 
 ---
-*このIssueは /issue/gaps により自動生成されました*" \
-  --label "docs${BLOCKED_BY:+,blocked}"
+*このIssueは /issue/gaps により自動生成されました*${USER_ACTION_NOTE}" \
+  --label "$LABELS"
+```
+
+#### 4-3: ユーザーアクションIssueの通知
+
+`user-action` ラベル付きIssueが作成された場合、`/qa/ask` でユーザーに通知:
+
+```bash
+if [ -n "$USER_ACTION_ISSUES" ]; then
+  /qa/ask --type deferred "## 📋 ユーザー対応Issueが作成されました（/issue/gaps）
+
+以下のIssueはユーザーによる確認・検証が必要です:
+
+${USER_ACTION_ISSUES}
+
+これらのIssueには \`user-action\` ラベルが付いており、\`/issue/auto\` ではスキップされます。
+確認完了後、ラベルを外すか Issue をクローズしてください。"
+fi
 ```
 
 ### Phase 5: Report
@@ -281,12 +359,23 @@ ${RELATED:+- Related: ${RELATED}}
 |-------|---------|---------|
 | #8 | API設計 | PR #15 で修正 |
 
-## Issue作成
+## Issue作成（自動処理可能）
 
 | 新Issue | タイトル | Parent | 種類 |
 |---------|---------|--------|------|
 | #10 | パスワードリセット実装 | #5 | feature |
 | #11 | helper.ts ドキュメント | - | docs |
+
+## Issue作成（ユーザーアクション必要）
+
+以下のIssueはユーザーによる確認・検証が必要です。`user-action` ラベル付き。
+
+| 新Issue | タイトル | 必要なアクション |
+|---------|---------|-----------------|
+| #12 | validation: API統合テスト | 実APIサーバーでの動作確認 |
+
+⚠️ これらのIssueは `/issue/auto` でスキップされます。
+ユーザーが確認完了後、`user-action` ラベルを外すか Issue をクローズしてください。
 
 ## スキップ
 
@@ -322,6 +411,7 @@ out-of-date ラベルを手動で外せば再度対象になります。
 3. **自動生成マーク**: 自動生成コメント/Issueには明示的なマークを付与
 4. **ロールバック可能**: ラベルは手動で外せる、Issueはクローズ可能
 5. **依存関係自動検出**: Issue作成前にOpen Issueとの競合をチェックし、`blocked`ラベルと依存関係を自動付与
+6. **user-action 自動判定**: ユーザー確認が必要なIssueを自動検出し、`user-action`ラベルと`/qa/ask`通知を付与
 
 ## Agent References
 
