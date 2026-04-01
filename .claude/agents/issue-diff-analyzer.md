@@ -88,7 +88,7 @@ Issue記載にないが実装されているもの:
 2. **仕様ファイルから特定**
    ```bash
    # 仕様ファイルがあれば参照
-   ls .claude/spec/issues/${ISSUE_ID}-*.md
+   ls .spec/issues/${ISSUE_ID}-*.md
    ```
 
 3. **キーワード検索**

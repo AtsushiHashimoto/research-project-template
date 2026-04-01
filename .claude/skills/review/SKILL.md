@@ -37,7 +37,7 @@ git log main..HEAD --oneline
 gh issue view "$ISSUE_ID" --json title,body
 
 # 仕様ファイルの確認
-SPEC_FILE=$(ls .claude/spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
+SPEC_FILE=$(ls .spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
 if [ -n "$SPEC_FILE" ]; then
   cat "$SPEC_FILE"
 fi
@@ -381,7 +381,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 1. `git diff main` で変更内容を取得
 2. `gh issue view` でIssue目的を取得
-3. 仕様ファイル `.claude/spec/issues/{issue_id}-*.md` を読み込み
+3. 仕様ファイル `.spec/issues/{issue_id}-*.md` を読み込み
 4. **Task tool を7回並列に呼び出し**（+ UI/UX は条件付き）、各サブエージェントにレビュー指示を渡す
 5. 結果を統合してユーザーに提示
 

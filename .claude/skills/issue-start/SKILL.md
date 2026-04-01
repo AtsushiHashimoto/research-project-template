@@ -44,7 +44,7 @@ argument-hint: [short-description]
    - 状態遷移図、ログ戦略、ファイル構成計画を生成
    - Fallback分岐の承認をユーザーに確認
    - 検証チェックリストを生成
-   - `.claude/spec/issues/{issue_id}-{description}.md` に保存
+   - `.spec/issues/{issue_id}-{description}.md` に保存
 
 7. **Plan Mode**
    - 仕様が固まったら plan-mode に移行

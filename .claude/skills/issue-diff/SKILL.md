@@ -43,7 +43,7 @@ argument-hint: <issue_id>
 
 3. **仕様ファイルの確認**
    ```bash
-   ls .claude/spec/issues/${ISSUE_ID}-*.md 2>/dev/null
+   ls .spec/issues/${ISSUE_ID}-*.md 2>/dev/null
    ```
 
 ### Phase 2: 実装コード特定
