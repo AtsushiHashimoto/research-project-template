@@ -95,6 +95,8 @@ Task tool で `subagent_type=general-purpose` を使用。
 - **データ保護**: 重要データが `data/shared/` に保存され、Worktree削除時に失われない設計か
 - **ハードコーディング**: マジックナンバー、固定パス、環境依存値が設定に抽出されているか
 - **ポータビリティ**: 他の環境でも動作するか
+- **プロジェクトルール遵守**: `.claude/CLAUDE.md` および `.claude/workflows/` で定義されたルール（コミット規則、ブランチ命名規則、開発ガイドライン等）に従っているか
+- **依存関係の永続化**: 新規パッケージが devcontainer rebuild 後も利用可能か（Python: `pyproject.toml`、システム: `Dockerfile` に追加されているか）
 
 #### 3-3. テストレビュー（Test Review）
 
