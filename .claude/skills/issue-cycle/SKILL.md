@@ -87,7 +87,17 @@ argument-hint: [issue_ids...] [max_cycles]
    git branch "$SNAPSHOT_BRANCH" main
    ```
 
-2. **ユーザー確認**
+2. **ユーザー確認（開始時のみ）**
+
+   **★★★ 重要: サイクル間でユーザー確認しない ★★★**
+
+   ユーザーへの確認は **開始時の1回のみ**。
+   サイクル間の遷移（次サイクルへの移行）は自動で行う。
+   ユーザーに確認を求めるのは以下の場合のみ:
+   - **開始前**: 処理対象と最大サイクル数の確認
+   - **最大サイクル到達時**: 継続するかどうかの確認
+   - **エラー発生時**: 自信度 < 50% や品質チェック失敗
+
    ```
    ┌─────────────────────────────────────────────────────────────┐
    │ /issue/cycle 実行確認                                       │
@@ -100,7 +110,7 @@ argument-hint: [issue_ids...] [max_cycles]
    │   1. /issue/auto で処理                                     │
    │   2. /issue/gaps で乖離検出・Issue作成                      │
    │   3. /review-integrity でバグパターン・品質チェック          │
-   │   4. 新規Issueがあれば次サイクルへ                          │
+   │   4. 新規Issueがあれば自動的に次サイクルへ                  │
    │                                                             │
    │ 実行しますか？                                              │
    └─────────────────────────────────────────────────────────────┘
@@ -112,8 +122,25 @@ argument-hint: [issue_ids...] [max_cycles]
 
 #### Step 1: /issue/auto
 
+**★★★ 重要: /issue/auto の正式な手順に従うこと ★★★**
+
+`/issue/auto` を Skill として呼び出し、その内部ワークフローを**省略せず**に実行する。
+具体的には、各 Issue に対して以下を順番に（並列ではなく逐次で）実行:
+
+1. `/issue/start` — Worktree作成、ブランチ作成
+2. `/review-spec` — 仕様レビュー（セルフチェック、スキップ禁止）
+3. 実装作業 — サブエージェントによる実装
+4. 品質チェック — `scripts/quality-check.sh` + 仕様整合性チェック
+5. `/issue/finish` — コミット、PR作成、マージ、クリーンアップ
+
+**禁止事項:**
+- Issue を並列処理しない（worktree 間のコンフリクト防止）
+- `/review-spec` をスキップしない
+- 品質チェックを省略しない
+- `/issue/finish` を省略して手動でコミット・マージしない
+
 ```
-Skill(skill="issue/auto", args="${CURRENT_ISSUE_IDS}")
+Skill(skill="issue-auto", args="${CURRENT_ISSUE_IDS}")
 ```
 
 #### Step 2: /issue/gaps
@@ -198,17 +225,30 @@ if minor_findings:
 newly_created_issues = gaps_issues + integrity_issues
 if newly_created_issues:
     if cycle_count < max_cycles:
+        # ★ ユーザー確認なしで自動的に次サイクルへ進む
         CURRENT_ISSUE_IDS = newly_created_issues
-        continue  # 次サイクルへ
+        continue  # 次サイクルへ（確認不要）
     else:
+        # ★ 最大サイクル到達時のみユーザーに確認
         print("最大サイクル到達。残りIssue:", newly_created_issues)
-        break
+        user_choice = ask_user("最大サイクルに到達しました。継続しますか？")
+        if user_choice == "継続":
+            max_cycles += 5  # 追加5サイクル
+            continue
+        else:
+            break
 else:
     print("収束しました（gaps=0 AND integrity=全深刻度クリーン）")
     break
 ```
 
 **収束条件**: gaps で新規 Issue = 0 **かつ** integrity で全深刻度の問題 = 0
+
+**★★★ サイクル間の自動遷移ルール ★★★**
+
+- 収束していない場合（新規Issue > 0）、**ユーザー確認なしで自動的に次サイクルへ進む**
+- ユーザーへの確認は **最大サイクル到達時のみ**
+- これは `/issue/auto` の「完全自動モード」と同じ思想: サイクル間で止まらない
 
 #### Step 4: サイクルスナップショット
 

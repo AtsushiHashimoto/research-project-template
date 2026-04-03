@@ -200,7 +200,7 @@ fi
 # Handle .gitignore
 if [[ -f ".gitignore" ]]; then
     GITIGNORE_ENTRIES=(
-        ".worktrees/"
+        "worktrees/"
         "data/shared/**"
         "!data/shared/.gitkeep"
         "data/local/"

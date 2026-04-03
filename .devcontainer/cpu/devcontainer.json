@@ -5,24 +5,20 @@
   // --- [Template] docker-compose で共通設定 + CPU override ---
   "dockerComposeFile": ["../docker-compose.yml", "docker-compose.override.yml"],
   "service": "devcontainer",
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 
   // --- [Template] devcontainer 固有の共通設定 ---
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
-  "mounts": [
-    "source=claude-code-config-${localWorkspaceFolderBasename},target=/home/vscode/.claude,type=volume"
-  ],
-  "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
-      "moby": false
-    }
-  },
+  // Note: claude-code-config volume は docker-compose.yml で定義（named volume でプレフィックス抑制）
+  // Note (2026-04-03): docker-outside-of-docker feature は docker-compose モードで
+  // entrypoint 注入のバグあり。See: https://github.com/devcontainers/features/issues/954
+  "features": {},
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
     }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}",
-  "postStartCommand": "bash .devcontainer/post-start.sh"
+  "postStartCommand": "bash .devcontainer/post-start.sh; bash scripts/qa/start-bot.sh 2>&1 || true"
 }
