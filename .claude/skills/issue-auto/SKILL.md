@@ -20,6 +20,8 @@ argument-hint: [issue_ids...]
 - 「次のIssueに進みますか？」と聞く
 - 「マージしてよいですか？」と聞く
 - 各Issue完了時にユーザー入力を待つ
+- **ステップの省略** — review-spec、auto-reviewer、品質チェックsubagent呼び出しは絶対にスキップしない
+- **並列化** — 各Issueは順次処理。Agent toolで並列実行しない
 
 **Permission Mode の維持:**
 - このコマンドは **bypass permissions on** の状態で実行されることを前提とする
@@ -303,6 +305,11 @@ ${ISSUE_BODY}
 ## 重要な制約
 - **コミットは行わないでください**。コミットは後のステップ（/issue/finish）で自動実行されます。
 - /commit、/commit/only、/commit/push、/commit/merge などのスキルを呼び出さないでください。
+
+## 品質改善の同時修正
+品質チェック（lint, type check等）で検出された既存の軽微な問題も合わせて修正すること。
+Issueのスコープに厳密に縛らず、確実にコード品質が向上する変更は含めてよい。
+ただし大規模なリファクタリングは別Issueとする。
 
 実装が完了したら、検証チェックリストの各項目への対応状況を報告してください。
 ")
