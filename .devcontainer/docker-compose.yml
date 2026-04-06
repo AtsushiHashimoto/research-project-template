@@ -15,6 +15,9 @@ services:
     ulimits:
       memlock: -1
       stack: 67108864
+    # Note: NVIDIA entrypoint sets CMD=null, so keep-alive is required.
+    # See: https://github.com/devcontainers/features/issues/954
+    command: ["sleep", "infinity"]
     volumes:
       - ..:/workspace:cached
       - ${HOME}/.gitconfig:/home/vscode/.gitconfig:cached

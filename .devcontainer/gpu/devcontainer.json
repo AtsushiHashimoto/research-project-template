@@ -8,6 +8,7 @@
   "workspaceFolder": "/workspace",
 
   // --- [Template] devcontainer 固有の共通設定 ---
+  "overrideCommand": false,
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
   "mounts": [
