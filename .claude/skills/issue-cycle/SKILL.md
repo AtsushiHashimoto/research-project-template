@@ -313,14 +313,6 @@ git reset --hard pre-cycle/20260318-120000
 ```
 ```
 
-### Phase Cleanup: コンテキスト整理
-
-全サイクル完了後、コンテキストを整理：
-
-```
-/compact
-```
-
 ## Safety Features
 
 ### 1. ハード上限
