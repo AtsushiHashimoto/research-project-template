@@ -195,6 +195,55 @@ if [[ -f ".claude/CLAUDE.md" ]]; then
 else
     cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md"
     success "$(msg installed): .claude/CLAUDE.md"
+
+    # Interactive placeholder substitution (only if terminal is interactive)
+    if [[ -t 0 ]]; then
+        echo ""
+        info "Setting up project info in CLAUDE.md..."
+
+        # Derive default project name from directory
+        DEFAULT_PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+
+        read -p "Project name [$DEFAULT_PROJECT_NAME]: " PROJECT_NAME
+        PROJECT_NAME="${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}"
+
+        read -p "Project description (one line): " PROJECT_DESCRIPTION
+        PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-TODO: Add project description}"
+
+        read -p "Researcher name: " RESEARCHER_NAME
+        RESEARCHER_NAME="${RESEARCHER_NAME:-TODO: Add researcher name}"
+
+        START_DATE="$(date +%Y-%m-%d)"
+
+        # Sanitize inputs for sed (escape & and | in replacement strings)
+        sanitize_sed() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
+
+        # Perform substitutions with sanitized values
+        sed -i "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
+        sed -i "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
+        sed -i "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
+        sed -i "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
+
+        success "CLAUDE.md configured for: $PROJECT_NAME"
+    else
+        # Non-interactive: leave placeholders, user edits manually
+        info "Edit .claude/CLAUDE.md to replace {{...}} placeholders"
+    fi
+
+    # Sanitize values for JSON (escape backslashes and double quotes)
+    json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+    # Save substitution log for /template/contribute contamination checks
+    cat > ".claude/template-substitutions.json" <<SUBST_EOF
+{
+  "PROJECT_NAME": "$(json_escape "${PROJECT_NAME:-}")",
+  "PROJECT_DESCRIPTION": "$(json_escape "${PROJECT_DESCRIPTION:-}")",
+  "RESEARCHER_NAME": "$(json_escape "${RESEARCHER_NAME:-}")",
+  "START_DATE": "$(json_escape "${START_DATE:-}")",
+  "PROJECT_SLUG": "$(json_escape "${PROJECT_NAME:-}")"
+}
+SUBST_EOF
+    success "$(msg installed): .claude/template-substitutions.json"
 fi
 
 # Handle .gitignore

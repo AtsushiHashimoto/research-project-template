@@ -1,5 +1,5 @@
 #!/bin/bash
-# Quality check script for PushVoice
+# Quality check script for the project
 # Called by /commit/merge and /issue/auto workflows
 #
 # Exit codes:
