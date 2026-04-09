@@ -17,3 +17,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # --- [Template] Ollama model persistence ---
+    environment:
+      OLLAMA_MODELS: /workspace/data/shared/ollama_models

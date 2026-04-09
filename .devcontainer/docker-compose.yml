@@ -10,6 +10,10 @@ services:
       args:
         USER_UID: ${UID:-1000}
         USER_GID: ${GID:-1000}
+    # Note (2026-04-03): NVIDIA entrypoint は CMD=null のため keep-alive が必要。
+    # docker-outside-of-docker feature のバグ修正後は feature 側の keep-alive に戻せる。
+    # See: https://github.com/devcontainers/features/issues/954
+    command: ["sleep", "infinity"]
     hostname: devcontainer
     shm_size: "8gb"
     ulimits:
@@ -19,10 +23,16 @@ services:
     # See: https://github.com/devcontainers/features/issues/954
     command: ["sleep", "infinity"]
     volumes:
-      - ..:/workspace:cached
+      - ..:/workspaces/${PROJECT_SLUG}:cached
       - ${HOME}/.gitconfig:/home/vscode/.gitconfig:cached
       - ${HOME}/.config/gh:/home/vscode/.config/gh:cached
+      - claude-code-config:/home/vscode/.claude
+      - /var/run/docker.sock:/var/run/docker.sock  # DooD feature の代替（上記 Note 参照）
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
       TZ: ${TZ:-}
+
+volumes:
+  claude-code-config:
+    name: "claude-code-config-${PROJECT_SLUG}"

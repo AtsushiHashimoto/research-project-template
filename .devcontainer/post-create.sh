@@ -36,3 +36,11 @@ fi
 
 # claude-san symlink
 sudo ln -sf "$(pwd)/claude-san" /usr/local/bin/claude-san
+
+# /workspace → /workspaces/<project> symlink
+# NVIDIA base image ships with /workspace (tutorials, etc.) — replace it
+# so that /workspace always points to the actual project root.
+if [ "$(pwd)" != "/workspace" ]; then
+  sudo rm -rf /workspace
+  sudo ln -s "$(pwd)" /workspace
+fi
