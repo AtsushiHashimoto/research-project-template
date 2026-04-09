@@ -250,13 +250,6 @@ fi
     gh issue close ${ISSUE_ID}
     ```
 
-### Phase 5: コンテキスト整理
-
-13. **コンテキスト整理**
-    ```
-    /compact
-    ```
-
 ## Implementation
 
 現在のブランチから Issue 番号を取得：
