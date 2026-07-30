@@ -33,7 +33,7 @@
      cd worktrees/issue5
      ```
    - 複数の Issue を並行して進める場合、それぞれ独立した worktree で作業する
-   - **注意**: Dockerコンテナ内での開発に対応するため、worktreeは `worktrees/` ディレクトリ内に作成する
+   - **注意**: Dockerコンテナ内での開発に対応するため、worktreeは `worktrees/` ディレクトリ内に作成する（理由は「Git Worktree 管理 > ホストとコンテナで worktree を共用できない」参照）
 
 ---
 
@@ -206,6 +206,43 @@ project-name/                    # メインリポジトリ
 │   └── shared/                  # 共有データ（全worktreeからアクセス可能）
 └── src/                         # メインブランチのソース
 ```
+
+### ホストとコンテナで worktree を共用できない
+
+git は `worktrees/<name>/.git` に記録する gitdir を**絶対パス**にする。この絶対パスは
+`git worktree add` を実行した環境でしか有効でない。
+
+| worktree の作成場所 | 記録されるパス | ホストから | コンテナから |
+|---|---|---|---|
+| ホスト | `/Users/.../.git/worktrees/...` | ✅ | ❌ `fatal: not a git repository` |
+| コンテナ内 | `/workspace/.git/worktrees/...` | ❌ 同上 | ✅ |
+
+**したがって worktree は、実際に作業する環境で作成する。** Claude Code をコンテナ内で
+動かす構成ならコンテナ内で `/issue-start` を実行すればよく、その範囲では問題は起きない。
+
+`worktree.useRelativePaths`（git 2.48 以降）で相対パス化すれば両環境から使えるが、
+**既定では使わない**。この設定はリポジトリ拡張 `extensions.relativeWorktrees` を
+`.git/config` に書き込み、git はこの拡張を知らない場合**リポジトリの操作自体を拒否する**:
+
+```
+fatal: unknown repository extension found:
+	relativeworktrees
+```
+
+Debian 13 (trixie) の git は 2.47.3 で、backports にも新しいものが無い。devcontainer が
+Debian stable ベースである限り、有効にするとコンテナ内で git が一切使えなくなる。
+
+関わるすべての環境で git 2.48 以降を確認できる場合のみ、opt-in として有効化する:
+
+```bash
+git --version   # ホストとコンテナの両方で 2.48 以降であることを確認
+git config worktree.useRelativePaths true
+git worktree repair --relative-paths
+```
+
+なお相対パス化した後に `extensions.relativeWorktrees` を消すと、古い git でも相対パスを
+読めるようになる（実測確認済み）。ただし古い git は新規 worktree を絶対パスで作るため
+状態が混在し、拡張を消すこと自体が git の設計意図に反するので推奨しない。
 
 ---
 

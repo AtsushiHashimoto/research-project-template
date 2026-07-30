@@ -248,10 +248,19 @@ fi
 
 # Handle .gitignore
 if [[ -f ".gitignore" ]]; then
+    # NOTE: do not add "!data/shared/.gitkeep" here. Tracking anything under
+    # data/shared makes git materialize it as a real directory in every worktree,
+    # which blocks setup-worktree.sh from linking data/shared to the shared data.
+    #
+    # "data/shared" must not be written as "data/shared/**": the /** form matches
+    # only paths *below* the directory, never the path itself. The symlink that
+    # setup-worktree.sh creates in each worktree would then show up as untracked,
+    # and the commit skills (which run `git add .`) would commit a host-absolute
+    # symlink. The plain form ignores both the symlink and everything inside the
+    # real directory.
     GITIGNORE_ENTRIES=(
-        ".worktrees/"
-        "data/shared/**"
-        "!data/shared/.gitkeep"
+        "worktrees/"
+        "data/shared"
         "data/local/"
     )
 
@@ -274,9 +283,11 @@ else
 fi
 
 # Create data directory
+# Only data/.gitkeep is tracked. data/shared must stay untracked so that
+# worktrees can replace it with a symlink to the shared data (see .gitignore).
 if [[ ! -d "data/shared" ]]; then
     mkdir -p data/shared
-    touch data/.gitkeep data/shared/.gitkeep
+    touch data/.gitkeep
     success "$(msg created_data)"
 fi
 

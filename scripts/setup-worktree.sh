@@ -37,6 +37,12 @@ msg() {
                 "run_init_first") echo "先にメインリポジトリで初期化を実行してください" ;;
                 "config") echo "設定" ;;
                 "symlink_exists") echo "data/shared シンボリックリンクは既に存在します" ;;
+                "dir_has_data") echo "data/shared がシンボリックリンクではなく実体のあるディレクトリで、中にデータがあります" ;;
+                "stray_link_removed") echo "旧バージョンが作った不要なリンクを削除しました" ;;
+                "dir_unreadable") echo "data/shared を読み取れません（権限を確認してください）" ;;
+                "move_data_first") echo "そのままでは共有データにリンクできません。次のコマンドで中身をメインリポジトリへ移してから再実行してください:" ;;
+                "dir_remove_failed") echo "data/shared ディレクトリを削除できませんでした" ;;
+                "dir_replaced") echo "空の data/shared ディレクトリを削除しました（シンボリックリンクに置き換えます）" ;;
                 "recreate") echo "再作成しますか？ [y/N]" ;;
                 "cancelled") echo "キャンセルしました" ;;
                 "local_exists") echo "data/local ディレクトリは既に存在します" ;;
@@ -63,6 +69,12 @@ msg() {
                 "run_init_first") echo "请先在主仓库中运行初始化" ;;
                 "config") echo "配置" ;;
                 "symlink_exists") echo "data/shared 符号链接已存在" ;;
+                "dir_has_data") echo "data/shared 是真实目录（非符号链接）且其中包含数据" ;;
+                "stray_link_removed") echo "已删除旧版本创建的多余链接" ;;
+                "dir_unreadable") echo "无法读取 data/shared（请检查权限）" ;;
+                "move_data_first") echo "当前状态无法链接到共享数据。请用以下命令将内容移动到主仓库后重新执行:" ;;
+                "dir_remove_failed") echo "无法删除 data/shared 目录" ;;
+                "dir_replaced") echo "已删除空的 data/shared 目录（将替换为符号链接）" ;;
                 "recreate") echo "是否重新创建？ [y/N]" ;;
                 "cancelled") echo "已取消" ;;
                 "local_exists") echo "data/local 目录已存在" ;;
@@ -89,6 +101,12 @@ msg() {
                 "run_init_first") echo "Run initialization in main repository first" ;;
                 "config") echo "Configuration" ;;
                 "symlink_exists") echo "data/shared symlink already exists" ;;
+                "dir_has_data") echo "data/shared is a real directory and contains data" ;;
+                "stray_link_removed") echo "Removed a stray link left by an older version" ;;
+                "dir_unreadable") echo "Cannot read data/shared (check permissions)" ;;
+                "move_data_first") echo "Cannot link to the shared data as-is. Move the contents to the main repository with the command below, then re-run:" ;;
+                "dir_remove_failed") echo "Failed to remove the data/shared directory" ;;
+                "dir_replaced") echo "Removed empty data/shared directory (replacing it with a symlink)" ;;
                 "recreate") echo "Recreate? [y/N]" ;;
                 "cancelled") echo "Cancelled" ;;
                 "local_exists") echo "data/local directory already exists" ;;
@@ -183,6 +201,41 @@ if [[ -L "data/shared" ]]; then
         warn "$(msg cancelled)"
         exit 0
     fi
+
+# data/shared exists as a real directory.
+# `ln -sf TARGET DIR` would create DIR/$(basename TARGET) *inside* it instead of
+# replacing it, silently leaving the worktree unlinked from the shared data.
+# Remove it when it holds nothing of value, otherwise stop and let the user decide.
+elif [[ -d "data/shared" ]]; then
+    # An earlier version of this script ran `ln -sf` against the real directory and
+    # so left a stray link at data/shared/<basename> pointing at the shared data.
+    # That is this bug's own debris, not user data: drop it so the worktree can be
+    # repaired by re-running. Only links that resolve to SHARED_DATA_PATH qualify.
+    for stray in data/shared/* data/shared/.[!.]*; do
+        [[ -L "$stray" ]] || continue
+        [[ "$(readlink "$stray")" == "$SHARED_DATA_PATH" ]] || continue
+        rm -f "$stray"
+        info "$(msg stray_link_removed): $stray"
+    done
+
+    # Anything else that is not bookkeeping counts as user data. `find` may fail on
+    # an unreadable directory, and under `set -e` a bare assignment would abort with
+    # no explanation, so handle that case explicitly.
+    LEFTOVER=$(find data/shared -mindepth 1 \
+                   ! -name '.gitkeep' ! -name '.DS_Store' ! -name '._*' \
+                   ! -name 'Thumbs.db' -print -quit 2>/dev/null) \
+        || error "$(msg dir_unreadable): $(pwd)/data/shared"
+
+    if [[ -n "$LEFTOVER" ]]; then
+        warn "$(msg dir_has_data): $(pwd)/data/shared"
+        ls -la data/shared | head -20
+        error "$(msg move_data_first)
+    mv \"$(pwd)/data/shared/\"* \"$SHARED_DATA_PATH/\" && rmdir \"$(pwd)/data/shared\""
+    fi
+
+    rm -f data/shared/.gitkeep data/shared/.DS_Store data/shared/Thumbs.db
+    rmdir data/shared || error "$(msg dir_remove_failed): $(pwd)/data/shared"
+    warn "$(msg dir_replaced)"
 fi
 
 # Check existing local directory
@@ -203,7 +256,9 @@ fi
 # Create symlink
 info "$(msg creating_symlink)"
 mkdir -p data
-ln -sf "$SHARED_DATA_PATH" data/shared
+# -n: never dereference an existing symlink target, so a stale link is replaced
+# rather than followed into the shared directory
+ln -sfn "$SHARED_DATA_PATH" data/shared
 
 success "$(msg created): data/shared -> $SHARED_DATA_PATH"
 echo ""
