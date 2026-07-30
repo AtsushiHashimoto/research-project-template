@@ -36,3 +36,8 @@ fi
 
 # claude-san symlink
 sudo ln -sf "$(pwd)/claude-san" /usr/local/bin/claude-san
+
+# worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
+if [ -x ./scripts/configure-worktree-paths.sh ]; then
+  ./scripts/configure-worktree-paths.sh || true
+fi
