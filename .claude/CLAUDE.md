@@ -121,15 +121,13 @@ data/shared/experiments/
 
 ## コミットのルール
 
-- **指示があったときのみコミットする**
-  - 自動的にコミットせず、明示的な指示を待つ
-  - コミットメッセージには必ず Issue を参照: `Fixes #ISSUE_ID` または `Refs #ISSUE_ID`
-  - Conventional Commits 形式を推奨:
-    - `feat(scope): description` - 新機能
-    - `fix(scope): description` - バグ修正
-    - `docs(scope): description` - ドキュメント
-    - `refactor(scope): description` - リファクタリング
-    - `test(scope): description` - テスト追加
+- コミットメッセージには必ず Issue を参照: `Fixes #ISSUE_ID` または `Refs #ISSUE_ID`
+- Conventional Commits 形式を推奨:
+  - `feat(scope): description` - 新機能
+  - `fix(scope): description` - バグ修正
+  - `docs(scope): description` - ドキュメント
+  - `refactor(scope): description` - リファクタリング
+  - `test(scope): description` - テスト追加
 
 ---
 
@@ -288,9 +286,8 @@ torch.hub.set_dir("data/shared/models")
 1. **常に worktree を使用**: メインディレクトリで直接作業しない
 2. **Issue なしで作業しない**: すべてのタスクは Issue から開始
 3. **進捗は Issue に記録**: コミット前に必ず報告
-4. **明示的指示を待つ**: 自動コミットはしない
-5. **ルールは絶対**: このファイルに記載された全てのルール、スキルで定義されたワークフローは必ず従う
-6. **省略・逸脱する前に確認**: ルールから外れる行為をする場合は、事前に一言ユーザーに確認を取る。自己判断で「不要」「単純だから省略」と決めない
+4. **ルールは絶対**: このファイルに記載された全てのルール、スキルで定義されたワークフローは必ず従う
+5. **省略・逸脱する前に確認**: ルールから外れる行為をする場合は、事前に一言ユーザーに確認を取る。自己判断で「不要」「単純だから省略」と決めない
 
 ---
 
