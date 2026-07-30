@@ -244,9 +244,9 @@ Task(subagent_type="general-purpose", prompt="
 agents/auto-reviewer.md の定義に従って、review-spec の結果に対して判断を行ってください。
 
 ## 必ず読み込むコンテキスト
-- constitution/core-rules.md
-- specs/invariants.md
-- specs/known-issues.md
+- .spec/core-rules.md
+- .spec/invariants.md
+- .spec/known-issues.md
 
 ## 判断対象
 ${REVIEW_SPEC_RESULT}
@@ -332,7 +332,20 @@ $(git diff --stat main)
 
 **プロジェクト固有の品質チェックスクリプトを実行**:
 
+**Issue の種類ラベルに応じて検査範囲を切り替える**。`survey` / `docs` のように成果物が
+Markdown だけの Issue にコード検査（lint・型チェック・テスト）を課しても意味がないため、
+`QUALITY_SCOPE=docs` を渡してコード検査をスキップする。
+
 ```bash
+# Issue の種類ラベルから検査範囲を決定
+LABELS=$(gh issue view "$ISSUE_ID" --json labels -q '.labels[].name')
+if echo "$LABELS" | grep -qE '^(survey|docs)$'; then
+  export QUALITY_SCOPE=docs
+else
+  export QUALITY_SCOPE=all
+fi
+echo "品質チェック範囲: $QUALITY_SCOPE"
+
 # scripts/quality-check.sh を実行
 if [ -x "./scripts/quality-check.sh" ]; then
   ./scripts/quality-check.sh
@@ -352,7 +365,11 @@ fi
 ```
 
 **注意**: 品質チェックの具体的なコマンドは `scripts/quality-check.sh` で定義される。
-プロジェクトの言語やツールに応じてスクリプトをカスタマイズすること。
+
+同スクリプトはプロジェクト構成を**自動検出**する（`pyproject.toml` が無ければ Python 検査をスキップ、
+`shellcheck` が無ければシェル検査をスキップ）。**検査対象が無いこと自体は失敗としない**が、
+実際に検査が落ちた場合は失敗する。プロジェクト固有の検査は同スクリプトの
+「プロジェクト固有の検査」節に追記すること。
 
 ##### 4-2: 仕様整合性チェック
 
@@ -383,7 +400,7 @@ Task(subagent_type="general-purpose", prompt="
 ファイル構成計画に従っているか確認。
 
 ### 5. invariants.md
-specs/invariants.md に反する実装がないか確認。
+.spec/invariants.md に反する実装がないか確認。
 
 ## 出力
 各項目について ✅ / ❌ で判定し、❌ がある場合は詳細を報告。
