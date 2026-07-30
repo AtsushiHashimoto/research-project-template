@@ -402,11 +402,31 @@ Task(subagent_type="general-purpose", prompt="
 ### 5. invariants.md
 .spec/invariants.md に反する実装がないか確認。
 
+### 6. 実験の規律（experiment ラベルの Issue のみ）
+CLAUDE.md「実験の規律（ネガティブ結論の扱い）」を満たしているか確認。
+
+- negative な結論を出している場合、positive/sanity control が PASS しているか
+- 実装正当性が独立オラクルの test で pin されているか
+- baseline を強化している場合、**同じ工夫が提案手法にも適用されているか**（matched-engineering）。
+  適用していないなら「baseline の上限測定」として記録されているか
+- 結論に `unverified-negative` / `verified-negative` / `implementation-bug` の格付けがあるか
+
+**格付けが無い、または `unverified-negative` のまま結論扱いしている場合は不合格。**
+
 ## 出力
 各項目について ✅ / ❌ で判定し、❌ がある場合は詳細を報告。
 ❌ が1つでもあれば「不合格」と明示。
 ")
 ```
+
+**★ negative result を安易に通さないこと**
+
+`/issue-auto` は「判断が必要な場合は安全側に倒して続行」する設計だが、
+**negative result の受容は「安全側」ではない。** 実装バグを見逃したまま
+「この手法は効かない」と確定させる害のほうが大きい。
+
+experiment ラベルの Issue で negative な結論が出た場合、上記6を満たさない限り
+**自動マージせず停止**し、Issue にトリアージ未完了である旨をコメントすること。
 
 不合格の場合：
 ```bash
