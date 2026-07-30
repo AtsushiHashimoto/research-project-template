@@ -218,11 +218,21 @@ else
         # Sanitize inputs for sed (escape & and | in replacement strings)
         sanitize_sed() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
 
+        # `sed -i` is not portable: GNU sed (Linux) takes a bare `-i`, while BSD
+        # sed (macOS) reads the next argument as a backup suffix. Rewrite via a
+        # temp file so this runs unchanged on both.
+        sed_inplace() {
+            local expr="$1" file="$2" tmp
+            tmp="$(mktemp "${TMPDIR:-/tmp}/install.XXXXXX")"
+            sed "$expr" "$file" > "$tmp" && cat "$tmp" > "$file"
+            rm -f "$tmp"
+        }
+
         # Perform substitutions with sanitized values
-        sed -i "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
 
         success "CLAUDE.md configured for: $PROJECT_NAME"
     else
