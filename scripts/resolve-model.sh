@@ -76,6 +76,7 @@ case "${1:-}" in
     done < <(jq -r '.roles|keys[]' "$POLICY")
     d=$(disabled_list | tr -s ',' ' ' | xargs)
     [ -n "$d" ] && echo "disabled: $d"
+    exit 0
     ;;
   --disable)
     [ -z "${2:-}" ] && { echo "usage: --disable <model>"; exit 1; }
