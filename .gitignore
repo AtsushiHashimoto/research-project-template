@@ -18,8 +18,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# ルート直下のみ（裸の lib/ は scripts/lib/ 等も無言で除外してしまう）
+/lib/
+/lib64/
 parts/
 sdist/
 var/

@@ -161,11 +161,11 @@ git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TMP_DIR/templ
 
 # Files to install
 ITEMS=(
-    ".claude/commands"
     ".claude/skills"
     ".claude/agents"
     ".claude/rules"
     ".claude/worktree-config.json"
+    ".claude/model-policy.json"
     ".devcontainer"
     "scripts"
     ".spec"
@@ -188,7 +188,13 @@ for item in "${ITEMS[@]}"; do
         existed=false
         [[ -e "$dst" ]] && existed=true
         mkdir -p "$(dirname "$dst")"
-        cp -r "$src" "$dst"
+        if [[ -d "$src" ]] && [[ -d "$dst" ]]; then
+            # --force で既存ディレクトリを更新する場合は中身をマージコピーする。
+            # `cp -r "$src" "$dst"` は dst の中へネストコピーしてしまう（例: .spec/.spec/）
+            cp -r "$src/." "$dst/"
+        else
+            cp -r "$src" "$dst"
+        fi
         # .spec/issues/ はテンプレート自身の仕様アーカイブ。新規プロジェクトには持ち込まない
         # （必読3ファイルとディレクトリ構造だけを残す）。既存 .spec がある場合は触らない
         if [[ "$item" == ".spec" ]] && [[ "$existed" != true ]]; then
