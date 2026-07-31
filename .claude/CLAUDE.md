@@ -176,9 +176,20 @@ data/shared/experiments/
 
 | スキル | 用途 |
 |-------|------|
-| `/worktree-init` | 初回セットアップ（共有データパス設定） |
+| `/worktree-init` | 初回セットアップ（共有データパス・相対パス設定→`/spec-init`） |
 | `/worktree-setup` | Worktreeにデータディレクトリを作成 |
 | `/worktree-safe-remove` | Worktreeを安全に削除 |
+
+### 仕様・ルール管理
+
+| スキル | 用途 |
+|-------|------|
+| `/spec-init` | `.spec/` にプロジェクト固有のルール・失敗パターンを対話的に追加（再実行可） |
+
+`.spec/` の3ファイル（`core-rules.md` / `invariants.md` / `known-issues.md`）は
+`auto-reviewer` が判断前に**必ず読む**必須コンテキストです。
+実プロジェクトの失敗実績から抽出した既定が同梱されており、**既定だけでも動作します**。
+プロジェクト固有の内容は `/spec-init` で追加してください。
 
 ---
 

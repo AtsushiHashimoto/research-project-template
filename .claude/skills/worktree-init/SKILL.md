@@ -4,8 +4,28 @@ description: Initialize worktree data protection configuration (run once in main
 
 Set up shared data storage location for worktree data protection. Run this once in the main repository before creating worktrees.
 
-Execute the script:
+## Step 1: データ保護と worktree パスの設定
 
 ```bash
 bash .claude/skills/worktree-init/init.sh
 ```
+
+以下を実行します。
+
+- 共有データ保存先の設定
+- `worktree.useRelativePaths=true` の設定（ホスト / devcontainer 間で worktree を共有するため）
+- 既存 worktree の `git worktree repair`
+
+## Step 2: `.spec/` のプロジェクト固有内容を登録
+
+続けて `/spec-init` を呼び出します。
+
+```
+Skill(skill="spec-init")
+```
+
+`.spec/` の3ファイルには実プロジェクトの失敗実績から抽出した**既定が同梱済み**のため、
+この Step を飛ばしても `/issue-auto` は動作します。ただし**プロジェクト固有の失敗パターンは
+既定では捕捉できない**ため、初回セットアップ時に実施することを推奨します。
+
+後から `/spec-init` を単体で実行しても構いません（何度でも再実行可能）。
