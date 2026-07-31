@@ -9,10 +9,13 @@
 # 判別基準:
 #   **テンプレート由来パスの変更 = 還流候補。それ以外 = プロジェクト固有。**
 #
-#   テンプレート由来パス:
+#   テンプレート由来パス（install.sh の ITEMS / template-sync の対象と対称に保つ）:
 #     .claude/rules/template/       （MANIFEST.sha256 は生成物なので除外）
 #     .claude/skills/
 #     .claude/agents/
+#     .claude/worktree-config.json
+#     .claude/model-policy.json
+#     .devcontainer/
 #     scripts/
 #     .spec/*.md の**既定節のみ**（`# プロジェクト固有` 以降は還流しない）
 #     .claude/rules/template.bak-*/ （sync が退避したローカル改変＝還流候補そのもの）
@@ -195,11 +198,19 @@ scan_dir() {
 }
 
 # --- テンプレート由来ディレクトリ ---
+# install.sh の ITEMS / template-sync の SYNC_TARGETS と対称に保つこと
 # MANIFEST.sha256 は generate-rules-manifest.sh の生成物であり、還流の対象にしない
 scan_dir ".claude/rules/template" "$RULES_MANIFEST_NAME"
 scan_dir ".claude/skills"
 scan_dir ".claude/agents"
+scan_dir ".devcontainer"
 scan_dir "scripts"
+
+# --- テンプレート由来の単体ファイル ---
+for single in ".claude/worktree-config.json" ".claude/model-policy.json"; do
+  [ -f "$PROJECT_ROOT/$single" ] || continue
+  compare_file "$single" "$SOURCE_DIR/$single" "$PROJECT_ROOT/$single"
+done
 
 # --- sync が退避したローカル改変（D1-b の template.bak-*/） ---
 for bak in "$PROJECT_ROOT"/.claude/rules/template.bak-*/; do

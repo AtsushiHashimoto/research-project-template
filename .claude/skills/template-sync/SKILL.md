@@ -21,8 +21,8 @@ description: Sync updates from research-project-template (テンプレート更�
 | `.claude/rules/*.md`（直下） | **触らない**。例外: 旧構造からの移行時（`template/` 不在）のみ、テンプレートと同名ファイルは移行処理される |
 | `.claude/skills/` | 差分表示→選択適用 |
 | `.claude/agents/` | 差分表示→選択適用 |
-| `.claude/commands/` | 差分表示→選択適用 |
 | `.claude/worktree-config.json` | 差分表示→選択適用 |
+| `.claude/model-policy.json` | 差分表示→選択適用 |
 | `.devcontainer/` | 差分表示→選択適用 |
 | `scripts/` | 差分表示→選択適用 |
 | `.spec/*.md` の**既定節** | **マーカー間を自動差し替え**（`scripts/sync-spec-defaults.sh`。**プロジェクト固有節は触らない**） |
@@ -155,27 +155,39 @@ fi
 
 **移行は行わない。** 対話で確認できないため、固有記述を失う危険がある。
 
-代わりに `user-action` ラベルつきの issue を起票し、処理を止めずに次へ進む。
+代わりに `user-action` ラベルつきの issue を **`/issue-create` 経由で**起票し、処理を止めずに次へ進む
+（`gh issue create` を直接呼ばない。`.claude/rules/template/skills.md` の単一情報源の原則）。
 
-```bash
-gh issue create \
-  --title "chore: 543行世代の CLAUDE.md を .claude/rules/template/ 構造へ移行する" \
-  --label "chore,user-action" \
-  --body "## 背景
+1. 以下の本文を一時ファイル（例: `$TMP_DIR/migration-issue.md`）に書き出す:
 
-/template-sync が旧構造（.claude/rules/ が存在しない）を検出しました。
-CLAUDE.md にワークフロールールとプロジェクト固有記述が混在しているため、
-テンプレートの更新が自動で取り込めない状態です。
+   ```markdown
+   ## 背景
 
-## 対応
+   /template-sync が旧構造（.claude/rules/ が存在しない）を検出しました。
+   CLAUDE.md にワークフロールールとプロジェクト固有記述が混在しているため、
+   テンプレートの更新が自動で取り込めない状態です。
 
-対話モードで \`/template-sync\` を実行し、重複部分の diff を確認しながら
-固有記述を切り出してください（自動移行は行いません）。
+   ## 対応
 
-## 注意
+   対話モードで `/template-sync` を実行し、重複部分の diff を確認しながら
+   固有記述を切り出してください（自動移行は行いません）。
 
-- 固有記述の自動削除は禁止。1件ずつ確認すること"
-```
+   ## 注意
+
+   - 固有記述の自動削除は禁止。1件ずつ確認すること
+   ```
+
+2. `/issue-create` で起票する。移行はどの task にも属さない単発作業のため `--parent` は付けない:
+
+   ```
+   Skill(skill="issue-create", args="--type chore --title 'chore: 543行世代の CLAUDE.md を .claude/rules/template/ 構造へ移行する' --body-file $TMP_DIR/migration-issue.md")
+   ```
+
+3. 作成された issue に状態ラベルを付与する（種類ラベル以外は `/issue-create` の対象外のため）:
+
+   ```bash
+   gh issue edit "$ISSUE_ID" --add-label user-action
+   ```
 
 Issue 番号を完了報告に記録し、sync の残りの Step は通常どおり続行する。
 
@@ -185,12 +197,12 @@ Issue 番号を完了報告に記録し、sync の残りの Step は通常どお
 `.claude/rules/` は Step 2、`.spec/*.md` は Step 3 で処理済みなので**含めない**。
 
 ```bash
-# 対象ディレクトリ（rules と .spec は処理済み）
+# 対象（rules と .spec は処理済み）。install.sh の ITEMS / contribute-detect と対称に保つ
 SYNC_TARGETS=(
     ".claude/agents"
-    ".claude/commands"
     ".claude/skills"
     ".claude/worktree-config.json"
+    ".claude/model-policy.json"
     ".devcontainer"
     "scripts"
 )
@@ -209,14 +221,14 @@ done
 ## テンプレート更新の検出結果
 
 ### 新規ファイル（テンプレートにのみ存在）
-- `.claude/commands/new-command.md`
+- `.claude/skills/new-skill/SKILL.md`
 
 ### 変更されたファイル
-- `.claude/commands/commit/merge.md` (テンプレート側で更新あり)
+- `.claude/skills/commit-merge/SKILL.md` (テンプレート側で更新あり)
 - `scripts/safe-remove-worktree.sh` (テンプレート側で更新あり)
 
 ### ローカルのみのファイル（テンプレートに存在しない）
-- `.claude/commands/custom-command.md` (ローカル追加)
+- `.claude/skills/custom-skill/SKILL.md` (ローカル追加)
 
 ### CLAUDE.md の差分（参考表示のみ）
 [diff表示]
