@@ -17,12 +17,35 @@ description: Sync updates from research-project-template (テンプレート更�
 
 | パス | 同期方法 |
 |------|---------|
-| `.claude/commands/` | 差分表示→選択適用 |
+| **`.claude/rules/`** | **丸ごと置き換え**（テンプレート由来。プロジェクト固有記述を含まない） |
 | `.claude/skills/` | 差分表示→選択適用 |
+| `.claude/agents/` | 差分表示→選択適用 |
+| `.claude/commands/` | 差分表示→選択適用 |
 | `.claude/worktree-config.json` | 差分表示→選択適用 |
 | `.devcontainer/` | 差分表示→選択適用 |
 | `scripts/` | 差分表示→選択適用 |
+| `.spec/*.md` の**既定節** | 差分表示→選択適用（**プロジェクト固有節は触らない**） |
 | `.claude/CLAUDE.md` | **差分表示のみ**（自動上書きしない） |
+
+### ★ `.claude/rules/` は丸ごと置き換えてよい
+
+ワークフロールールは `.claude/rules/` に分離されており、
+**プロジェクト固有の記述を含まない**設計になっている。そのため上書きしても情報が失われない。
+
+```bash
+rm -rf .claude/rules/
+cp -r "$TMP_DIR/.claude/rules/" .claude/rules/
+```
+
+以前は全ルールが `.claude/CLAUDE.md`（543行）に同居しており、
+プロジェクト固有記述と混在するため**自動上書きできなかった**。
+その結果 sync のたびにコンフリクトが起き、解決の過程でテンプレート側の更新が捨てられていた。
+
+実測では、あるプロジェクトが **template-sync を7回実施してなお CLAUDE.md の共通率が 4%** だった。
+回数を重ねても収束しなかったのは、この構造が原因である。
+
+**`.claude/rules/` にプロジェクト固有の記述を書かないこと。** 書くと sync で失われる。
+プロジェクト固有のルールは `.claude/CLAUDE.md` の「プロジェクト固有のルール」節に書く。
 
 ## Workflow
 
@@ -41,6 +64,8 @@ git clone --depth 1 "$TEMPLATE_REPO" "$TMP_DIR/template" 2>/dev/null
 ```bash
 # 対象ディレクトリ
 SYNC_TARGETS=(
+    ".claude/rules"        # 丸ごと置き換え対象
+    ".claude/agents"
     ".claude/commands"
     ".claude/skills"
     ".claude/worktree-config.json"
@@ -100,6 +125,7 @@ rm -rf "$TMP_DIR"
 
 **重要**:
 - `.claude/CLAUDE.md` は**絶対に自動上書きしない**（プロジェクト固有の設定を含むため）
+- `.claude/rules/` は**丸ごと置き換えてよい**（テンプレート由来。プロジェクト固有記述を含まない設計）
 - 適用前に必ずユーザーに確認を取る
 - 既存ファイルを上書きする前にバックアップを表示する（diffで確認できる）
 
