@@ -166,8 +166,8 @@ BAK=$(ls -d .claude/rules/template.bak-*/ 2>/dev/null || true)
   完了報告コメントへの記録のみを行い、処理を止めない
 - 該当が無ければ何も出力しない
 
-**`in-progress` ラベルは使いません**（作業中の判定はブランチの有無で行う。
-`.claude/rules/template/labels.md` 参照）。ラベルの削除処理は不要です。
+**作業中を表す状態ラベルは使いません**（作業中の判定はブランチの有無で行う。
+`.claude/rules/template/labels.md` 参照）。完了時のラベル削除処理は不要です。
 
 ### Step 2: /commit/merge 実行
 

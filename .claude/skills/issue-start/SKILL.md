@@ -110,8 +110,8 @@ gh issue comment "$ISSUE_ID" --body "## 着手
 - Worktree: \`worktrees/issue${ISSUE_ID}\`"
 ```
 
-**`in-progress` ラベルは付けない。** 作業中の判定はブランチの有無で行う
-（同じ状態を2通りに表現しないため。CLAUDE.md「ラベル運用ルール」参照）。
+**作業中を表す状態ラベルは付けない。** 作業中の判定はブランチの有無で行う
+（同じ状態を2通りに表現しないため。`.claude/rules/template/labels.md` 参照）。
 
 ### Step 6: 仕様レビュー（`/review-spec`）
 
