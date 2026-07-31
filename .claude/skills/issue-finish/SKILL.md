@@ -13,7 +13,7 @@ description: Finish task with quality review by invoking commit/merge workflow (
 以下を実行します：
 1. 品質レビュー（Issue目的との整合性確認）
 2. **仕様ファイルのステータス更新**（completed）
-3. **`in-progress` ラベルを削除**
+3. **還流候補の確認**（テンプレート由来パスの変更）
 4. Commit & Push
 5. PR作成 & マージ
 6. **Issueクローズ**
@@ -135,11 +135,39 @@ SPEC_FILE=$(ls .spec/issues/${ISSUE_ID}-*.md 2>/dev/null | head -1)
 - `完了日: YYYY-MM-DD` を追加
 - 変更履歴に完了記録を追加
 
-### Step 1.5: in-progress ラベルを削除
+### Step 1.5: 還流候補の確認（テンプレート由来パスの変更）
+
+テンプレート由来のパスに変更が含まれていたら、**還流候補として完了報告に記録**します。
 
 ```bash
-gh issue edit "$ISSUE_ID" --remove-label "in-progress"
+BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main)
+REFLUX=$(git diff --name-only "$BASE"...HEAD -- \
+  '.claude/rules/template/' '.claude/skills/' 'scripts/' '.claude/agents/')
+
+# sync が退避したローカル改変も還流候補
+BAK=$(ls -d .claude/rules/template.bak-*/ 2>/dev/null || true)
 ```
+
+- **完了報告コメントに一覧を記録する**（auto モード・対話モードとも必須）
+
+  ```markdown
+  ## 還流候補（テンプレート由来パスの変更）
+  - `.claude/rules/template/labels.md`
+  - `scripts/quality-check.sh`
+  ```
+
+- **対話モードでは `/template-contribute` を1行だけ提案する**（非ブロッキング。質問ではない）
+
+  ```
+  還流候補が 2 件あります。テンプレートに還元する場合は /template-contribute を実行してください。
+  ```
+
+- **auto モード（`/task-run` 経由 = `/commit-merge --auto`）では質問しない。**
+  完了報告コメントへの記録のみを行い、処理を止めない
+- 該当が無ければ何も出力しない
+
+**`in-progress` ラベルは使いません**（作業中の判定はブランチの有無で行う。
+`.claude/rules/template/labels.md` 参照）。ラベルの削除処理は不要です。
 
 ### Step 2: /commit/merge 実行
 
