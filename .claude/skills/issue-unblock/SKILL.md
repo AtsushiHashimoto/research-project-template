@@ -4,7 +4,7 @@ description: Analyze backlog blockers and create issues to resolve them (ブロ�
 
 # Issue Unblock
 
-バックログ (`docs/backlog.md`) のブロッカーを分析し、自動解消可能なものについてIssueを作成します。
+バックログ (`.dev/backlog.md`) のブロッカーを分析し、自動解消可能なものについてIssueを作成します。
 
 **注意**: このスキルはブロッカー解消のみを担当します。ブロッカーがない項目のIssue化は `/issue/backlog` が担当します。
 
@@ -23,7 +23,7 @@ description: Analyze backlog blockers and create issues to resolve them (ブロ�
 │                    /issue/unblock                           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│   docs/backlog.md                                           │
+│   .dev/backlog.md                                           │
 │   ┌─────────────────────────────────────────────────────┐  │
 │   │ BL-001: FeedbackMonitor     → 👤 ユーザー確認必要   │  │
 │   │ BL-002: Notifier            → ⏸️ BL-001依存        │  │
@@ -51,7 +51,7 @@ description: Analyze backlog blockers and create issues to resolve them (ブロ�
 ### Phase 1: バックログ読み込み
 
 ```bash
-BACKLOG_FILE="docs/backlog.md"
+BACKLOG_FILE=".dev/backlog.md"
 if [ ! -f "$BACKLOG_FILE" ]; then
   echo "バックログファイルが存在しません"
   exit 0
@@ -71,7 +71,7 @@ fi
 
 ```
 Task(subagent_type="general-purpose", prompt="
-docs/backlog.md の各項目について、ブロッカーを分類してください。
+.dev/backlog.md の各項目について、ブロッカーを分類してください。
 
 ## 分類ルール
 
@@ -144,7 +144,7 @@ for BLOCKER in $AUTO_RESOLVABLE_BLOCKERS; do
 ${ISSUE_BODY}
 
 ## 関係
-- Unblocks: ${BL_ID} in docs/backlog.md
+- Unblocks: ${BL_ID} in .dev/backlog.md
 
 ---
 *このIssueは /issue/unblock により自動生成されました*" \
@@ -180,7 +180,7 @@ ${BL_TITLE} のユーザー確認作業です。
 ${REQUIRED_ACTION}
 
 ## 関係
-- Unblocks: ${BL_ID} in docs/backlog.md
+- Unblocks: ${BL_ID} in .dev/backlog.md
 
 ---
 *このIssueは /issue/unblock により自動生成されました*

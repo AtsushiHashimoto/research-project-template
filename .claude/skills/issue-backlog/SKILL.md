@@ -4,7 +4,7 @@ description: Process backlog - unblock then issue-ify ready items (バックロ�
 
 # Issue Backlog
 
-バックログ (`docs/backlog.md`) を処理します:
+バックログ (`.dev/backlog.md`) を処理します:
 1. `/issue/unblock` でブロッカー解消Issueを作成
 2. ブロッカーがない項目をIssue化
 3. Issue化した項目を backlog.md から削除
@@ -41,7 +41,7 @@ description: Process backlog - unblock then issue-ify ready items (バックロ�
 │                              ▼                              │
 │   Step 3: backlog.md から削除                              │
 │   ┌─────────────────────────────────────────────────────┐  │
-│   │ docs/backlog.md:                                    │  │
+│   │ .dev/backlog.md:                                    │  │
 │   │ - BL-007 セクションを削除                           │  │
 │   │ - "Moved to Issue #71" コメントを残す（オプション） │  │
 │   └─────────────────────────────────────────────────────┘  │
@@ -65,7 +65,7 @@ Skill(skill="issue/unblock")
 
 ```
 Task(subagent_type="general-purpose", prompt="
-docs/backlog.md を分析し、ブロッカーがない（着手可能な）項目を特定してください。
+.dev/backlog.md を分析し、ブロッカーがない（着手可能な）項目を特定してください。
 
 ## 着手可能の条件
 
@@ -152,14 +152,14 @@ for ITEM in $CREATED_ISSUES; do
   # セクションの終了: 次の ### または ---
 
   # オプション1: 完全削除
-  sed -i "/### ${BL_ID}:/,/^---$/d" docs/backlog.md
+  sed -i "/### ${BL_ID}:/,/^---$/d" .dev/backlog.md
 
   # オプション2: 移動コメントを残す（推奨）
-  # sed -i "s/### ${BL_ID}:.*/### ${BL_ID}: [Moved to ${ISSUE_URL}]/" docs/backlog.md
+  # sed -i "s/### ${BL_ID}:.*/### ${BL_ID}: [Moved to ${ISSUE_URL}]/" .dev/backlog.md
 done
 
 # 変更をコミット
-git add docs/backlog.md
+git add .dev/backlog.md
 git commit -m "chore(backlog): Move ${BL_ID} to Issue
 
 Items moved to GitHub Issues:

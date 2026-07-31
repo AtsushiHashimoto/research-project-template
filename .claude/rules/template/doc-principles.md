@@ -13,6 +13,21 @@
 - プロジェクト概要やセットアップ手順は README に記載
 - 同じ情報を両方に書かない（Single Source of Truth）
 
+### 内部開発メモは `.dev/` に置く
+
+`docs/` は GitHub Pages / Sphinx 等で**公開ドキュメント**を置く場所として広く使われるため、
+内部開発メモを混在させない（#63）。
+
+| 置き場所 | 内容 |
+|---|---|
+| `docs/` | 公開ドキュメント（README から参照するもの、API reference、usage guide） |
+| `docs/surveys/` | survey の成果物（`deliverables.md` 参照。研究成果物なので公開側） |
+| `.dev/` | 内部開発メモ: ADR（`decisions.md`）、バックログ（`backlog.md`）、設計ノート（`design/`） |
+
+- `.dev/` は **git 管理する**（ADR・バックログは履歴そのものに価値がある）
+- `/issue-backlog` `/issue-unblock` は `.dev/backlog.md` を参照する
+- 成果物リリース時には `.dev/` を含めない（開発ハーネスの除外対象）
+
 ### ★ アカウント層（`~/.claude/`）に何を置くか
 
 **`~/.claude/`（アカウント層）には個人の好み（言語・出力スタイル等）のみを置きます。**
