@@ -58,6 +58,12 @@
 | `/template-sync` | テンプレートの最新更新を取り込み |
 | `/template-contribute` | テンプレートへの改善PRを作成 |
 
+### リリース
+
+| スキル | 用途 |
+|-------|------|
+| `/release <version>` | 開発用ファイル（`.claude/` `.spec/` `.dev/` 等）を除いたクリーンな成果物を生成し GitHub Release を作成 |
+
 ### Worktree管理
 
 | スキル | 用途 |
