@@ -104,9 +104,9 @@ deferred タスクでした。実装 Issue を作成しますか？
 ✅ Q001 のスレッドに返信しました
 ```
 
-## Integration with /issue/auto
+## Integration with /task-run
 
-`/issue/auto` の開始時に自動で `/qa/check` を実行し、
+`/task-run` の開始時に自動で `/qa/check` を実行し、
 前回のセッションで回答があった質問を確認します。
 
 ## Thread Reply Examples

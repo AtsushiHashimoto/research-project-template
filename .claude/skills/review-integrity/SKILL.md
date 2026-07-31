@@ -5,7 +5,7 @@ description: Periodic codebase integrity and consistency review (定期的な実
 # Review Integrity
 
 コードベースの整合性・一貫性を定期的にレビューするスキル。
-`/issue/auto` 完了後や大きな変更の後に実行推奨。
+`/task-run` 完了後や大きな変更の後に実行推奨。
 
 ## Usage
 
@@ -232,7 +232,7 @@ Issue本文の構成:
 
 ## Phase 5: 修正Issueの作成
 
-レビューで発見された問題は、個別の GitHub Issue として作成し `/issue/auto` 等で修正する。
+レビューで発見された問題は、個別の GitHub Issue として作成し `/task-run` 等で修正する。
 `/review-integrity` 自体は診断に徹し、修正は Issue-Driven ワークフローで行う。
 
 ### Issue化のグルーピングポリシー
@@ -281,7 +281,7 @@ summary.md は上記 Issue 本文と同一内容を保存する。
 ## 自動実行のトリガー
 
 以下のタイミングで実行を推奨:
-- `/issue/cycle` 完了後
+- `/epic-cycle` 完了後
 - 5件以上の PR がマージされた後
 - 大規模リファクタリング後
 - ユーザーから明示的に依頼された時

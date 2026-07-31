@@ -9,4 +9,9 @@ if [ -x "$REPO_ROOT/scripts/configure-worktree-paths.sh" ]; then
   "$REPO_ROOT/scripts/configure-worktree-paths.sh" || true
 fi
 
+# GitHub ラベルのプロビジョニング
+if [ -x "$REPO_ROOT/scripts/setup-labels.sh" ]; then
+  "$REPO_ROOT/scripts/setup-labels.sh" || true
+fi
+
 exec "$REPO_ROOT/scripts/init-data.sh" "$@"

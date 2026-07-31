@@ -1,6 +1,6 @@
 #!/bin/bash
 # Quality check script for the project
-# Called by /commit/merge and /issue/auto workflows
+# Called by /commit/merge and /task-run workflows
 #
 # Exit codes:
 #   0: All checks passed (or no applicable checks found)

@@ -9,54 +9,146 @@
 
 ---
 
-## Issue-Driven ワークフロー
+## Issue 階層
 
-このプロジェクトはGitHub Issueを中心とした開発フローで進めます。
+Issue は **epic / task / issue の3層**で構成します。親子関係は **GitHub ネイティブの sub-issue** で表し、
+種別は**ラベル**で表します。
+
+| 層 | ラベル | 役割 | worktree | マージ |
+|---|---|---|---|---|
+| **epic** | `epic` | ゴール。task をまとめる | 持たない | しない |
+| **task** | `task` | 1つのまとまった仕事 | 持たない | しない |
+| **issue** | 種類ラベル | 実作業 | **1つ持つ** | **個別にマージ** |
+| 小タスク | — | 分割不要な粒度 | 親と共有 | 親と一緒 |
+
+**Issue の単位と worktree の単位は別です。** worktree を持つのは issue 層だけです。
+これにより、task 内の各 issue が個別にマージされ、main との乖離が溜まりません。
+
+### 既定の task 構成（必須）
+
+task の下には以下の順で issue を置きます。**省略する場合は task 本文に理由を記載**してください。
+
+```
+task
+ ├─ 1. survey       既存手法・先行研究の調査（novelty / baseline 監査）
+ ├─ 2. spec         仕様の作成・レビュー
+ ├─ 3. feature      実装
+ ├─ 4. validation   実装は仕様どおり動くか（実装の正しさ）
+ └─ 5. experiment   仮説は正しいか（設計の正しさ）
+```
+
+| task の種類 | 既定の構成 |
+|---|---|
+| 新手法の検証 | survey → spec → feature → validation → experiment |
+| 既存実装の改善 | spec → feature → validation |
+| バグ修正 | bug（単独） |
+| 調査のみ | survey（単独） |
+| 基盤整備 | spec → feature → validation |
+
+**`validation` が PASS して初めて `experiment` の negative を信じてよい。**
+実装の正しさと設計の正しさを別の issue に分けることで、negative が出たときに
+「設計が悪い」のか「実装がバグっている」のかを切り分けられます。
+
+### survey を先頭に置く理由
+
+**novelty / baseline 監査を手順そのものにするためです。**
+「既存手法で既に解けるか」の確認が後回しになると、複数段を消化した後に
+「古典手法で厳密に解ける」と判明して全結果が無価値になります（実際に観測された失敗）。
+
+**2周目以降も survey を skip しません。** 内容は「ゼロからの調査」ではなく
+「ここまでの結果を踏まえて追加サーベイが必要か」の検討です。
+不要と判断した場合も、skip ではなく判断の記録を残して閉じます。
+**結果が出るたびに探すべき場所が変わる**ためです。
+
+### ★ ゴールの不変性
+
+**epic の goal は変更しません。** 追加 task を作る際は既存の goal を読み直し、
+「この goal に照らして必要か」を判断します。
+
+**結果に合わせて goal を書き換えることは禁止です。** これは実際に観測された失敗で、
+書き換えると以降の判断すべてが新しい goal を基準に行われ、**ずれが自己強化**します。
+
+goal 自体を変える必要がある場合は、**新しい epic を立てます。**
+旧 epic は「この goal は達成されなかった」という記録として閉じます。
 
 ### 新規タスク開始時の手順
 
-1. **まずGitHub Issueを作成**
-   - 新たなタスクが指示されたら、最初にGitHub Issue を作成する
-   - Issue には明確なタイトルと説明を記載
-   - 適切なラベルを付ける（下記「ラベル運用ルール」参照）
-   - 自分をAssigneeに設定（通知を受け取るため）
+1. **`/task-start` で task を作成**
+   - 現在の状態と目標の状態を**対話で確認**する（下記）
+   - 既定構成の子 issue が自動生成される
+   - 最後に実行するかを確認され、yes なら `/task-run` へ
 
-2. **ブランチの作成**
-   - Issue に対応するブランチを作成: `feature/ISSUE_ID-short-description`
-   - 例: `feature/5-add-dataset-loader`, `survey/3-related-work`
+2. **`/issue-start` で個別 issue に着手**
+   - ブランチと worktree が作られる
+   - `/task-run` 経由なら自動で行われる
 
-3. **Git Worktree の使用（必須）**
-   - 並行タスクでブランチがコンタミネーション（混入）しないよう、**必ず worktree を作成**して作業する
-   - Worktree 作成例:
-     ```bash
-     git worktree add --relative-paths worktrees/issue5 feature/5-add-dataset-loader
-     cd worktrees/issue5
-     ```
-   - 複数の Issue を並行して進める場合、それぞれ独立した worktree で作業する
-   - **注意**: Dockerコンテナ内での開発に対応するため、worktreeは `worktrees/` ディレクトリ内に作成する
+3. **`/issue-finish` で issue ごとにマージ**
+   - 溜めてから一括マージしない
+
+### ★ 現在の状態と目標の状態を必ず対話で確認する
+
+**ユーザーはほとんどの場合、十分な量の説明をしません。** 本人にとって自明な前提が
+言語化されないためです。しかも欠けるのは目標だけでなく、**現状の認識も共有が崩れています。**
+
+task とは「**現在地から目的地までの距離**」です。どちらか一方だけ合意しても距離を測り違えます。
+
+- **受け取った説明をそのまま記録しない。** 両側を能動的に聞き出す
+- **平易な言葉で聞く。** 「成功条件を定義してください」ではなく本人の言葉で答えられる質問にする
+- **答えられない項目は推測で埋めない。** 「未確定」として残す
+- **現状は task ごとに確認し直す。** 前の task の記述を引き継がない
+
+詳細な質問の型は `/task-start` を参照してください。
+
+### Git Worktree の使用（必須）
+
+並行タスクでブランチがコンタミネーション（混入）しないよう、**必ず worktree を作成**して作業します。
+
+```bash
+git worktree add --relative-paths worktrees/issue5 feature/5-add-dataset-loader
+cd worktrees/issue5
+```
+
+- **`worktrees/`（ドット無し）** に作る（`.gitignore` の対象）
+- **`--relative-paths` は必須**（理由は後述「Git Worktree 管理」）
 
 ---
 
 ## ラベル運用ルール
 
-### 種類ラベル（必須、1つ選ぶ）
+**ラベル定義の実体は `scripts/setup-labels.sh` です。** 増減する場合は
+スクリプトとこの表の両方を更新してください（新規プロジェクトでは同スクリプトが自動実行されます）。
+
+### 階層ラベル
+
+| ラベル | 用途 |
+|--------|------|
+| `epic` | ゴール。worktree は持たない |
+| `task` | 1つのまとまった仕事。worktree は持たない |
+
+### 種類ラベル（issue 層。必須、1つ選ぶ）
 
 | ラベル | 用途 | 完了条件 |
 |--------|------|----------|
-| `feature` | 新機能追加 | 機能が動作する |
+| `survey` | 既存手法・先行研究の調査 | `docs/surveys/` に結果を残す |
+| `spec` | 仕様の作成・レビュー | `.spec/issues/` に仕様を残す |
+| `feature` | 新機能・実装 | 機能が動作する |
+| `validation` | **実装は仕様どおり動くか**（実装の正しさ） | 動く/動かないの判定 |
+| `experiment` | **仮説は正しいか**（設計の正しさ） | `data/shared/experiments/` に3点セット保存＋[実験の規律](#実験の規律ネガティブ結論の扱い)を通過 |
 | `bug` | バグ修正 | バグが解消 |
-| `survey` | 文献・ライブラリ調査 | `docs/surveys/` に結果を残す |
-| `experiment` | 仮説検証、データ取得 | `data/shared/experiments/` に3点セット保存＋[実験の規律](#実験の規律ネガティブ結論の扱い)を通過 |
-| `validation` | 実装の動作確認 | 動く/動かないの判定 |
 | `docs` | ドキュメント | ドキュメント更新完了 |
 | `refactor` | リファクタリング | コード改善完了 |
 | `chore` | CI設定、依存更新など | 設定完了 |
 
-### 状態ラベル（該当時のみ付与）
+**`validation` と `experiment` を混同しないこと。** 実装の正しさを確認せずに
+仮説の検証結果を信じると、実装バグを「手法が効かない」と誤読します。
+
+### 状態ラベル
 
 | ラベル | 用途 |
 |--------|------|
 | `blocked` | 他Issueや外部要因で待ち |
+| `out-of-date` | 古くなったIssue。自動処理でスキップ |
+| `user-action` | ユーザー対応が必要。自動処理でスキップ |
 
 ### 終了ラベル（クローズ時、該当時のみ）
 
@@ -65,22 +157,34 @@
 | `wontfix` | やらないことにした |
 | `duplicate` | 重複 |
 
-### Issue間の関係性
+### ★ `in-progress` ラベルは使わない
 
-ラベルではなく、Issue本文またはコメントに記述：
+**作業中の判定はブランチの有無で行います。** 同じ状態をラベルとブランチの2通りで
+表現すると必ず食い違うためです（実際に、付与157件のうち126件が closed issue に
+残留していた事例があります）。
+
+### Issue 間の関係性
+
+**親子関係は GitHub ネイティブの sub-issue で表します。** 本文テキストには書きません。
+
+```bash
+# 親子を張る（-F で integer 指定。-f だと 422 になる）
+CHILD_ID=$(gh api "repos/$REPO/issues/$CHILD" --jq '.id')
+gh api -X POST "repos/$REPO/issues/$PARENT/sub_issues" -F sub_issue_id="$CHILD_ID"
+
+# 確認
+gh issue view $CHILD --json parent -q '.parent.number'
+gh api "repos/$REPO/issues/$PARENT/sub_issues" --jq '.[].number'
+```
+
+通常は `/issue-create` が自動で行うため、直接叩く必要はありません。
+
+親子以外の関係は本文またはコメントに記述します。
 
 ```markdown
 ## 関係
-- Parent: #5
 - Blocked by: #7
 - Related: #12
-```
-
-途中で関係性が変わった場合はコメントで追記：
-
-```markdown
-## Update (2026-03-12)
-- Blocked by: #15 （新たに依存が発生）
 ```
 
 ---
@@ -141,15 +245,40 @@ data/shared/experiments/
 
 ## スキル一覧
 
-### Issue管理
+**スキル名の接頭辞は「操作対象の層」を表します。**
+
+### epic 層
 
 | スキル | 用途 |
 |-------|------|
-| `/issue-start [説明]` | 新しいタスクを開始（Issue作成→ブランチ→Worktree） |
-| `/issue-branch [説明]` | 現在のWorktree内で子タスクを作成 |
-| `/issue-report` | 現在の進捗をIssueに報告 |
-| `/issue-finish` | タスクを完了（レビュー→マージ→Issueクローズ） |
-| `/issue-auto [ids...]` | 複数Issueを自動処理（スナップショット付き） |
+| `/epic-cycle <epic番号>` | ゴール達成まで task を繰り返し回す |
+
+### task 層
+
+| スキル | 用途 |
+|-------|------|
+| `/task-start [説明]` | **現状と目標を対話で確認**して task を作成、既定構成の子 issue を生成、実行確認 |
+| `/task-run <task番号>` | task 配下の issue を既定順で自動処理（子は sub-issue API で自動解決） |
+
+### issue 層
+
+| スキル | 用途 |
+|-------|------|
+| `/issue-create` | **Issue 作成の単一情報源。** 他スキルは `gh issue create` を直接呼ばない |
+| `/issue-start <番号>` | issue に着手（ブランチ→Worktree） |
+| `/issue-branch [説明]` | 同一 Worktree 内で小タスクを分ける |
+| `/issue-report` | 現在の進捗を Issue に報告 |
+| `/issue-finish` | issue を完了（レビュー→**マージ**→クローズ） |
+
+### 横断
+
+| スキル | 用途 |
+|-------|------|
+| `/issue-scan` | 全 Issue の状態をスキャン |
+| `/issue-diff` | Issue 仕様と実装の乖離を分析 |
+| `/issue-gaps` | 乖離検出・不足 Issue の作成 |
+| `/issue-backlog` | バックログ処理 |
+| `/issue-unblock` | ブロッカー解消 Issue の作成 |
 
 ### コミット
 

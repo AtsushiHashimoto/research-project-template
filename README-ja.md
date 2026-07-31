@@ -7,7 +7,7 @@ Claude Code を活用した研究プロジェクト用テンプレートです�
 ## 特徴
 
 - **VS Code DevContainer**: CPU/GPU切り替え対応、Claude Code・GitHub CLI・autoclaude等がプリインストール済み
-- **Issue駆動開発**: GitHub Issueを中心としたワークフロー、`/issue/auto` による一括処理対応
+- **Issue駆動開発**: GitHub Issueを中心としたワークフロー、`/task-run` による一括処理対応
 - **Git Worktree管理**: 並行タスクを独立したディレクトリで管理
 - **データ保護**: 重要データとWorktreeの分離
 - **Claude Code統合**: カスタムスキルによる自動化、`claude-san` でrate limit時自動再開
@@ -120,7 +120,7 @@ my-project/
 | `/issue/branch [説明]` | 現在のWorktree内で子タスクを作成 |
 | `/issue/report` | 進捗をIssueに報告 |
 | `/issue/finish` | タスクを完了（レビュー + マージ + クリーンアップ） |
-| `/issue/auto [ids...]` | 複数Issueを自動処理（スナップショット付き） |
+| `/task-run [ids...]` | 複数Issueを自動処理（スナップショット付き） |
 | `/commit` | ローカルにコミット |
 | `/commit/push` | コミット＆プッシュ（途中保存） |
 | `/commit/merge` | コミット＆マージ（タスク完了） |

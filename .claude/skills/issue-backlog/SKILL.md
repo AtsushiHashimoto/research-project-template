@@ -207,7 +207,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
 ## 次のステップ
 
-1. `/issue/auto 70 71` で作成されたIssueを処理
+1. `/task-run 70 71` で作成されたIssueを処理
 2. ユーザー確認項目は手動でテスト実施
 ```
 
@@ -232,5 +232,5 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 | スキル | 関係 |
 |-------|------|
 | `/issue/unblock` | Phase 1 で呼び出し |
-| `/issue/cycle` | 収束後に /issue/backlog を呼び出し |
-| `/issue/auto` | 作成されたIssueを自動処理 |
+| `/epic-cycle` | 収束後に /issue/backlog を呼び出し |
+| `/task-run` | 作成されたIssueを自動処理 |

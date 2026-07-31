@@ -206,14 +206,14 @@ done)
 
 **作成されたIssue**: ${CREATED_USER_ACTION_ISSUES}
 
-これらのIssueには \`user-action\` ラベルが付いており、\`/issue/auto\` ではスキップされます。
+これらのIssueには \`user-action\` ラベルが付いており、\`/task-run\` ではスキップされます。
 確認完了後、ラベルを外すか Issue をクローズしてください。"
 fi
 ```
 
 これにより:
 - ユーザーアクション必要項目もIssue化される
-- `user-action` ラベルにより `/issue/auto` でスキップされる
+- `user-action` ラベルにより `/task-run` でスキップされる
 - ユーザーが不在でも Slack/Discord で通知を受け取れる
 
 ### Phase 6: 完了報告
@@ -250,14 +250,14 @@ fi
 | #XX | validation: FeedbackMonitor | BL-001 | 実APIサーバーとの統合テスト実施 |
 | #XX | validation: ROS2 Executor | BL-007 | HTTPExecutorの実運用検証 |
 
-⚠️ これらのIssueは `/issue/auto` でスキップされます。
+⚠️ これらのIssueは `/task-run` でスキップされます。
 ユーザーが確認完了後、`user-action` ラベルを外すか Issue をクローズしてください。
 
 ---
 
 ## 次のステップ
 
-1. 自動処理可能なIssueを `/issue/auto` で処理
+1. 自動処理可能なIssueを `/task-run` で処理
 2. ユーザーアクションIssueを手動で確認・完了
 3. 確認完了後、`user-action` ラベルを外すか Issue をクローズ
 ```
@@ -302,6 +302,6 @@ fi
 | スキル | 関係 |
 |-------|------|
 | `/issue/backlog` | /issue/unblock を呼び出した後、ブロッカーなし項目をIssue化 |
-| `/issue/cycle` | 収束後に /issue/backlog を呼び出し（間接的に unblock も実行） |
+| `/epic-cycle` | 収束後に /issue/backlog を呼び出し（間接的に unblock も実行） |
 | `/issue/gaps` | Gap分析ロジックを共有 |
-| `/issue/auto` | 作成されたIssueを自動処理 |
+| `/task-run` | 作成されたIssueを自動処理 |
