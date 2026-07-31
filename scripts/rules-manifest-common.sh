@@ -65,3 +65,50 @@ manifest_expected() {
   [ -f "$manifest" ] || return 1
   awk -v n="$name" '$2 == n { print $1; found = 1 } END { exit(found ? 0 : 1) }' "$manifest"
 }
+
+# manifest_check <dir> → <dir> の実ファイルと MANIFEST.sha256 の整合を検査
+#   不整合（MANIFEST 不在 / ハッシュ不一致 / 未登録の追加 / 登録済みの欠落）があれば
+#   内容を stderr に出して非0で返る。テンプレート開発者の CI / quality-check 用。
+manifest_check() {
+  local dir="$1"
+  local manifest="$dir/$RULES_MANIFEST_NAME"
+  local name expected actual bad=0
+
+  [ -d "$dir" ] || { echo "ERROR: ディレクトリがありません: $dir" >&2; return 1; }
+
+  if [ ! -f "$manifest" ]; then
+    echo "ERROR: $RULES_MANIFEST_NAME がありません: $manifest" >&2
+    echo "  bash scripts/generate-rules-manifest.sh を実行してコミットに含めてください。" >&2
+    return 1
+  fi
+
+  # 実ファイル → MANIFEST
+  while IFS= read -r file; do
+    name=$(basename "$file")
+    if ! expected=$(manifest_expected "$manifest" "$name"); then
+      echo "MANIFEST 不整合: $name が $RULES_MANIFEST_NAME に登録されていません" >&2
+      bad=1
+      continue
+    fi
+    actual=$(sha256_of "$file") || { bad=1; continue; }
+    if [ "$actual" != "$expected" ]; then
+      echo "MANIFEST 不整合: $name のハッシュが一致しません（ファイルを変更したら再生成が必要）" >&2
+      bad=1
+    fi
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
+
+  # MANIFEST → 実ファイル
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if [ ! -f "$dir/$name" ]; then
+      echo "MANIFEST 不整合: $name が $RULES_MANIFEST_NAME にあるが実ファイルがありません" >&2
+      bad=1
+    fi
+  done < <(awk '{ print $2 }' "$manifest")
+
+  if [ "$bad" -ne 0 ]; then
+    echo "  → bash scripts/generate-rules-manifest.sh を実行して再生成してください。" >&2
+    return 1
+  fi
+  return 0
+}

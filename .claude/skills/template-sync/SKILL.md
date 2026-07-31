@@ -25,7 +25,7 @@ description: Sync updates from research-project-template (テンプレート更�
 | `.claude/worktree-config.json` | 差分表示→選択適用 |
 | `.devcontainer/` | 差分表示→選択適用 |
 | `scripts/` | 差分表示→選択適用 |
-| `.spec/*.md` の**既定節** | 差分表示→選択適用（**プロジェクト固有節は触らない**） |
+| `.spec/*.md` の**既定節** | **マーカー間を自動差し替え**（`scripts/sync-spec-defaults.sh`。**プロジェクト固有節は触らない**） |
 | `.claude/CLAUDE.md` | **差分表示のみ**（自動上書きしない） |
 
 ### ★ `.claude/rules/template/` だけを置き換える
@@ -98,13 +98,94 @@ bash scripts/template-sync-rules.sh --source "$TMP_DIR/template" || {
   （サマリを握りつぶさない）。`/template-contribute` を案内する
 - `rules/` 直下のローカルルールには触れない。以降の Step でも対象にしない
 
-### Step 3: その他の差分の検出
-
-同期対象の各ファイルについて、テンプレートの最新版とローカルファイルを比較します。
-`.claude/rules/` は Step 2 で処理済みなので**含めない**。
+### Step 3: `.spec/*.md` の既定節の同期（スクリプトに委譲）
 
 ```bash
-# 対象ディレクトリ（rules は Step 2 で処理済み）
+bash scripts/sync-spec-defaults.sh --source "$TMP_DIR/template" || {
+    echo "⚠️ .spec の既定節を同期できなかったファイルがあります（上のサマリを参照）。" >&2
+    SPEC_SYNC_FAILED=1
+}
+```
+
+- 差し替えるのは `# 既定の` 〜 `# プロジェクト固有` の**直前**まで。
+  固有節（`# プロジェクト固有` 以降）は**一切触らない**
+- 事前に確認したい場合は `--dry-run` を付けて実行する
+- **マーカーが見つからないファイルはスキップされ、非0 exit になる。**
+  サマリに出たファイル名を**そのままユーザーに伝える**（握りつぶさない）。
+  スキップされたファイルはテンプレートの更新が届いていないので、
+  マーカーを手で復旧してから再実行する
+- 旧世代の `.spec/*.md`（`## auto-reviewer への指示` 節が固有節の**後ろ**にある）では、
+  スクリプトが旧位置の同名節を自動で除去する（新旧の重複防止）。除去した旨がサマリに出る
+
+### Step 4: 旧構造（543行世代 CLAUDE.md）の移行判定
+
+**検出条件: `.claude/rules/` が存在しない。**
+
+```bash
+if [ ! -d .claude/rules ]; then
+    echo "旧構造（543行世代の CLAUDE.md）を検出しました。"
+fi
+```
+
+この世代はワークフロールールが `.claude/CLAUDE.md` に固有記述と混在しています。
+**混在したままでは自動上書きできず、sync のたびにテンプレート側の更新が捨てられます**
+（実測: 7回 sync してなお共通率 4%）。
+
+#### 対話モード
+
+1. **新しい `.claude/rules/template/` を配置する**（Step 2 のスクリプトが行う。
+   `template/` 不在なので移行モードで動作する）
+2. **重複部分を diff で提示する。** 既存 `CLAUDE.md` と、テンプレート**旧版**の
+   CLAUDE.md（`git -C "$TMP_DIR/template" show <旧タグ/コミット>:.claude/CLAUDE.md`、
+   取得できなければ現行 `rules/template/*.md` の内容）を突き合わせ、
+   「テンプレート由来でそのまま残っている段落」を列挙する
+
+   ```bash
+   git -C "$TMP_DIR/template" log --oneline -- .claude/CLAUDE.md | tail -20
+   diff -u <(git -C "$TMP_DIR/template" show "$OLD_REV:.claude/CLAUDE.md") .claude/CLAUDE.md
+   ```
+
+3. **固有部分の抽出は必ずユーザー確認つきで行う。**
+   - 「この段落はテンプレート由来なので削除してよいか」を**1件ずつ確認**する
+   - **自動では1行も削らない**（固有記述の自動削除は禁止）
+   - 残す判断のものは `.claude/CLAUDE.md` の「プロジェクト固有のルール」節に移す
+4. 置き換え後の `CLAUDE.md` をユーザーに提示し、承認を得てから書き込む
+
+#### auto モード（`/task-run` 経由）
+
+**移行は行わない。** 対話で確認できないため、固有記述を失う危険がある。
+
+代わりに `user-action` ラベルつきの issue を起票し、処理を止めずに次へ進む。
+
+```bash
+gh issue create \
+  --title "chore: 543行世代の CLAUDE.md を .claude/rules/template/ 構造へ移行する" \
+  --label "chore,user-action" \
+  --body "## 背景
+
+/template-sync が旧構造（.claude/rules/ が存在しない）を検出しました。
+CLAUDE.md にワークフロールールとプロジェクト固有記述が混在しているため、
+テンプレートの更新が自動で取り込めない状態です。
+
+## 対応
+
+対話モードで \`/template-sync\` を実行し、重複部分の diff を確認しながら
+固有記述を切り出してください（自動移行は行いません）。
+
+## 注意
+
+- 固有記述の自動削除は禁止。1件ずつ確認すること"
+```
+
+Issue 番号を完了報告に記録し、sync の残りの Step は通常どおり続行する。
+
+### Step 5: その他の差分の検出
+
+同期対象の各ファイルについて、テンプレートの最新版とローカルファイルを比較します。
+`.claude/rules/` は Step 2、`.spec/*.md` は Step 3 で処理済みなので**含めない**。
+
+```bash
+# 対象ディレクトリ（rules と .spec は処理済み）
 SYNC_TARGETS=(
     ".claude/agents"
     ".claude/commands"
@@ -120,7 +201,7 @@ for target in "${SYNC_TARGETS[@]}"; do
 done
 ```
 
-### Step 4: 差分の提示
+### Step 6: 差分の提示
 
 ユーザーに差分を提示します：
 
@@ -141,7 +222,7 @@ done
 [diff表示]
 ```
 
-### Step 5: 選択的な適用
+### Step 7: 選択的な適用
 
 ユーザーに各変更について適用するか確認します：
 
@@ -150,43 +231,29 @@ done
 - **ローカルのみのファイル**: 何もしない（情報として表示）
 - **CLAUDE.md**: diff表示のみ。ユーザーが手動で反映
 
-### Step 6: クリーンアップ
+### Step 8: クリーンアップ
 
 ```bash
 rm -rf "$TMP_DIR"
 ```
 
-## ⚠️ 既知の問題: `.spec/*.md` の「auto-reviewer への指示」節の重複
-
-**既存の派生プロジェクトで sync を行う場合の注意。**
-
-`.spec/core-rules.md` / `invariants.md` / `known-issues.md` は、
-テンプレート側で `## auto-reviewer への指示` 節を**既定節の末尾**へ移動する予定です
-（現在は「プロジェクト固有」節の**後ろ**にあり、その位置ではテンプレート側の更新が
-永久に伝播しないため）。
-
-そのため、旧世代の `.spec/*.md` を持つプロジェクトでは、既定節の差し替え後に
-**旧位置（固有節の後ろ）に古い同名節が残り、新旧が重複します。**
-重複した stale な節は auto-reviewer に矛盾した指示を与えます。
-
-- sync 実行後、`.spec/*.md` に `## auto-reviewer への指示` が**2つ以上ある場合は
-  旧位置（固有節の後ろ）のものを削除**してください
-- 検出: `grep -c '^## auto-reviewer への指示' .spec/*.md`
-- 自動処理（`scripts/sync-spec-defaults.sh` による旧節の検出・除去）は **#80 で実装予定**
-
 ## Implementation
 
 1. テンプレートを一時ディレクトリにclone（失敗したら中止。非0 exit）
 2. `.claude/rules/template/` を `scripts/template-sync-rules.sh` で同期（退避サマリを必ず報告）
-3. その他の同期対象ファイルを再帰的に比較
-4. 差分をカテゴリ別にまとめてユーザーに提示
-5. ユーザーの選択に基づいてファイルをコピー
-6. 一時ディレクトリを削除
+3. `.spec/*.md` の既定節を `scripts/sync-spec-defaults.sh` で同期（スキップ報告を必ず伝える）
+4. 旧構造（`.claude/rules/` 不在）なら CLAUDE.md の移行判定（auto モードでは issue 起票のみ）
+5. その他の同期対象ファイルを再帰的に比較
+6. 差分をカテゴリ別にまとめてユーザーに提示
+7. ユーザーの選択に基づいてファイルをコピー
+8. 一時ディレクトリを削除
 
 **重要**:
 - `.claude/CLAUDE.md` は**絶対に自動上書きしない**（プロジェクト固有の設定を含むため）
 - `.claude/rules/template/` は**ディレクトリごと置き換える**（ローカル改変は退避してから）
 - `.claude/rules/` 直下（ローカルルール）には触らない（**例外は旧構造からの移行時のみ**。`template/` が既に存在する場合は同名ファイルも意図的なローカル上書きとして保持される）
+- `.spec/` の**プロジェクト固有節**（`# プロジェクト固有` 以降）は**絶対に触らない**
+- 543行世代の CLAUDE.md 移行は**対話モードのみ**。auto モードでは `user-action` issue を起票する
 - 適用前に必ずユーザーに確認を取る
 - 既存ファイルを上書きする前にバックアップを表示する（diffで確認できる）
 

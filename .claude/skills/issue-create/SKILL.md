@@ -179,5 +179,5 @@ gh api -X DELETE "repos/$REPO/issues/$PARENT/sub_issue" -F sub_issue_id="$CHILD_
 
 ## Note
 
-- `in-progress` ラベルは付けない。作業中の判定はブランチの有無で行う（CLAUDE.md 参照）
-- ラベル定義の追加・変更は `scripts/setup-labels.sh` と CLAUDE.md の両方を更新する
+- 作業中を表す状態ラベルは付けない。作業中の判定はブランチの有無で行う（`.claude/rules/template/labels.md` 参照）
+- ラベル定義の追加・変更は `scripts/setup-labels.sh` と `.claude/rules/template/labels.md` の両方を更新する

@@ -132,27 +132,33 @@ for NEW_ISSUE in $NEW_ISSUE_CANDIDATES; do
   BLOCKED_BY=""
   RELATED=""
 
-  # 1. 同じファイルを編集中のin-progress Issueをチェック
+  # 1. 同じファイルを編集中の Issue をチェック
+  #    作業中かどうかは**ブランチの有無**で判定する（ラベルでは判定しない。
+  #    同じ状態を2通りで表すと必ず食い違う。`.claude/rules/template/labels.md` 参照）
   for OPEN_ISSUE in $OPEN_ISSUES; do
-    # in-progressラベルがあるか確認
-    if echo "$OPEN_ISSUE" | jq -r '.labels[].name' | grep -q "in-progress"; then
-      ISSUE_NUM=$(echo "$OPEN_ISSUE" | jq -r '.number')
+    ISSUE_NUM=$(echo "$OPEN_ISSUE" | jq -r '.number')
 
-      # 関連ブランチのworktreeで編集中のファイルを取得
-      BRANCH_NAME=$(gh issue view $ISSUE_NUM --json body -q '.body' | grep -oP 'feature/\d+-\S+' | head -1)
-      if [ -n "$BRANCH_NAME" ]; then
-        # worktreeの変更ファイルを確認
-        MODIFIED_FILES=$(git -C worktrees/issue${ISSUE_NUM} diff --name-only 2>/dev/null || echo "")
+    # Issue 番号に対応するブランチが存在するか（= 作業中）
+    BRANCH_NAME=$(git branch -a --format='%(refname:short)' \
+                  | grep -E "(^|/)(feature|fix|survey|spec|experiment|validation|docs|refactor|chore)/${ISSUE_NUM}-" \
+                  | head -1)
+    [ -n "$BRANCH_NAME" ] || continue
 
-        # 新規Issueが同じファイルに影響するかチェック
-        for FILE in $NEW_ISSUE_TARGET_FILES; do
-          if echo "$MODIFIED_FILES" | grep -q "$FILE"; then
-            BLOCKED_BY="$BLOCKED_BY #$ISSUE_NUM"
-            break
-          fi
-        done
-      fi
+    # そのブランチが main と比べて変更しているファイルを取得
+    MODIFIED_FILES=$(git diff --name-only "$(git merge-base "$BRANCH_NAME" main)" "$BRANCH_NAME" 2>/dev/null || echo "")
+    # worktree に未コミットの変更があれば加える
+    if [ -d "worktrees/issue${ISSUE_NUM}" ]; then
+      MODIFIED_FILES="$MODIFIED_FILES
+$(git -C "worktrees/issue${ISSUE_NUM}" diff --name-only 2>/dev/null || echo "")"
     fi
+
+    # 新規Issueが同じファイルに影響するかチェック
+    for FILE in $NEW_ISSUE_TARGET_FILES; do
+      if echo "$MODIFIED_FILES" | grep -q "$FILE"; then
+        BLOCKED_BY="$BLOCKED_BY #$ISSUE_NUM"
+        break
+      fi
+    done
   done
 
   # 2. 関連するParent Issueをチェック（タイトル・本文の類似度）
@@ -187,7 +193,7 @@ done
 
 | チェック | 条件 | アクション |
 |---------|------|-----------|
-| ファイル競合 | in-progress Issueが同じファイルを編集中 | `Blocked by: #N` + `blocked`ラベル |
+| ファイル競合 | **ブランチが存在する**（＝作業中の）Issueが同じファイルを編集中 | `Blocked by: #N` + `blocked`ラベル |
 | Parent関係 | 新規Issueの内容が既存Issueの一部 | `Parent: #N` |
 | 関連Issue | タイトルや本文に既存Issue番号を含む | `Related: #N` |
 

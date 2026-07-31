@@ -163,9 +163,12 @@ git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TMP_DIR/templ
 ITEMS=(
     ".claude/commands"
     ".claude/skills"
+    ".claude/agents"
+    ".claude/rules"
     ".claude/worktree-config.json"
     ".devcontainer"
     "scripts"
+    ".spec"
 )
 
 cd "$PROJECT_ROOT"
@@ -182,8 +185,15 @@ for item in "${ITEMS[@]}"; do
         warn "$(msg skipping): $item"
         warn "  $(msg use_force)"
     else
+        existed=false
+        [[ -e "$dst" ]] && existed=true
         mkdir -p "$(dirname "$dst")"
         cp -r "$src" "$dst"
+        # .spec/issues/ はテンプレート自身の仕様アーカイブ。新規プロジェクトには持ち込まない
+        # （必読3ファイルとディレクトリ構造だけを残す）。既存 .spec がある場合は触らない
+        if [[ "$item" == ".spec" ]] && [[ "$existed" != true ]]; then
+            rm -f "$dst"/issues/*.md
+        fi
         success "$(msg installed): $item"
     fi
 done

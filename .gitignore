@@ -72,3 +72,8 @@ credentials.json
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# /template-sync がローカル改変を退避したディレクトリ（一時的な作業用）
+# コミットはしないが、/template-contribute の**検出対象**なので削除しないこと。
+# 還流（またはテンプレートへの反映不要と判断）が済んでから手で削除する。
+.claude/rules/template.bak-*/

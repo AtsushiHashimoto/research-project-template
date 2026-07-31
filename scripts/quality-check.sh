@@ -102,6 +102,17 @@ fi
 # 例:
 #   run_check "custom lint" ./scripts/my-lint.sh
 
+# .claude/rules/template/MANIFEST.sha256 の整合
+#   MANIFEST がずれていると /template-sync が無改変のルールを「還流候補」として
+#   退避し続ける（＝改変検出が機能しない）。ルールを編集したら再生成が必要。
+if [ ! -d .claude/rules/template ]; then
+  skip "rules MANIFEST 整合チェック（.claude/rules/template/ が無い）"
+elif [ ! -f scripts/generate-rules-manifest.sh ]; then
+  skip "rules MANIFEST 整合チェック（scripts/generate-rules-manifest.sh が無い）"
+else
+  run_check "rules MANIFEST 整合" bash scripts/generate-rules-manifest.sh --check
+fi
+
 # ---------------------------------------------------------------------------
 # 結果
 # ---------------------------------------------------------------------------
