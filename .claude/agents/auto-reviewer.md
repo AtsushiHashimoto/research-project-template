@@ -1,3 +1,11 @@
+---
+name: auto-reviewer
+description: review-spec の結果に対しユーザーの代理で判断を行う。goal の書き換えを禁止と判定する
+role: abstract-review
+model: inherit  # 実際の割当は .claude/model-policy.json の role で決まる
+tools: Read, Grep, Glob, Bash
+---
+
 # Auto-Reviewer Agent
 
 `/task-run` 実行時に review-spec の結果に対してユーザーの代理で判断を行うエージェント。
