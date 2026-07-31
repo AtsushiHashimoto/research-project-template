@@ -23,32 +23,42 @@
 
 ## ルールの所在
 
-汎用的なワークフロールールは **`.claude/rules/`** に分割されています。
+汎用的なワークフロールールは **`.claude/rules/template/`** に分割されています。
 これらは**セッション開始時に自動で読み込まれる**ため、明示的な参照は不要です。
 
 | ファイル | 内容 |
 |---|---|
-| `issue-hierarchy.md` | epic / task / issue の3層構造、既定の task 構成、ゴールの不変性 |
-| `labels.md` | ラベル運用ルール、GitHub ネイティブ sub-issue |
-| `skills.md` | スキル一覧（層ごと） |
-| `model-policy.md` | サブエージェントのモデル割当（role → model）、枠上限時のフォールバック |
-| `git-workflow.md` | コミット・PR・Git Worktree 管理 |
-| `experiment-discipline.md` | ネガティブ結論の扱い、matched-engineering |
-| `dev-guidelines.md` | コード品質、研究ノート、ブランチ命名 |
-| `deliverables.md` | 成果物の保存場所、進捗報告 |
-| `data-protection.md` | Worktree データ保護、モデル保存 |
-| `optional-features.md` | Ollama、Claude Code 認証 |
-| `doc-principles.md` | README と CLAUDE.md の書き分け |
+| `template/issue-hierarchy.md` | epic / task / issue の3層構造、既定の task 構成、ゴールの不変性 |
+| `template/labels.md` | ラベル運用ルール、GitHub ネイティブ sub-issue |
+| `template/skills.md` | スキル一覧（層ごと） |
+| `template/model-policy.md` | サブエージェントのモデル割当（role → model）、枠上限時のフォールバック |
+| `template/git-workflow.md` | コミット・PR・Git Worktree 管理 |
+| `template/experiment-discipline.md` | ネガティブ結論の扱い、matched-engineering |
+| `template/dev-guidelines.md` | コード品質、研究ノート、ブランチ命名 |
+| `template/deliverables.md` | 成果物の保存場所、進捗報告 |
+| `template/data-protection.md` | Worktree データ保護、モデル保存 |
+| `template/optional-features.md` | Ollama、Claude Code 認証 |
+| `template/doc-principles.md` | README と CLAUDE.md の書き分け、アカウント層（`~/.claude/`）の使い分け |
 
 ### このファイルに書くもの / rules に書くもの
 
 | 内容 | 書く場所 |
 |---|---|
 | **プロジェクト固有**の概要・制約・ドメイン知識 | **このファイル** |
-| 全プロジェクト共通のワークフロールール | `.claude/rules/` |
+| 全プロジェクト共通のワークフロールール | `.claude/rules/template/`（テンプレート由来） |
+| このプロジェクト専用のワークフロールール | `.claude/rules/` 直下に `*.md` を追加 |
 
-**`.claude/rules/` はテンプレート由来です。** `/template-sync` が丸ごと差し替えるため、
-プロジェクト固有の記述を書かないでください（更新時に失われます）。
+**★ `.claude/rules/` 直下はローカル用、`template/` は書き換え禁止です。**
+
+| 場所 | 位置づけ | `/template-sync` の扱い |
+|---|---|---|
+| `.claude/rules/*.md`（直下） | プロジェクトローカルのルール | **触らない**（例外: `template/` が無い旧構造からの移行時のみ、テンプレートと同名のファイルは移行対象として削除/退避される） |
+| `.claude/rules/template/**` | テンプレート由来 | **ディレクトリごと置き換える** |
+
+`template/` 配下を直接書き換えないでください。改変が検出されると sync 時に
+`.claude/rules/template.bak-<日時>/` へ退避され、テンプレートへの**還流候補**として
+`/template-contribute` に回されます（改変が消えることはありませんが、
+プロジェクト固有の記述は還流できないため `template/` には書かないこと）。
 
 ---
 

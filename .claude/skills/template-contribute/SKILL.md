@@ -16,12 +16,19 @@ description: Contribute improvements back to research-project-template (テン�
 
 テンプレート由来のファイルのみが対象です：
 
+- `.claude/rules/template/` — ワークフロールール（テンプレート由来。`rules/` 直下のローカルルールは**対象外**）
+- `.claude/agents/` — エージェント定義
 - `.claude/commands/` — コマンド定義
 - `.claude/skills/` — スキル定義
 - `.claude/CLAUDE.md` — プロジェクト設定（汚染チェック必須）
 - `.devcontainer/` — DevContainer設定
 - `scripts/` — ユーティリティスクリプト
 - `install.sh` — インストーラー
+
+**`.claude/rules/template.bak-*/` も検出対象に含めます。** `/template-sync` が
+ローカル改変を検出して退避したディレクトリであり、そこにあるファイルは
+「テンプレート由来ファイルへのローカル改変＝還流候補そのもの」だからです
+（退避元のパスは `template.bak-<日時>/` を除いた相対パスに対応します）。
 
 ## Workflow
 
@@ -37,6 +44,8 @@ git clone --depth 1 "$TEMPLATE_REPO" "$TMP_DIR/template" 2>/dev/null
 
 ```bash
 CONTRIBUTE_TARGETS=(
+    ".claude/rules/template"
+    ".claude/agents"
     ".claude/commands"
     ".claude/skills"
     ".claude/CLAUDE.md"
@@ -47,6 +56,12 @@ CONTRIBUTE_TARGETS=(
 
 for target in "${CONTRIBUTE_TARGETS[@]}"; do
     diff -rq "$TMP_DIR/template/$target" "$target" 2>/dev/null
+done
+
+# sync が退避したローカル改変（還流候補）も拾う
+for bak in .claude/rules/template.bak-*/; do
+    [ -d "$bak" ] || continue
+    diff -rq "$TMP_DIR/template/.claude/rules/template" "$bak/template" 2>/dev/null
 done
 ```
 
@@ -251,3 +266,5 @@ rm -rf "$TMP_DIR"
 
 - テンプレートからの更新取り込みは `/template/sync` を使用
 - GitHub認証が必要（`gh auth status` で確認可能）
+- 検出の半自動化（unified diff の生成、PR 本文への「元 issue・動機・汎用性の根拠」の自動記載）は
+  **#80 で実装予定**。現状は検出対象パスのみ新構造（`rules/template/` と `template.bak-*/`）に対応済み

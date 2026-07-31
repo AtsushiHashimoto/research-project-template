@@ -100,4 +100,4 @@ cd worktrees/issue5
 ```
 
 - **`worktrees/`（ドット無し）** に作る（`.gitignore` の対象）
-- **`--relative-paths` は必須**（理由は `.claude/rules/git-workflow.md` 参照）
+- **`--relative-paths` は必須**（理由は `.claude/rules/template/git-workflow.md` 参照）
