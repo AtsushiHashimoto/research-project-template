@@ -156,7 +156,7 @@ fi
 **移行は行わない。** 対話で確認できないため、固有記述を失う危険がある。
 
 代わりに `user-action` ラベルつきの issue を **`/issue-create` 経由で**起票し、処理を止めずに次へ進む
-（`gh issue create` を直接呼ばない。`.claude/rules/template/skills.md` の単一情報源の原則）。
+（`gh` コマンドで直接作成しない。`.claude/rules/template/skills.md` の単一情報源の原則）。
 
 1. 以下の本文を一時ファイル（例: `$TMP_DIR/migration-issue.md`）に書き出す:
 
