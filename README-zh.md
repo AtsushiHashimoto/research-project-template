@@ -7,7 +7,7 @@
 ## 特性
 
 - **VS Code DevContainer**: 一键启动，CPU/GPU 切换支持，内置 Claude Code、GitHub CLI、autoclaude
-- **Issue 驱动开发**: 以 GitHub Issue 为中心的工作流，支持 `/issue/auto` 批量处理
+- **Issue 驱动开发**: 以 GitHub Issue 为中心的工作流，支持 `/task-run` 批量处理
 - **Git Worktree 管理**: 在隔离目录中并行处理多个任务
 - **数据保护**: 重要数据与 Worktree 分离管理
 - **Claude Code 集成**: 自定义技能实现自动化，`claude-san` 支持速率限制自动恢复
@@ -122,7 +122,7 @@ my-project/
 | `/issue/branch [描述]` | 在当前 Worktree 中创建子任务 |
 | `/issue/report` | 向 Issue 报告进度 |
 | `/issue/finish` | 完成任务（审查 + 合并 + 清理） |
-| `/issue/auto [ids...]` | 自动按顺序处理多个 Issue（含快照） |
+| `/task-run [ids...]` | 自动按顺序处理多个 Issue（含快照） |
 | `/commit` | 仅本地提交 |
 | `/commit/push` | 提交并推送（保存进度） |
 | `/commit/merge` | 提交并合并（完成任务） |

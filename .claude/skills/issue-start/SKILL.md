@@ -1,119 +1,138 @@
 ---
-description: Start a new task with GitHub issue, branch, and worktree setup
-argument-hint: [short-description]
+description: issue に着手する。ブランチと worktree を作成し、仕様レビューまで進める
+argument-hint: <issue番号> | --new --type <種類> --parent <task番号> --title <題>
 ---
 
-# Start Task Workflow
+# Issue Start
 
-新しいタスクを開始します。GitHub Issue の作成、ブランチ作成、Worktree 作成、仕様レビューを自動的に実行します。
+**issue 層の着手。** worktree を持つのは issue だけである（epic / task は持たない）。
 
 ## Usage
 
 ```
-/issue/start データセットローダーの実装
+/issue-start #104                                                 # 既存 issue に着手
+/issue-start --new --type feature --parent 101 --title "Xの実装"   # 新規作成して着手
 ```
+
+**2つのモードを明示的に分ける。** 引数の型で暗黙に分岐させない。
+
+| モード | 用途 |
+|---|---|
+| **着手** `<issue番号>` | 既存 issue のブランチと worktree を作る。`/task-run` から呼ばれるのはこちら |
+| **新規** `--new ...` | `/issue-create` で作成してから着手する |
+
+## 階層との関係
+
+| 層 | worktree | 本スキルの対象 |
+|---|---|---|
+| epic | 持たない | ❌ `/task-start` の管轄 |
+| task | 持たない | ❌ `/task-start` の管轄 |
+| **issue** | **1つ持つ** | ✅ |
+| 小タスク | 親と共有 | ❌ `/issue-branch` の管轄 |
 
 ## Workflow
 
-1. **GitHub Issue を作成**
-   - タイトル: 引数から生成
-   - ラベル: ユーザーに選択させる（下記参照）
-   - Assignee: 自分を設定（通知を受け取るため）
-   - 詳細な説明を含める
+### Step 1: モード判定と issue の確定
 
-2. **ブランチを作成**
-   - 命名規則: `{type}/ISSUE_ID-description`
-   - 例: `feature/5-add-dataset-loader`, `survey/3-related-work`
-
-3. **Worktree を作成**
-   - パス: `worktrees/issueN`
-   - ブランチと連携
-
-4. **作業開始の準備**
-   - Worktree ディレクトリに移動
-   - 初期報告を Issue に投稿
-
-5. **仕様の対話**（`/issue/auto` 経由時はスキップ → auto-reviewer が代理判断）
-   - ユーザーと仕様について対話
-   - 要件、制約、想定されるエッジケースを確認
-   - **不明点があり、ユーザーが即座に回答できない場合** → `/qa/ask` で Slack に質問を投げて作業続行
-   - 重要な決定事項は記録として `/qa/ask` に残すことを推奨
-
-6. **仕様レビュー（/review-spec）**（`/issue/auto` 経由時はスキップ → auto.md の Step 1.5 で実行）
-   - 4つのサブエージェントで仕様をレビュー
-   - 状態遷移図、ログ戦略、ファイル構成計画を生成
-   - Fallback分岐の承認をユーザーに確認
-   - 検証チェックリストを生成
-   - `.spec/issues/{issue_id}-{description}.md` に保存
-
-7. **Plan Mode**
-   - 仕様が固まったら plan-mode に移行
-   - 実装計画を策定
-
-## Label Selection
-
-Issue作成時にユーザーに確認する：
+**新規モードの場合**、まず作成する。
 
 ```
-どの種類のタスクですか？
-1. feature   - 新機能追加
-2. bug       - バグ修正
-3. survey    - 文献・ライブラリ調査 → docs/surveys/
-4. experiment - 仮説検証 → data/shared/experiments/
-5. validation - 動作確認
-6. docs      - ドキュメント
-7. refactor  - リファクタリング
-8. chore     - CI・依存関係など
+Skill(skill="issue-create", args="--type ${TYPE} --title ${TITLE} --parent ${PARENT}")
 ```
 
-選択されたラベルに応じてブランチプレフィックスを決定：
-- feature, validation, refactor, chore → `feature/`
-- bug → `fix/`
-- survey → `survey/`
-- experiment → `experiment/`
-- docs → `docs/`
+**着手モードの場合**、issue の存在と種別を確認する。
 
-## Implementation
-
-現在の状態を確認:
 ```bash
-git status
-git worktree list
+LABELS=$(gh issue view "$ISSUE_ID" --json labels -q '[.labels[].name]|join(",")')
+
+# epic / task には worktree を作らない
+if echo "$LABELS" | grep -qE '(^|,)(epic|task)(,|$)'; then
+  echo "#$ISSUE_ID は $LABELS です。epic / task は worktree を持ちません。"
+  echo "task を実行する場合は /task-run を使ってください。"
+  exit 1
+fi
 ```
 
-Issue を作成（自分をAssigneeに設定して通知を受け取る）:
+### Step 2: 親 task の goal を読む
+
 ```bash
-gh issue create --title "$TASK_DESCRIPTION" --body "詳細な説明" --label "$LABEL" --label "in-progress" --assignee @me
+PARENT=$(gh issue view "$ISSUE_ID" --json parent -q '.parent.number')
+[ -n "$PARENT" ] && gh issue view "$PARENT" --json title,body
 ```
 
-Worktree とブランチを作成:
+**親 task の「目標の状態」を読み、作業の範囲を把握する。**
+**この goal は作業中に書き換えてはならない。**
+
+親が無い issue（単発の bug 等）はそのまま進めてよい。
+
+### Step 3: ブランチ名の決定
+
+種類ラベルからプレフィックスを決める。
+
+| ラベル | プレフィックス |
+|---|---|
+| `feature` `chore` | `feature/` |
+| `spec` | `spec/` |
+| `bug` | `fix/` |
+| `survey` | `survey/` |
+| `experiment` | `experiment/` |
+| `validation` | `validation/` |
+| `docs` | `docs/` |
+| `refactor` | `refactor/` |
+
 ```bash
-ISSUE_ID=$(gh issue list --limit 1 --json number --jq '.[0].number')
-DESCRIPTION=$(echo "$TASK_DESCRIPTION" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
+BRANCH="${PREFIX}/${ISSUE_ID}-${SLUG}"
+```
+
+### Step 4: worktree の作成
+
+```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKTREE_PATH="${REPO_ROOT}/worktrees/issue${ISSUE_ID}"
 
-git worktree add --relative-paths "$WORKTREE_PATH" -b "${BRANCH_PREFIX}/${ISSUE_ID}-${DESCRIPTION}"
+git worktree add --relative-paths "$WORKTREE_PATH" -b "$BRANCH"
+cd "$WORKTREE_PATH"
 ```
 
-Issue に開始報告:
+**★ 注意点2つ**
+
+1. **`worktrees/`（ドット無し）** に作る。`.gitignore` がこのパスを対象にしているため。
+   ドット付きだと worktree 内の全ファイルが未追跡として `git status` を汚染する
+2. **`--relative-paths` を付ける。** 付けないと `.git` 参照が絶対パスになり、
+   ホストと devcontainer のどちらか一方でしか git / gh が動かなくなる（双方向に壊れる）
+
+### Step 5: 開始報告
+
 ```bash
-gh issue comment "$ISSUE_ID" --body "## タスク開始
+gh issue comment "$ISSUE_ID" --body "## 着手
 
-- ブランチ: \`${BRANCH_PREFIX}/${ISSUE_ID}-${DESCRIPTION}\`
-- Worktree: \`${WORKTREE_PATH}\`
-
-作業を開始します。"
+- ブランチ: \`${BRANCH}\`
+- Worktree: \`worktrees/issue${ISSUE_ID}\`"
 ```
+
+**`in-progress` ラベルは付けない。** 作業中の判定はブランチの有無で行う
+（同じ状態を2通りに表現しないため。CLAUDE.md「ラベル運用ルール」参照）。
+
+### Step 6: 仕様レビュー（`/review-spec`）
+
+`/task-run` 経由の場合はスキップする（呼び出し元の Step 1.5 で実行されるため）。
+
+手動実行の場合はここで仕様を確認する。
+不明点がありユーザーが即答できない場合は `/qa-ask` で非同期に投げて作業を続行する。
 
 ## Output
 
-- Issue URL
-- ブランチ名
-- Worktree パス
-- 次のステップの案内
+- Issue URL・番号・種別
+- 親 task とその goal
+- ブランチ名 / Worktree パス
+- 次のステップ
 
-## Note
+## Related Skills
 
-このコマンドは Claude が自動的に実行します（CLAUDE.md の自動実行ルールに従う）。
-ユーザーが明示的に呼び出すこともできます。
+| スキル | 関係 |
+|-------|------|
+| `/issue-create` | 新規モードで作成に使用（作成の単一情報源） |
+| `/task-start` | epic / task の作成はこちら |
+| `/task-run` | 本スキルを各子 issue に対して呼ぶ |
+| `/issue-branch` | 同一 worktree 内で小タスクを分ける場合 |
+| `/issue-finish` | 完了・マージ |

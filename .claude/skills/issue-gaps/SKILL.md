@@ -328,7 +328,7 @@ if [ -n "$USER_ACTION_ISSUES" ]; then
 
 ${USER_ACTION_ISSUES}
 
-これらのIssueには \`user-action\` ラベルが付いており、\`/issue/auto\` ではスキップされます。
+これらのIssueには \`user-action\` ラベルが付いており、\`/task-run\` ではスキップされます。
 確認完了後、ラベルを外すか Issue をクローズしてください。"
 fi
 ```
@@ -374,7 +374,7 @@ fi
 |---------|---------|-----------------|
 | #12 | validation: API統合テスト | 実APIサーバーでの動作確認 |
 
-⚠️ これらのIssueは `/issue/auto` でスキップされます。
+⚠️ これらのIssueは `/task-run` でスキップされます。
 ユーザーが確認完了後、`user-action` ラベルを外すか Issue をクローズしてください。
 
 ## スキップ
@@ -383,7 +383,7 @@ fi
 - #3: 初期仕様
 - #5: 認証機能（部分）
 
-次回の `/issue/auto` ではこれらはスキップされます。
+次回の `/task-run` ではこれらはスキップされます。
 out-of-date ラベルを手動で外せば再度対象になります。
 
 ---
@@ -392,7 +392,7 @@ out-of-date ラベルを手動で外せば再度対象になります。
 
 1. 作成されたIssue (#10, #11) を確認
 2. 必要に応じて詳細を追記
-3. `/issue/auto 10 11` で自動処理
+3. `/task-run 10 11` で自動処理
 ```
 
 ## Options
@@ -426,5 +426,5 @@ out-of-date ラベルを手動で外せば再度対象になります。
 |-------|------|
 | `/issue/scan` | 個別にスキャンを実行 |
 | `/issue/diff` | 個別に乖離分析を実行 |
-| `/issue/auto` | 作成されたIssueを自動処理 |
-| `/issue/cycle` | gaps + auto のループ実行 |
+| `/task-run` | 作成されたIssueを自動処理 |
+| `/epic-cycle` | gaps + auto のループ実行 |

@@ -26,7 +26,7 @@ argument-hint: [--auto | auto]
 - 品質チェック失敗 → 自動修正を試行 → 再失敗なら停止
 - 観点レビュー（Step 3）で重大な問題 → 停止してエラー報告
 
-`/issue/auto` から呼び出された場合は自動的に auto モードで動作する。
+`/task-run` から呼び出された場合は自動的に auto モードで動作する。
 
 ## vs /commit/push
 
@@ -65,7 +65,7 @@ fi
 - 質問リストを表示
 - タスク完了後にフォローアップIssueを作成（`/issue/finish` の Step 0 で処理）
 
-**Auto-Approval モード時**: QA回答の確認はスキップする（`/issue/auto` の Phase 0 で既に処理済み）。
+**Auto-Approval モード時**: QA回答の確認はスキップする（`/task-run` の Phase 0 で既に処理済み）。
 
 #### Step 1: 変更内容を確認
    ```bash
@@ -106,7 +106,7 @@ fi
 
    **Auto-Approval モードの判定**:
    - 引数に `--auto` または `auto` が含まれる場合 → Auto-Approval
-   - `/issue/auto` から呼び出された場合 → Auto-Approval
+   - `/task-run` から呼び出された場合 → Auto-Approval
    - それ以外 → ユーザー承認待ち
 
    **Auto-Approval モード**:

@@ -7,7 +7,7 @@ A project template for Claude Code integration with research workflows. Runs as 
 ## Features
 
 - **VS Code DevContainer**: One-click setup with CPU/GPU switching, Claude Code, GitHub CLI, and autoclaude pre-installed
-- **Issue-Driven Development**: GitHub Issue-centered workflow with `/issue/auto` for batch processing
+- **Issue-Driven Development**: GitHub Issue-centered workflow with `/task-run` for batch processing
 - **Git Worktree Management**: Parallel tasks in isolated directories
 - **Data Protection**: Separation of important data and worktrees
 - **Claude Code Integration**: Custom skills for automation, rate-limit auto-resume via `claude-san`
@@ -122,7 +122,7 @@ my-project/
 | `/issue/branch [desc]` | Create child task in current worktree |
 | `/issue/report` | Report progress to Issue |
 | `/issue/finish` | Complete task (review + merge + cleanup) |
-| `/issue/auto [ids...]` | Auto-process multiple Issues in sequence (with snapshot) |
+| `/task-run [ids...]` | Auto-process multiple Issues in sequence (with snapshot) |
 | `/commit` | Local commit only |
 | `/commit/push` | Commit & push (save progress) |
 | `/commit/merge` | Commit & merge (complete task) |

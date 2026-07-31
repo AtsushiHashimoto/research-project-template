@@ -23,7 +23,7 @@ description: .spec/ の必読ファイルにプロジェクト固有の内容を
 | `.spec/known-issues.md` | KI-D01〜D13（silent-wrong 4類型、再現性、品質ゲート崩壊、研究の進め方） |
 
 **このスキルの仕事は、既定を埋めることではなく「プロジェクト固有」節を埋めることです。**
-既定だけでも `/issue-auto` は動きますが、プロジェクト固有の失敗パターンは既定では捕捉できません。
+既定だけでも `/task-run` は動きますが、プロジェクト固有の失敗パターンは既定では捕捉できません。
 
 ## 設計方針: 白紙の質問をしない
 
@@ -134,5 +134,5 @@ bash .claude/skills/spec-init/gather-evidence.sh
 | スキル | 関係 |
 |-------|------|
 | `/worktree-init` | 初回セットアップから本スキルを呼び出す |
-| `/issue-auto` | auto-reviewer が本スキルの成果物を必読コンテキストとして使う |
+| `/task-run` | auto-reviewer が本スキルの成果物を必読コンテキストとして使う |
 | `/review-spec` | 仕様レビュー時にも `.spec/` を参照する |

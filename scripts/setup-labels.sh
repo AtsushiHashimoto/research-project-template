@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ============================================================
+# GitHub ラベルのプロビジョニング
+# [Template] research-project-template 由来
+# ============================================================
+#
+# ラベル定義の単一情報源。CLAUDE.md の表とこのスクリプトが食い違わないよう、
+# ラベルを増減する場合は必ず両方を更新すること。
+#
+# Usage:
+#   bash scripts/setup-labels.sh          # 不足しているラベルを作成
+#   bash scripts/setup-labels.sh --prune  # 定義に無いラベルを一覧表示（削除はしない）
+#
+# 冪等。既存ラベルは色・説明を更新する。
+
+set -uo pipefail
+
+command -v gh >/dev/null 2>&1 || { echo "[labels] gh が必要です"; exit 1; }
+gh repo view >/dev/null 2>&1 || { echo "[labels] GitHub リポジトリではないためスキップ"; exit 0; }
+
+# name|color|description
+LABELS=(
+  # --- 階層ラベル（種別の判別に使う。親子関係は GitHub ネイティブ sub-issue で表す） ---
+  "epic|3E4B9E|ゴール。task をまとめる。worktree は持たない"
+  "task|5A6FD8|1つのまとまった仕事。既定構成の issue を持つ。worktree は持たない"
+
+  # --- 種類ラベル（issue 層。必須、1つ選ぶ） ---
+  "survey|5319E7|文献・ライブラリ調査 → docs/surveys/"
+  "spec|8A5CF6|仕様の作成・レビュー → .spec/issues/"
+  "feature|0E8A16|新機能・実装"
+  "validation|006B75|実装は仕様どおり動くか（実装の正しさ）"
+  "experiment|FBCA04|仮説は正しいか（設計の正しさ）→ data/shared/experiments/"
+  "bug|d73a4a|バグ修正"
+  "docs|0075CA|ドキュメント"
+  "refactor|D4C5F9|挙動を変えないコード改善"
+  "chore|C5DEF5|CI・依存更新など"
+
+  # --- 状態ラベル ---
+  "blocked|B60205|他Issueや外部要因で待ち"
+
+  # --- 自動処理の制御ラベル ---
+  "out-of-date|795548|古くなったIssue。自動処理でスキップ"
+  "user-action|E99695|ユーザー対応が必要。自動処理でスキップ"
+
+  # --- 終了ラベル ---
+  "wontfix|ffffff|やらないことにした"
+  "duplicate|cfd3d7|重複"
+)
+
+if [ "${1:-}" = "--prune" ]; then
+  echo "[labels] 定義に無いラベル（手動で確認して削除すること）:"
+  DEFINED=$(printf '%s\n' "${LABELS[@]}" | cut -d'|' -f1 | sort)
+  gh label list --limit 100 --json name -q '.[].name' | sort | comm -23 - <(echo "$DEFINED")
+  exit 0
+fi
+
+CREATED=0
+UPDATED=0
+for entry in "${LABELS[@]}"; do
+  IFS='|' read -r name color desc <<< "$entry"
+  if gh label create "$name" --color "$color" --description "$desc" >/dev/null 2>&1; then
+    echo "[labels] + $name"
+    CREATED=$((CREATED+1))
+  elif gh label edit "$name" --color "$color" --description "$desc" >/dev/null 2>&1; then
+    UPDATED=$((UPDATED+1))
+  else
+    echo "[labels] ! $name の作成/更新に失敗"
+  fi
+done
+
+echo "[labels] 作成 ${CREATED} 件 / 更新 ${UPDATED} 件"
+
+# in-progress は意図的に定義しない。
+# 「作業中」はブランチの有無で判定する（同じ状態を2通りに表現しないため）。
+# 詳細は CLAUDE.md「ラベル運用ルール」を参照。
+if gh label list --limit 100 --json name -q '.[].name' | grep -qx "in-progress"; then
+  echo "[labels] 注意: in-progress ラベルが存在します。"
+  echo "[labels]   本テンプレートは作業中の判定をブランチの有無で行うため、このラベルは使いません。"
+  echo "[labels]   既存Issueから外したうえで削除を検討してください。"
+fi
+
+exit 0
