@@ -142,7 +142,7 @@ review-spec はユーザーとの対話ではなく**セルフチェック**で�
 3. **auto-reviewer による代理判断**
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh abstract-review)", prompt="
 あなたは auto-reviewer エージェントです。
 .claude/agents/auto-reviewer.md の定義に従って判断してください。
 
@@ -173,7 +173,7 @@ ${REVIEW_SPEC_RESULT}
 #### Step 2: 実装
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh implementation)", prompt="
 Issue #${ISSUE_ID} の実装を行ってください。
 
 ## 親 task の goal（この範囲を超えないこと）
@@ -222,7 +222,7 @@ fi
 #### Step 4-2: 仕様整合性チェック
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh verification)", prompt="
 実装が仕様ファイルに適合しているか検証してください。
 
 ## 検証項目

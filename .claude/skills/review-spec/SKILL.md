@@ -88,7 +88,7 @@ ls $SPEC_FILE 2>/dev/null
 
 #### 3-1. 実現性レビュー（Feasibility Review）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
 
 レビュー観点：
 - **既存資産の再利用**: 同様の機能・パターンが既に存在するか。流用・拡張できるか
@@ -136,7 +136,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-2. 品質レビュー（Quality Review）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
 
 レビュー観点：
 - **処理フロー**: 入力→処理→出力の流れは明確か。分岐・ループの条件は定義されているか
@@ -213,7 +213,7 @@ stateDiagram-v2
 
 #### 3-3. 設計レビュー（Design Review）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
 
 レビュー観点：
 - **単一責任原則**: 1機能が複数責務を持っていないか
@@ -252,7 +252,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-4. Fallback計画チェッカー（Fallback Planning Check）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
 
 レビュー観点：
 仕様・状態遷移から、else/default/catchケースを抽出し、それぞれが：
@@ -290,7 +290,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-5. 妥当性検証チェッカー（Validation Checker）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
 
 **WebSearch ツールを使用して、仕様の各項目の妥当性を検証します。**
 
@@ -336,7 +336,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 **GUI/フロントエンド実装の場合のみ実行**。
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
 
 発動条件（いずれかに該当）：
 - ファイルパターン: `**/*.html`, `**/*.css`, `**/*.js`, `**/templates/**`, `**/static/**`

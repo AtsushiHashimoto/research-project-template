@@ -1,0 +1,51 @@
+{
+  "$comment": [
+    "エージェント呼び出しのモデル割当。役割(role)→モデルの対応を1箇所で定義する。",
+    "スキル側は具体的なモデル名を書かず role 名で参照すること。",
+    "解決は scripts/resolve-model.sh が行う。",
+    "利用枠の上限に当たった場合は disabled に追加すれば fallback に降りる。"
+  ],
+  "roles": {
+    "planning": {
+      "description": "実装計画の策定、タスク分解、設計の骨子",
+      "primary": "fable",
+      "fallback": [
+        "opus",
+        "sonnet"
+      ]
+    },
+    "abstract-review": {
+      "description": "仕様レビュー、設計レビュー、代理判断など抽象度の高い判断",
+      "primary": "fable",
+      "fallback": [
+        "opus",
+        "sonnet"
+      ]
+    },
+    "implementation": {
+      "description": "コードの実装・修正。具体性と確実性が要る",
+      "primary": "opus",
+      "fallback": [
+        "sonnet"
+      ]
+    },
+    "verification": {
+      "description": "実装と仕様の突き合わせ、コードレビュー、整合性チェック",
+      "primary": "opus",
+      "fallback": [
+        "sonnet"
+      ]
+    },
+    "mechanical": {
+      "description": "集計・分類・フォーマット確認など判断の幅が小さい作業",
+      "primary": "haiku",
+      "fallback": [
+        "sonnet"
+      ]
+    }
+  },
+  "disabled": [],
+  "overrides": {
+    "$comment": "role ごとにプロジェクト固有の上書きをする場合はここに書く。例: \"implementation\": \"sonnet\""
+  }
+}

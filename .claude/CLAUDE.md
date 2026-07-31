@@ -31,6 +31,7 @@
 | `issue-hierarchy.md` | epic / task / issue の3層構造、既定の task 構成、ゴールの不変性 |
 | `labels.md` | ラベル運用ルール、GitHub ネイティブ sub-issue |
 | `skills.md` | スキル一覧（層ごと） |
+| `model-policy.md` | サブエージェントのモデル割当（role → model）、枠上限時のフォールバック |
 | `git-workflow.md` | コミット・PR・Git Worktree 管理 |
 | `experiment-discipline.md` | ネガティブ結論の扱い、matched-engineering |
 | `dev-guidelines.md` | コード品質、研究ノート、ブランチ命名 |

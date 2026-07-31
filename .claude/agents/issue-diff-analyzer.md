@@ -1,3 +1,11 @@
+---
+name: issue-diff-analyzer
+description: 単一 Issue と HEAD 実装の乖離を分析する
+role: verification
+model: inherit  # 実際の割当は .claude/model-policy.json の role で決まる
+tools: Read, Grep, Glob, Bash
+---
+
 # Issue Diff Analyzer Agent
 
 `/issue/diff` 実行時に単一IssueとHEAD実装の乖離を分析するエージェント。

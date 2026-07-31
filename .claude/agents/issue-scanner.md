@@ -1,3 +1,11 @@
+---
+name: issue-scanner
+description: 全 Issue の状態を走査・分類する
+role: mechanical
+model: inherit  # 実際の割当は .claude/model-policy.json の role で決まる
+tools: Read, Grep, Glob, Bash
+---
+
 # Issue Scanner Agent
 
 `/issue/scan` 実行時に全Issueの状態を分析するエージェント。
