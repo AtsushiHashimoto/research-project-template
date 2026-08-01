@@ -302,7 +302,8 @@ if [[ -f ".claude/worktree-config.json" ]]; then
         sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
         sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
     elif [[ "$FORCE" == true ]]; then
-        sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"${PREV_CREATED_AT:-$NOW_UTC}\"|" ".claude/worktree-config.json"
+        # 復元値は既存ファイル由来＝任意の文字列になりうるため、必ずエスケープする
+        sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$(sanitize_sed "${PREV_CREATED_AT:-$NOW_UTC}")\"|" ".claude/worktree-config.json"
         sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
     fi
 fi
@@ -359,7 +360,7 @@ if [[ -t 0 ]]; then
     echo -e "${BLUE}$(msg init_prompt)${NC}"
     echo "$(msg init_desc)"
     echo ""
-    read -p "[Y/n]: " do_init
+    read -r -p "[Y/n]: " do_init
 
     if [[ ! "$do_init" =~ ^[Nn]$ ]]; then
         echo ""
@@ -373,10 +374,18 @@ if [[ -t 0 ]]; then
         #   外側リポジトリを指してしまうのを避けるため
         # 初期化が失敗しても installer は落とさない（ファイル配置は完了しているため）。
         # 黙らせず警告と再実行方法を出す
+        # 再実行の案内は「インストール先に実在するパス」を示す。
+        # 既存 .claude/skills があるとラッパーは配置されないため、決め打ちにしない
+        if [[ -f "$PROJECT_ROOT/.claude/skills/worktree-init/init.sh" ]]; then
+            INIT_HINT="bash .claude/skills/worktree-init/init.sh"
+        else
+            INIT_HINT="bash scripts/init-data.sh && bash scripts/setup-labels.sh"
+        fi
+
         INIT_WRAPPER="$TMP_DIR/template/.claude/skills/worktree-init/init.sh"
         if [[ -f "$INIT_WRAPPER" ]]; then
             bash "$INIT_WRAPPER" --root "$PROJECT_ROOT" "$PROJECT_ROOT" \
-                || warn "初期化が完了しませんでした。後で実行: bash .claude/skills/worktree-init/init.sh"
+                || warn "初期化が完了しませんでした。後で実行: $INIT_HINT"
         elif [[ -x "$PROJECT_ROOT/scripts/init-data.sh" ]]; then
             warn "初期化ラッパーが見つかりません。データディレクトリのみ作成します"
             warn "  ラベル作成は後で: bash scripts/setup-labels.sh"
