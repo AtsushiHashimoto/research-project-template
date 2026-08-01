@@ -10,10 +10,24 @@
 # Usage:
 #   bash scripts/setup-labels.sh          # 不足しているラベルを作成
 #   bash scripts/setup-labels.sh --prune  # 定義に無いラベルを一覧表示（削除はしない）
+#   bash scripts/setup-labels.sh --help   # この使い方を表示
 #
 # 冪等。既存ラベルは色・説明を更新する。
+#
+# Exit codes:
+#   0 作成・更新した（または --prune / --help）
+#   2 スキップ（gh 不在・未認証・GitHub リポジトリでない。要ユーザー対応）
+#   1 引数エラー
 
 set -uo pipefail
+
+# ★ 引数の検証は gh の確認より前に行う。
+#   さもないと `--help` が gh 未認証環境で「スキップ」になって使い方を出せない
+case "${1:-}" in
+  -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  --prune|"") ;;
+  *) echo "[labels] 不明な引数: $1（--prune / --help のみ）" >&2; exit 1 ;;
+esac
 
 # ラベルを作れないまま先に進むと /issue-create が前提チェックで停止する。
 # インストール直後は gh 未認証・remote 未設定が正常にありうるので処理は止めないが、
@@ -55,6 +69,9 @@ LABELS=(
   # --- 自動処理の制御ラベル ---
   "out-of-date|795548|古くなったIssue。自動処理でスキップ"
   "user-action|E99695|ユーザー対応が必要。自動処理でスキップ"
+
+  # --- 報告ラベル（定期レビュー等の報告 issue。作業種別ではない） ---
+  "review-integrity|1D76DB|定期レビューの報告。/review-integrity が起票する"
 
   # --- 終了ラベル ---
   "wontfix|ffffff|やらないことにした"

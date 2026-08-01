@@ -19,7 +19,7 @@ scan + diff を統合し、乖離を検出してアクションを実行しま�
 このスキルは以下のアクションを実行します:
 
 1. **out-of-date ラベル付与**: 古いIssueにラベルを付与
-2. **gap-fixed ラベル付与**: 乖離が解消されたIssueにラベルを付与
+2. **out-of-date ラベル除去**: 乖離が解消されたIssueからラベルを外し、解消内容をコメントに記録
 3. **不足分Issue作成**: 未追跡の実装やMissing機能のIssueを作成
 4. **コメント追記**: 状況説明をIssueコメントに追記
 
@@ -60,7 +60,7 @@ done
 | SPEC_CHANGED | #3, #5 | out-of-date ラベル付与 |
 | PARTIALLY_IMPLEMENTED | #7 | 残作業Issue作成 |
 | NOT_STARTED | #9 | 状態確認（放棄？ブロック？） |
-| FULLY_IMPLEMENTED | #10 | gap-fixed ラベル付与（元out-of-dateの場合） |
+| FULLY_IMPLEMENTED | #10 | out-of-date を除去＋解消コメント（元out-of-dateの場合） |
 
 ### Phase 3: Label
 
@@ -94,17 +94,20 @@ ${RELATED}
 done
 ```
 
-#### gap-fixed ラベル付与
+#### 乖離解消の記録（out-of-date の除去）
 
-乖離が解消されたIssueに `gap-fixed` ラベルを付与します。
+乖離が解消されたIssueから `out-of-date` を外し、**解消内容はコメントに残します**。
+
+**解消済みを表す専用ラベルは作りません。** 状態は「`out-of-date` が付いていないこと」で
+既に表現されており、同じ状態を2通りで表すと必ず食い違うためです
+（`.claude/rules/template/labels.md` の `in-progress` 廃止と同じ理由）。
 
 ```bash
 for ISSUE_ID in $FIXED_ISSUES; do
-  # out-of-date を外して gap-fixed を付与
-  gh issue edit $ISSUE_ID --remove-label "out-of-date" --add-label "gap-fixed"
+  gh issue edit $ISSUE_ID --remove-label "out-of-date"
 
-  # コメント
-  gh issue comment $ISSUE_ID --body "## gap-fixed
+  # 解消の記録はコメントに残す
+  gh issue comment $ISSUE_ID --body "## 乖離が解消されました
 
 このIssueの乖離が解消されました。
 
@@ -359,7 +362,7 @@ fi
 | #3 | 初期仕様 | #5 で仕様変更 |
 | #5 | 認証機能 | 部分的に別実装 |
 
-### gap-fixed
+### 乖離解消（out-of-date 除去）
 
 | Issue | タイトル | 解消内容 |
 |-------|---------|---------|

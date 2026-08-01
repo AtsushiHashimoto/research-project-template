@@ -9,22 +9,22 @@
 
 | ラベル | 用途 |
 |--------|------|
-| `epic` | ゴール。worktree は持たない |
-| `task` | 1つのまとまった仕事。worktree は持たない |
+| `epic` | ゴール。task をまとめる。worktree は持たない |
+| `task` | 1つのまとまった仕事。既定構成の issue を持つ。worktree は持たない |
 
 ### 種類ラベル（issue 層。必須、1つ選ぶ）
 
 | ラベル | 用途 | 完了条件 |
 |--------|------|----------|
-| `survey` | 既存手法・先行研究の調査 | `docs/surveys/` に結果を残す |
-| `spec` | 仕様の作成・レビュー | `.spec/issues/` に仕様を残す |
+| `survey` | 文献・ライブラリ調査 → docs/surveys/ | `docs/surveys/` に結果を残す |
+| `spec` | 仕様の作成・レビュー → .spec/issues/ | `.spec/issues/` に仕様を残す |
 | `feature` | 新機能・実装 | 機能が動作する |
 | `validation` | **実装は仕様どおり動くか**（実装の正しさ） | 動く/動かないの判定 |
-| `experiment` | **仮説は正しいか**（設計の正しさ） | `data/shared/experiments/` に3点セット保存＋実験の規律（`.claude/rules/template/experiment-discipline.md`）を通過 |
+| `experiment` | **仮説は正しいか**（設計の正しさ）→ data/shared/experiments/ | `data/shared/experiments/` に3点セット保存＋実験の規律（`.claude/rules/template/experiment-discipline.md`）を通過 |
 | `bug` | バグ修正 | バグが解消 |
 | `docs` | ドキュメント | ドキュメント更新完了 |
-| `refactor` | リファクタリング | コード改善完了 |
-| `chore` | CI設定、依存更新など | 設定完了 |
+| `refactor` | 挙動を変えないコード改善 | コード改善完了 |
+| `chore` | CI・依存更新など | 設定完了 |
 
 **`validation` と `experiment` を混同しないこと。** 実装の正しさを確認せずに
 仮説の検証結果を信じると、実装バグを「手法が効かない」と誤読します。
@@ -36,6 +36,14 @@
 | `blocked` | 他Issueや外部要因で待ち |
 | `out-of-date` | 古くなったIssue。自動処理でスキップ |
 | `user-action` | ユーザー対応が必要。自動処理でスキップ |
+
+### 報告ラベル
+
+作業の種別ではなく「報告」であることを表します。
+
+| ラベル | 用途 |
+|--------|------|
+| `review-integrity` | 定期レビューの報告。`/review-integrity` が起票する |
 
 ### 終了ラベル（クローズ時、該当時のみ）
 

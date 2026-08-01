@@ -64,8 +64,7 @@ gh issue create \
 
 ## 作業場所
 - ブランチ: \`${BRANCH}\`
-- Worktree: 親タスクと同じ" \
-  --label "subtask"
+- Worktree: 親タスクと同じ"
 ```
 
 子Issue番号を取得:

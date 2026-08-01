@@ -110,13 +110,12 @@ Issue #{question.issue} で仮決定した内容について、確認が必要�
 - Parent: #{question.issue}
 """
 
-    # gh コマンドでIssue作成
-    # gh issue create --title "..." --body "..." --label "qa-pending"
+    # Issue 作成は /issue-create 経由で行う（gh を直接呼ばない）
 ```
 
 作成されるIssue:
 - タイトル: `[QA] Q001: 質問内容...`
-- ラベル: `qa-pending`
+- ラベル: `user-action`（ユーザー対応が必要。自動処理でスキップされる）
 - 親Issueへのリンク付き
 
 ### Step 1: 仕様ファイルのステータス更新
