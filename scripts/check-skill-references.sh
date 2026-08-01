@@ -113,6 +113,13 @@ done < <(
     | sort -u
 )
 
+# 除外は行単位なので、その行に本物の参照切れが隠れても見逃す。
+# 緩和を不可視にしないため、適用件数を必ず報告する（無言の切り捨て禁止）
+SKIPPED=$(grep -l -e 'skill-refs:allow' -e '[（(]旧' "${FILES[@]}" 2>/dev/null | wc -l | tr -d ' ')
+SKIPPED_LINES=$(grep -h -c -e 'skill-refs:allow' -e '[（(]旧' "${FILES[@]}" 2>/dev/null \
+  | awk '{s+=$1} END {print s+0}')
+echo "[skill-refs] 除外行: ${SKIPPED_LINES} 行 / ${SKIPPED} ファイル（'skill-refs:allow' または「（旧 ...）」注記）"
+
 if [ "$FOUND" -ne 0 ]; then
   echo "[skill-refs] 参照切れを検出しました。実在するスキル名（ハイフン区切り）に修正してください:"
   ls .claude/skills | sed 's/^/  \//'
