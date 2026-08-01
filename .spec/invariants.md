@@ -68,7 +68,7 @@ worktree を作成した側の環境でしか git / gh が動かない
 
 **決定**: `unverified-negative` / `verified-negative` / `implementation-bug` のいずれかを必ず付す。既定は `unverified-negative`
 **理由**: 検証済みか未検証かを区別せずに記録すると、未検証の結論が既成事実として伝播する
-**変更する場合**: なし（CLAUDE.md「実験の規律」と一体）
+**変更する場合**: なし（`.claude/rules/template/experiment-discipline.md`と一体）
 
 ---
 

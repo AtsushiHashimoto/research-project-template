@@ -273,4 +273,4 @@ rm -rf "$TMP_DIR"
 
 - テンプレートリポジトリのURLは `install.sh` と同じものを使用
 - ネットワーク接続が必要
-- 逆方向（ローカル→テンプレート）の同期は `/template/contribute` を使用
+- 逆方向（ローカル→テンプレート）の同期は `/template-contribute` を使用

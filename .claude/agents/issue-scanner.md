@@ -8,7 +8,7 @@ tools: Read, Grep, Glob, Bash
 
 # Issue Scanner Agent
 
-`/issue/scan` 実行時に全Issueの状態を分析するエージェント。
+`/issue-scan` 実行時に全Issueの状態を分析するエージェント。
 
 ---
 

@@ -5,10 +5,10 @@
 ## Usage
 
 ```
-/qa/ask
-/qa/ask "CSV or JSON?"
-/qa/ask --type provisional --decision JSON "Data format preference?"
-/qa/ask --type deferred --stub "auth_placeholder()" "Authentication method?"
+/qa-ask
+/qa-ask "CSV or JSON?"
+/qa-ask --type provisional --decision JSON "Data format preference?"
+/qa-ask --type deferred --stub "auth_placeholder()" "Authentication method?"
 ```
 
 ## Parameters
@@ -91,7 +91,7 @@ else:
         notify_decision(question)
         print(f"⏳ タイムアウト。仮決定「{question.decision}」で続行します。")
     else:
-        print("⏳ タイムアウト。後で /qa/check で確認してください。")
+        print("⏳ タイムアウト。後で /qa-check で確認してください。")
 ```
 
 ## タイムアウト時の仮決定通知
@@ -123,4 +123,4 @@ def notify_decision(question: Question) -> None:
 これにより:
 - 回答があれば採用して継続
 - なければ仮決定を採用し、スレッドに通知して継続
-- 後から異議があれば `/qa/check` で確認可能
+- 後から異議があれば `/qa-check` で確認可能

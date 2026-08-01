@@ -45,7 +45,7 @@ msg() {
                 "complete") echo "インストール完了！" ;;
                 "init_prompt") echo "データディレクトリを初期化しますか？" ;;
                 "init_desc") echo "共有データの保存場所を設定します（デフォルト: data/shared）" ;;
-                "init_later") echo "後で初期化する場合: ./scripts/init-data.sh または Claude Code で /worktree/init" ;;
+                "init_later") echo "後で初期化する場合: ./scripts/init-data.sh または Claude Code で /worktree-init" ;;
                 "next_steps") echo "次のステップ" ;;
                 "step_edit") echo ".claude/CLAUDE.md を編集してプロジェクト情報を設定" ;;
                 "step_claude") echo "Claude Code を起動" ;;
@@ -68,7 +68,7 @@ msg() {
                 "complete") echo "安装完成！" ;;
                 "init_prompt") echo "是否初始化数据目录？" ;;
                 "init_desc") echo "设置共享数据存储位置（默认: data/shared）" ;;
-                "init_later") echo "稍后初始化: ./scripts/init-data.sh 或在 Claude Code 中使用 /worktree/init" ;;
+                "init_later") echo "稍后初始化: ./scripts/init-data.sh 或在 Claude Code 中使用 /worktree-init" ;;
                 "next_steps") echo "下一步" ;;
                 "step_edit") echo "编辑 .claude/CLAUDE.md 设置项目信息" ;;
                 "step_claude") echo "启动 Claude Code" ;;
@@ -91,7 +91,7 @@ msg() {
                 "complete") echo "Installation complete!" ;;
                 "init_prompt") echo "Initialize data directory?" ;;
                 "init_desc") echo "Configure shared data storage location (default: data/shared)" ;;
-                "init_later") echo "To initialize later: ./scripts/init-data.sh or /worktree/init in Claude Code" ;;
+                "init_later") echo "To initialize later: ./scripts/init-data.sh or /worktree-init in Claude Code" ;;
                 "next_steps") echo "Next steps" ;;
                 "step_edit") echo "Edit .claude/CLAUDE.md to set project info" ;;
                 "step_claude") echo "Start Claude Code" ;;
@@ -406,10 +406,10 @@ echo ""
 echo -e "${BLUE}$(msg next_steps):${NC}"
 echo "  1. $(msg step_edit)"
 echo "  2. $(msg step_claude): claude"
-echo "  3. $(msg step_start): /start-task <description>"
+echo "  3. $(msg step_start): /task-start <description>"
 echo ""
 echo -e "${BLUE}$(msg skills):${NC}"
-echo "  /start-task     - Start new task (Issue + Branch + Worktree)"
+echo "  /task-start     - Start new task (Issue + Branch + Worktree)"
 echo "  /commit push    - Save progress"
-echo "  /finish-task    - Complete task (review + merge + close)"
+echo "  /issue-finish    - Complete task (review + merge + close)"
 echo ""

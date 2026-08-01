@@ -1,10 +1,10 @@
 ---
-description: Finish task with quality review by invoking commit/merge workflow (タスク完了)
+description: Finish task with quality review by invoking commit-merge workflow (タスク完了)
 ---
 
 # Finish Task（タスク完了）
 
-タスクを完了します。`/commit/merge` のエイリアスです。
+タスクを完了します。`/commit-merge` のエイリアスです。
 
 ## 用途
 
@@ -23,23 +23,23 @@ description: Finish task with quality review by invoking commit/merge workflow (
 ## Usage
 
 ```
-/issue/finish
+/issue-finish
 ```
 
-## vs /commit/push（途中保存）
+## vs /commit-push（途中保存）
 
-タスクが**まだ完了していない**場合は `/commit/push` を使用してください。
+タスクが**まだ完了していない**場合は `/commit-push` を使用してください。
 
 | スキル | 用途 | Issueクローズ | Worktree削除 |
 |-------|------|--------------|--------------|
-| `/issue/finish` | タスク完了 | ✅ する | ✅ する |
-| `/commit/push` | 途中保存 | ❌ しない | ❌ しない |
+| `/issue-finish` | タスク完了 | ✅ する | ✅ する |
+| `/commit-push` | 途中保存 | ❌ しない | ❌ しない |
 
 ## Implementation
 
 ### Step 0: 未回答のQA質問を確認
 
-`/qa/ask` で投稿した質問に未回答がないか確認します。
+`/qa-ask` で投稿した質問に未回答がないか確認します。
 
 ```python
 from pathlib import Path
@@ -169,20 +169,20 @@ BAK=$(ls -d .claude/rules/template.bak-*/ 2>/dev/null || true)
 **作業中を表す状態ラベルは使いません**（作業中の判定はブランチの有無で行う。
 `.claude/rules/template/labels.md` 参照）。完了時のラベル削除処理は不要です。
 
-### Step 2: /commit/merge 実行
+### Step 2: /commit-merge 実行
 
-Skillツールを使って `/commit/merge` コマンドを実行：
+Skillツールを使って `/commit-merge` コマンドを実行：
 
 ```xml
 <invoke name="Skill">
-<parameter name="skill">commit/merge</parameter>
+<parameter name="skill">commit-merge</parameter>
 </invoke>
 ```
 
-すべての実装詳細は `/commit/merge` コマンドに委譲されます。
+すべての実装詳細は `/commit-merge` コマンドに委譲されます。
 
 ## Note
 
-- `/issue/finish` は仕様ファイルのステータス更新 + `/commit/merge` を実行
+- `/issue-finish` は仕様ファイルのステータス更新 + `/commit-merge` を実行
 - どちらもタスク完了時に使用（Issueをクローズする）
-- 途中保存したい場合は `/commit/push` を使用
+- 途中保存したい場合は `/commit-push` を使用

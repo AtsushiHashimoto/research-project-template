@@ -101,13 +101,13 @@ my-project/
 
 ```bash
 # 1. タスクを開始
-/issue/start データセットの前処理を実装
+/issue-start データセットの前処理を実装
 
 # 2. 作業して途中保存
-/commit/push
+/commit-push
 
 # 3. タスクを完了
-/issue/finish
+/issue-finish
 ```
 
 ---
@@ -116,21 +116,21 @@ my-project/
 
 | スキル | 用途 |
 |-------|------|
-| `/issue/start [説明]` | 新しいタスクを開始（Issue + Branch + Worktree） |
-| `/issue/branch [説明]` | 現在のWorktree内で子タスクを作成 |
-| `/issue/report` | 進捗をIssueに報告 |
-| `/issue/finish` | タスクを完了（レビュー + マージ + クリーンアップ） |
+| `/issue-start [説明]` | 新しいタスクを開始（Issue + Branch + Worktree） |
+| `/issue-branch [説明]` | 現在のWorktree内で子タスクを作成 |
+| `/issue-report` | 進捗をIssueに報告 |
+| `/issue-finish` | タスクを完了（レビュー + マージ + クリーンアップ） |
 | `/task-run [ids...]` | 複数Issueを自動処理（スナップショット付き） |
 | `/commit` | ローカルにコミット |
-| `/commit/push` | コミット＆プッシュ（途中保存） |
-| `/commit/merge` | コミット＆マージ（タスク完了） |
+| `/commit-push` | コミット＆プッシュ（途中保存） |
+| `/commit-merge` | コミット＆マージ（タスク完了） |
 | `/review` | 多角的コードレビュー |
 | `/review-spec` | 実装前の仕様レビュー・検証 |
-| `/qa/setup` | QAシステムのセットアップ（Slack/Discord） |
-| `/qa/ask` | 人間に質問を送信 |
-| `/qa/check` | 未回答の質問を確認 |
-| `/template/sync` | テンプレートの最新更新を取り込み |
-| `/template/contribute` | テンプレートへの改善PRを作成 |
+| `/qa-setup` | QAシステムのセットアップ（Slack/Discord） |
+| `/qa-ask` | 人間に質問を送信 |
+| `/qa-check` | 未回答の質問を確認 |
+| `/template-sync` | テンプレートの最新更新を取り込み |
+| `/template-contribute` | テンプレートへの改善PRを作成 |
 
 ---
 

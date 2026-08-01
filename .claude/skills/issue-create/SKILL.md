@@ -9,7 +9,7 @@ argument-hint: --type <epic|task|issue-type> --title <題> [--parent <N>]
 
 ## なぜ一元化するか
 
-以前は `/issue-start` `/issue-gaps` `/issue-unblock` `/issue-backlog` `/issue-cycle` が
+以前は `/issue-start` `/issue-gaps` `/issue-unblock` `/issue-backlog` `/epic-cycle` が
 それぞれ `gh issue create` を直書きしており、ラベル付与・Assignee・本文フォーマット・
 親子リンクの扱いが統一されていなかった（単一情報源の原則に反する）。
 
@@ -82,7 +82,7 @@ fi
 
 ---
 **このゴールは変更しない。** 変更が必要な場合は新しい epic を立て、
-本 epic は「達成されなかった」記録として閉じる（CLAUDE.md「ゴールの不変性」参照）。
+本 epic は「達成されなかった」記録として閉じる（`.claude/rules/template/issue-hierarchy.md`「ゴールの不変性」参照）。
 ```
 
 **task の雛形**: `/task-start` が対話で埋めるため、本スキルを直接呼ばず `/task-start` を使うこと。

@@ -9,9 +9,9 @@ scan + diff を統合し、乖離を検出してアクションを実行しま�
 ## Usage
 
 ```
-/issue/gaps              # 全Issueを分析してギャップを解消
-/issue/gaps --dry-run    # 実際の変更は行わず、計画のみ表示
-/issue/gaps --label-only # ラベル付与のみ（Issue作成しない）
+/issue-gaps              # 全Issueを分析してギャップを解消
+/issue-gaps --dry-run    # 実際の変更は行わず、計画のみ表示
+/issue-gaps --label-only # ラベル付与のみ（Issue作成しない）
 ```
 
 ## Actions
@@ -27,11 +27,11 @@ scan + diff を統合し、乖離を検出してアクションを実行しま�
 
 ### Phase 1: Scan
 
-`/issue/scan` 相当の処理を実行し、全Issueの状態を把握します。
+`/issue-scan` 相当の処理を実行し、全Issueの状態を把握します。
 
 ```
 Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mechanical)", prompt="
-/issue/scan を実行し、全Issueの状態を把握してください。
+/issue-scan を実行し、全Issueの状態を把握してください。
 
 出力形式:
 - Open Issues リスト
@@ -42,13 +42,13 @@ Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mec
 
 ### Phase 2: Analyze
 
-各Issueに対して `/issue/diff` 相当の分析を実行します。
+各Issueに対して `/issue-diff` 相当の分析を実行します。
 
 ```
 # 各open Issueに対して並列実行可能
 for ISSUE_ID in $OPEN_ISSUES; do
   Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh verification)", prompt="
-  /issue/diff ${ISSUE_ID} を実行し、乖離分析レポートを生成してください。
+  /issue-diff ${ISSUE_ID} を実行し、乖離分析レポートを生成してください。
   ")
 done
 ```
@@ -90,7 +90,7 @@ ${RELATED}
 - [ ] wontfix としてクローズ
 
 ---
-*このコメントは /issue/gaps により自動生成されました*"
+*このコメントは /issue-gaps により自動生成されました*"
 done
 ```
 
@@ -115,7 +115,7 @@ ${FIX_SUMMARY}
 ${RELATED}
 
 ---
-*このコメントは /issue/gaps により自動生成されました*"
+*このコメントは /issue-gaps により自動生成されました*"
 done
 ```
 
@@ -274,7 +274,7 @@ ${RELATED:+- Related: ${RELATED}}
 ${TASK_DESCRIPTION}
 
 ---
-*このIssueは /issue/gaps により自動生成されました*${USER_ACTION_NOTE}" \
+*このIssueは /issue-gaps により自動生成されました*${USER_ACTION_NOTE}" \
   --label "$LABELS"
 ```
 
@@ -318,17 +318,17 @@ ${RELATED:+- Related: ${RELATED}}
 - [ ] 必要に応じてリファクタリング
 
 ---
-*このIssueは /issue/gaps により自動生成されました*${USER_ACTION_NOTE}" \
+*このIssueは /issue-gaps により自動生成されました*${USER_ACTION_NOTE}" \
   --label "$LABELS"
 ```
 
 #### 4-3: ユーザーアクションIssueの通知
 
-`user-action` ラベル付きIssueが作成された場合、`/qa/ask` でユーザーに通知:
+`user-action` ラベル付きIssueが作成された場合、`/qa-ask` でユーザーに通知:
 
 ```bash
 if [ -n "$USER_ACTION_ISSUES" ]; then
-  /qa/ask --type deferred "## 📋 ユーザー対応Issueが作成されました（/issue/gaps）
+  /qa-ask --type deferred "## 📋 ユーザー対応Issueが作成されました（/issue-gaps）
 
 以下のIssueはユーザーによる確認・検証が必要です:
 
@@ -344,7 +344,7 @@ fi
 実行結果のサマリーを出力します。
 
 ```markdown
-# /issue/gaps 実行結果
+# /issue-gaps 実行結果
 
 **実行日時**: YYYY-MM-DD HH:MM
 
@@ -417,7 +417,7 @@ out-of-date ラベルを手動で外せば再度対象になります。
 3. **自動生成マーク**: 自動生成コメント/Issueには明示的なマークを付与
 4. **ロールバック可能**: ラベルは手動で外せる、Issueはクローズ可能
 5. **依存関係自動検出**: Issue作成前にOpen Issueとの競合をチェックし、`blocked`ラベルと依存関係を自動付与
-6. **user-action 自動判定**: ユーザー確認が必要なIssueを自動検出し、`user-action`ラベルと`/qa/ask`通知を付与
+6. **user-action 自動判定**: ユーザー確認が必要なIssueを自動検出し、`user-action`ラベルと`/qa-ask`通知を付与
 
 ## Agent References
 
@@ -430,7 +430,7 @@ out-of-date ラベルを手動で外せば再度対象になります。
 
 | スキル | 関係 |
 |-------|------|
-| `/issue/scan` | 個別にスキャンを実行 |
-| `/issue/diff` | 個別に乖離分析を実行 |
+| `/issue-scan` | 個別にスキャンを実行 |
+| `/issue-diff` | 個別に乖離分析を実行 |
 | `/task-run` | 作成されたIssueを自動処理 |
 | `/epic-cycle` | gaps + auto のループ実行 |

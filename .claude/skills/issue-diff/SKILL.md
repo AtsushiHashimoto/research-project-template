@@ -10,9 +10,9 @@ argument-hint: <issue_id>
 ## Usage
 
 ```
-/issue/diff 5           # Issue #5 の乖離分析
-/issue/diff #5          # # 付きも可
-/issue/diff 5 --verbose # 詳細出力
+/issue-diff 5           # Issue #5 の乖離分析
+/issue-diff #5          # # 付きも可
+/issue-diff 5 --verbose # 詳細出力
 ```
 
 ## Output
@@ -129,5 +129,5 @@ ${COMMIT_LOG}
 
 | スキル | 関係 |
 |-------|------|
-| `/issue/scan` | 全Issueのスキャン |
-| `/issue/gaps` | 乖離を元にアクション実行 |
+| `/issue-scan` | 全Issueのスキャン |
+| `/issue-gaps` | 乖離を元にアクション実行 |

@@ -126,7 +126,7 @@
 **誤った対処**: 「この研究方向には見込みが無い」と総括して終える
 **正しい対処**: 全方向 negative は**それ自体が異常信号**として扱う。
 少なくとも1方向について positive control と実装検証をやり直してから総括する。
-CLAUDE.md「実験の規律」を全 negative 結論に**遡って**適用する
+`.claude/rules/template/experiment-discipline.md`を全 negative 結論に**遡って**適用する
 
 > この項目は、抽出元プロジェクトが最終的に全方向 negative で閉じたという事実そのものから導かれている。
 
