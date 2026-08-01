@@ -152,6 +152,40 @@ goal 自体を変える必要がある場合は、**新しい epic を立てる�
 
 **結果が出るたびに探すべき場所が変わる。** 1周目に監査したから十分、とはならない。
 
+##### 判断の下書きを作る（planning role）
+
+上記3規律を踏まえた**判断の下書き**をサブエージェントに作らせる。
+下書きであって決定ではない。**task の作成は `/task-start` で行う**（このエージェントは作らない）。
+
+```
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh planning)", prompt="
+epic #${EPIC} の次サイクルで追加 task が必要かを判断する下書きを作ってください。
+
+## epic のゴール（原文・変更禁止）
+${EPIC_GOAL}
+
+## 今サイクルの結果
+${CYCLE_RESULTS}
+
+## 守る規律（違反した下書きは無効）
+1. **投機禁止**: 結果が出てから作る。『おそらく次はこれが必要だろう』で
+   先回りした task を提案しない。提案は今サイクルの結果に直接根拠を持つものに限る
+2. **goal は変更しない。確認する**: 上記のゴール原文を読み直し、
+   『このゴールに照らして必要か』で判断する。**ゴールを書き換えて提案を正当化しない。**
+   ゴール自体を変える必要があると考えた場合は、task を提案せず
+   『新しい epic が必要』と報告する
+3. **survey を skip しない**: 追加 task を提案する場合、既定構成に従い
+   survey issue を必ず含める。2周目以降でも省かない。
+   内容は『ここまでの結果を踏まえて追加サーベイが必要か』の検討でよいが、
+   不要と判断した場合も skip ではなく判断の記録を残して閉じる前提で置くこと
+
+## 出力
+- 追加 task の要否（必要 / 不要）とその根拠（今サイクルのどの結果に基づくか）
+- 必要な場合: task の目的、現在の状態、目標の状態、既定構成の子 issue 案（survey を含む）
+- ゴール原文をそのまま再掲し、書き換えていないことを示すこと
+")
+```
+
 #### Step 5: 収束判定
 
 ```python
@@ -174,7 +208,7 @@ git branch "epic-${EPIC}-cycle-${N}/$(date +%Y%m%d-%H%M%S)" HEAD
 **全 task 完了後、epic の goal に照らして達成判定を行う。**
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh abstract-review)", prompt="
 epic #${EPIC} のゴールが達成されたか判定してください。
 
 ## ゴール（変更禁止・作成時のまま）

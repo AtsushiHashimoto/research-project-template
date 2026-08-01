@@ -69,7 +69,7 @@ argument-hint: <issue_id>
 **issue-diff-analyzer エージェントを使用**:
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh verification)", prompt="
 agents/issue-diff-analyzer.md の定義に従って、Issue #${ISSUE_ID} の乖離分析を行ってください。
 
 ## Issue情報
