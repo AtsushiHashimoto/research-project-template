@@ -68,11 +68,13 @@ fi
 ```bash
 if [ -n "$PARENT" ]; then
   PARENT_LABELS=$(gh issue view "$PARENT" --json labels -q '[.labels[].name]|join(",")')
-  # task の親は epic、issue の親は task であることを確認
+  # 上の階層表と照合する（task の親は epic / issue の親は task /
+  # 小タスクの親は issue / 報告 issue は親なし）
 fi
 ```
 
-**親の種別が想定と違う場合は警告して停止する。** 勝手に補正しない。
+**階層表のどの行にも当てはまらない親子関係の場合は、警告して停止する。** 勝手に補正しない。
+ただし**小タスク（親＝issue 層）と親なしは表に含まれるので停止理由にしない**。
 
 ### Step 3: 本文の生成
 
@@ -110,11 +112,12 @@ fi
 ## 完了条件
 
 - [ ] <検証可能な条件>
-
-## 関係
-
-- Parent: #<PARENT>
 ```
+
+**親子関係は本文に書かない。** GitHub ネイティブ sub-issue（Step 5）が正であり、
+本文にも書くと2箇所で表現することになり必ず食い違う
+（`.claude/rules/template/labels.md`「親子関係は本文テキストには書きません」）。
+親子以外の関係（`Blocked by:` `Related:`）は本文の `## 関係` に書いてよい。
 
 ### Step 4: Issue 作成
 
@@ -149,8 +152,7 @@ ISSUE_ID=$(gh issue list --limit 1 --json number --jq '.[0].number')
 
 ### Step 5: 親子リンクを張る
 
-GitHub ネイティブの sub-issue を使う。**本文テキストの `Parent: #N` は補助的な表示に留め、
-構造の正は API 側とする。**
+GitHub ネイティブの sub-issue を使う。**構造の正は API 側であり、本文には書かない。**
 
 ```bash
 if [ -z "$PARENT" ]; then

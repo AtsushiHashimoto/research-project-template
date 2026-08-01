@@ -15,6 +15,10 @@
 #   --label "X"        --label X
 #   --add-label X      --remove-label X
 #   --extra-label X  … /issue-create が状態ラベルを受け取る形（#119）
+#   --type X         … **issue-create の呼び出し行に限り**、種類/報告ラベルとして検査する
+#                      （#119 で主ラベルの経路が `--label` からここへ移ったため、
+#                       外すと issue 作成経路が無検査になる）。
+#                      他スキルの `--type`（例: /qa-ask --type deferred）は対象外
 #
 # 除外:
 #   - コメント行（`#` で始まる行）
@@ -36,7 +40,7 @@
 set -uo pipefail
 
 case "${1:-}" in
-  -h|--help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   "") ;;
   *) echo "不明な引数: $1" >&2; exit 1 ;;
 esac
@@ -69,13 +73,21 @@ for f in "${FILES[@]}"; do
       \#*|*skill-labels:allow*)
         case "$line" in
           *--label*|*--add-label*|*--remove-label*|*--extra-label*) EXCLUDED=$((EXCLUDED + 1)) ;;
+          *issue-create*--type*) EXCLUDED=$((EXCLUDED + 1)) ;;
         esac
         continue ;;
     esac
-    # ラベル指定を抽出（クォート有無の両方）
+    # ラベル指定を抽出（クォート有無の両方）。
+    # `--type` は issue-create の呼び出し行だけを見る
+    # （他スキルにも --type があるため。例: /qa-ask --type deferred）
+    LABEL_RE='--(add-|remove-|extra-)?label[= ]+"[^"]+"|--(add-|remove-|extra-)?label[= ]+[A-Za-z0-9{}|_-]+'
+    case "$line" in
+      *issue-create*)
+        LABEL_RE='--((add-|remove-|extra-)?label|type)[= ]+"[^"]+"|--((add-|remove-|extra-)?label|type)[= ]+[A-Za-z0-9{}|_-]+' ;;
+    esac
     printf '%s\n' "$line" \
-      | grep -oE -- '--(add-|remove-|extra-)?label[= ]+"[^"]+"|--(add-|remove-|extra-)?label[= ]+[A-Za-z0-9{}|_-]+' \
-      | sed -E 's/^--(add-|remove-|extra-)?label[= ]+//; s/^"//; s/"$//' \
+      | grep -oE -- "$LABEL_RE" \
+      | sed -E 's/^--((add-|remove-|extra-)?label|type)[= ]+//; s/^"//; s/"$//' \
       | while IFS= read -r val; do
           case "$val" in
             *'$'*) continue ;;                     # シェル変数は静的に解決できない

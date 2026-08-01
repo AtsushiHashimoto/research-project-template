@@ -129,20 +129,29 @@ if [ "${#LIST_FILES[@]}" -eq 0 ]; then
   echo "[skill-refs] スキル一覧との差分検査はスキップ（.claude/rules/template/skills.md が無い）"
 else
   LISTED=$(grep -h -v 'skill-refs:allow' "${LIST_FILES[@]}" 2>/dev/null \
-    | grep -oE '^\| `/[a-z0-9][a-z0-9-]*' | sed -E 's/^\| `\///' | sort -u)
-  ACTUAL=$(ls .claude/skills | sort -u)
+    | grep -oE '^\|[[:space:]]*`/[a-z0-9][a-z0-9-]*' | sed -E 's/^\|[[:space:]]*`\///' | sort -u)
+  # ディレクトリのみを対象にする（.claude/skills 直下に置かれた .md 等を拾わない）
+  ACTUAL=$(find .claude/skills -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort -u)
 
   UNLISTED=$(comm -23 <(printf '%s\n' "$ACTUAL") <(printf '%s\n' "$LISTED"))
   GHOST=$(comm -13 <(printf '%s\n' "$ACTUAL") <(printf '%s\n' "$LISTED"))
 
   if [ -n "$UNLISTED" ]; then
-    echo "[skill-refs] スキル一覧に未掲載（.claude/skills にあるが skills.md に無い）:"
+    echo "[skill-refs] スキル一覧に未掲載（.claude/skills にあるが一覧に無い）:"
     printf '%s\n' "$UNLISTED" | sed 's|^|  /|'
+    echo "  → テンプレート同梱スキルなら .claude/rules/template/skills.md に、"
+    echo "    プロジェクト独自スキルなら .claude/rules/ 直下のローカル rules"
+    echo "    （例: .claude/rules/skills-local.md）に表の行を追加してください。"
+    echo "    ★ template/ 配下はテンプレート由来です。派生プロジェクトでは書き換えないこと"
+    echo "      （/template-sync で template.bak-* に退避され、偽の還流候補になります）"
     FOUND=1
   fi
   if [ -n "$GHOST" ]; then
-    echo "[skill-refs] スキル一覧の幽霊掲載（skills.md にあるが .claude/skills に無い）:"
+    echo "[skill-refs] スキル一覧の幽霊掲載（一覧にあるが .claude/skills に無い）:"
     printf '%s\n' "$GHOST" | sed 's|^|  /|'
+    echo "  → 実体を復元するか、該当行を一覧から削除してください"
+    echo "    （テンプレート同梱スキルを消した場合は .claude/rules/ 直下のローカル rules に"
+    echo "      「このプロジェクトでは使わない」旨を書き、template/ は触らないこと）"
     FOUND=1
   fi
 
@@ -160,8 +169,9 @@ echo "[skill-refs] 除外行: ${SKIPPED_LINES} 行 / ${SKIPPED} ファイル（'
 
 if [ "$FOUND" -ne 0 ]; then
   echo "[skill-refs] 参照切れ／一覧との差分を検出しました。"
-  echo "             参照は実在するスキル名（ハイフン区切り）に修正し、"
-  echo "             一覧の差分は .claude/rules/template/skills.md を実体に合わせてください:"
+  echo "             参照は実在するスキル名（ハイフン区切り）に修正してください。"
+  echo "             一覧の差分は上の案内に従うこと（template/ の書き換え可否に注意）。"
+  echo "             実在するスキル:"
   ls .claude/skills | sed 's/^/  \//'
   exit 1
 fi

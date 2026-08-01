@@ -77,10 +77,9 @@ Skill(skill="issue-create", args="--type ${CHILD_TYPE} --title \"${CHILD_ISSUE_T
   `.claude/rules/template/issue-hierarchy.md` の階層表）
 - 親子リンク（GitHub ネイティブ sub-issue）は `/issue-create` が張る
 
-子Issue番号は **`/issue-create` の出力（Step 6 の「作成: #N」）から受け取る**:
-```bash
-CHILD_ISSUE_ID=<Skill 出力の番号>
-```
+子Issue番号は **`/issue-create` の出力（Step 6 の「作成: #N」）から受け取る**。
+以降の手順ではこの番号を `CHILD_ISSUE_ID` として扱う（bash 変数への代入ではなく、
+エージェントが出力から読み取って後続コマンドに埋め込む）。
 
 > ❌ `gh issue list --limit 1 --json number --jq '.[0].number'` で番号を取ってはいけない。
 > 並行 worktree では他タスクの Issue を掴む（`/issue-create` Step 4 の禁止事項）。

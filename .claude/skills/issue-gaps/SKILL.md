@@ -197,7 +197,7 @@ done
 | チェック | 条件 | アクション |
 |---------|------|-----------|
 | ファイル競合 | **ブランチが存在する**（＝作業中の）Issueが同じファイルを編集中 | `Blocked by: #N` + `blocked`ラベル |
-| Parent関係 | 新規Issueの内容が既存Issueの一部 | `Parent: #N` |
+| Parent関係 | 新規Issueの内容が既存Issueの一部 | `/issue-create --parent N`（sub-issue API。本文には書かない） |
 | 関連Issue | タイトルや本文に既存Issue番号を含む | `Related: #N` |
 
 ### Phase 3.6: ユーザーアクション必要の判定
