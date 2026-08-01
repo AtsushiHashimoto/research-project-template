@@ -173,9 +173,16 @@ ITEMS=(
 
 cd "$PROJECT_ROOT"
 
-# 既存設定の有無を配置前に記録する（既存ファイルのタイムスタンプは書き換えない）
+# 既存設定の有無と初回作成時刻を配置前に記録する。
+# --force ではテンプレート（固定タイムスタンプ入り）で上書きされるため、
+# あとで created_at を復元できるようにここで控えておく
 WORKTREE_CONFIG_EXISTED=false
-[[ -e ".claude/worktree-config.json" ]] && WORKTREE_CONFIG_EXISTED=true
+PREV_CREATED_AT=""
+if [[ -e ".claude/worktree-config.json" ]]; then
+    WORKTREE_CONFIG_EXISTED=true
+    PREV_CREATED_AT=$(sed -n 's/.*"created_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        ".claude/worktree-config.json" | head -1)
+fi
 
 # Create directories
 mkdir -p .claude
@@ -284,12 +291,20 @@ else
 fi
 
 # worktree-config.json のタイムスタンプを実行時刻にする
-# （テンプレートには固定値が入っているため、そのままだと全プロジェクトが同じ日時を持つ）
-# 既存ファイルには触れない（再インストール時に初回作成時刻を失わないため）
-if [[ -f ".claude/worktree-config.json" ]] && [[ "$WORKTREE_CONFIG_EXISTED" != true ]]; then
+# （テンプレートには固定値が入っているため、放置すると全プロジェクトが同じ日時を持つ）
+#
+#   新規          : created_at / updated_at とも現在時刻
+#   --force で上書 : created_at は上書き前の値を復元し、updated_at のみ現在時刻
+#   保持（非force）: 触らない
+if [[ -f ".claude/worktree-config.json" ]]; then
     NOW_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
-    sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+    if [[ "$WORKTREE_CONFIG_EXISTED" != true ]]; then
+        sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+        sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+    elif [[ "$FORCE" == true ]]; then
+        sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"${PREV_CREATED_AT:-$NOW_UTC}\"|" ".claude/worktree-config.json"
+        sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+    fi
 fi
 
 # Handle .gitignore
