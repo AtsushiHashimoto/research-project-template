@@ -11,13 +11,17 @@
 # （Integrity Review #114 C2、約200箇所）。人手の grep では再発を防げないため機械化する。
 #
 # 検出するもの:
-#   1. 旧スラッシュ表記（`/commit/merge`, `Skill(skill="issue/unblock")` など）
+#   1. 旧スラッシュ表記（`/commit/merge`, `Skill(skill="issue/unblock")` など） skill-refs:allow
 #      … 実在スキル名から機械生成したペアだけを見るので、ファイルパスと誤認しない
-#   2. リネーム済みの旧名（/issue-auto, /issue-cycle, /start-task, /finish-task）
+#   2. リネーム済みの旧名（/issue-auto, /issue-cycle, /start-task, /finish-task） skill-refs:allow
 #   3. `Skill(skill="...")` が指すスキルの不在
 #
 # 除外（当時の実行記録であり、書き換えると履歴が壊れる）:
 #   .spec/issues/  docs/surveys/  data/shared/integrity-reviews/
+#
+# 行単位の除外（正当に旧名を書く必要がある箇所）:
+#   - `（旧 ...）` / `(旧 ...)` … リネームの移行導線。ユーザーに旧名を示すのが目的
+#   - `skill-refs:allow` を含む行 … 旧名を意図的に書く箇所（本スクリプトの定義行など）
 #
 # Usage:
 #   bash scripts/check-skill-references.sh [--help]
@@ -29,7 +33,7 @@
 set -uo pipefail
 
 case "${1:-}" in
-  -h|--help) sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   "") ;;
   *) echo "不明な引数: $1" >&2; exit 1 ;;
 esac
@@ -63,7 +67,10 @@ while IFS= read -r name; do
     *) continue ;;
   esac
   hits=$(OLD="$OLD" perl -ne \
-    'print "$ARGV:$.: $_" if m{(?<![A-Za-z0-9_.-])\Q$ENV{OLD}\E(?![a-z/-])}' \
+    'print "$ARGV:$.: $_"
+       if !/skill-refs:allow/ && !/[（(]旧/
+       && m{(?<![A-Za-z0-9_.-])\Q$ENV{OLD}\E(?![a-z/-])};
+     close ARGV if eof;' \
     "${FILES[@]}" 2>/dev/null)
   if [ -n "$hits" ]; then
     # 全角括弧が変数名の一部として解釈されるため ${} で明示的に閉じる
@@ -74,10 +81,13 @@ while IFS= read -r name; do
 done < <(ls .claude/skills)
 
 # --- 2. リネーム済みの旧名 ---
-for pair in "issue-auto|task-run" "issue-cycle|epic-cycle" "start-task|task-start" "finish-task|issue-finish"; do
+for pair in "issue-auto|task-run" "issue-cycle|epic-cycle" "start-task|task-start" "finish-task|issue-finish"; do  # skill-refs:allow
   OLD="${pair%%|*}"; new="${pair##*|}"
   hits=$(OLD="$OLD" perl -ne \
-    'print "$ARGV:$.: $_" if m{(?<![A-Za-z0-9_.-])\Q$ENV{OLD}\E(?![a-z/-])}' \
+    'print "$ARGV:$.: $_"
+       if !/skill-refs:allow/ && !/[（(]旧/
+       && m{(?<![A-Za-z0-9_.-])\Q$ENV{OLD}\E(?![a-z/-])};
+     close ARGV if eof;' \
     "${FILES[@]}" 2>/dev/null)
   if [ -n "$hits" ]; then
     echo "[skill-refs] 旧名 '${OLD}'（正: ${new}）:"
@@ -94,8 +104,14 @@ while IFS= read -r ref; do
     grep -rn "skill=\"$ref\"" .claude scripts 2>/dev/null | sed 's/^/  /' | head -5
     FOUND=1
   fi
-done < <(grep -rhoE 'skill="[A-Za-z0-9/_-]+"' "${FILES[@]}" 2>/dev/null \
-          | sed 's/skill="//; s/"//' | sort -u)
+done < <(
+  # 除外マーカーの付いた行を落としてから抽出する。               skill-refs:allow
+  # 呼び出しの2形式を見る（属性形とパラメータタグ形）             skill-refs:allow
+  grep -h -v 'skill-refs:allow' "${FILES[@]}" 2>/dev/null \
+    | grep -oE '<parameter name="skill">[A-Za-z0-9/_-]+|skill="[A-Za-z0-9/_-]+"' \
+    | sed -e 's|<parameter name="skill">||' -e 's|^skill="||' -e 's|"$||' \
+    | sort -u
+)
 
 if [ "$FOUND" -ne 0 ]; then
   echo "[skill-refs] 参照切れを検出しました。実在するスキル名（ハイフン区切り）に修正してください:"

@@ -1,5 +1,5 @@
 ---
-description: task 配下の issue を既定順で自動処理する（旧 /task-run）
+description: task 配下の issue を既定順で自動処理する（旧 /issue-auto）
 argument-hint: <task番号>
 ---
 
