@@ -110,7 +110,9 @@ echo "[skill-labels] 除外行: ${EXCLUDED} 行（コメント / 'skill-labels:a
 # GitHub 上に表示されるのはスクリプト側の文言なので、そちらを正とする。
 # 比較時は Markdown の装飾（** と `）だけ落として本文を突き合わせる
 LABELS_MD=".claude/rules/template/labels.md"
-if [ -f "$LABELS_MD" ]; then
+if [ ! -f "$LABELS_MD" ]; then
+  echo "[skill-labels] 説明文の一致検査はスキップ（${LABELS_MD} が無い）"
+else
   while IFS='|' read -r name _color desc; do
     [ -n "$name" ] || continue
     row=$(grep -m1 -F "| \`${name}\` |" "$LABELS_MD" || true)
@@ -119,9 +121,14 @@ if [ -f "$LABELS_MD" ]; then
       FOUND=1
       continue
     fi
-    md_desc=$(printf '%s' "$row" | awk -F'|' '{print $3}' \
+    # 「用途」列＝3フィールド目を取る（表は 2列/3列 の両方がある）。
+    # Markdown ではセル内の `|` は `\|` とエスケープするのが正なので、
+    # 分割後にアンエスケープして比較する（`|` 入りの説明文でも一致させられる）
+    # エスケープ済み `\|` はセル区切りではないので、分割前に退避して後で戻す
+    md_desc=$(printf '%s' "$row" | sed 's/\\|/@@PIPE@@/g' | awk -F'|' '{print $3}' \
+              | sed 's/@@PIPE@@/|/g; s/^[[:space:]]*//; s/[[:space:]]*$//; s/\*\*//g; s/`//g')
+    sh_desc=$(printf '%s' "$desc" \
               | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\*\*//g; s/`//g')
-    sh_desc=$(printf '%s' "$desc" | sed 's/\*\*//g; s/`//g')
     if [ "$md_desc" != "$sh_desc" ]; then
       echo "[skill-labels] 説明文の不一致: ${name}"
       echo "    setup-labels.sh: ${sh_desc}"
