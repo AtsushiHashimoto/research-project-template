@@ -17,10 +17,10 @@
 | ラベル | 用途 | 完了条件 |
 |--------|------|----------|
 | `survey` | 文献・ライブラリ調査 → docs/surveys/ | `docs/surveys/` に結果を残す |
-| `spec` | 仕様の作成・レビュー | `.spec/issues/` に仕様を残す |
+| `spec` | 仕様の作成・レビュー → .spec/issues/ | `.spec/issues/` に仕様を残す |
 | `feature` | 新機能・実装 | 機能が動作する |
 | `validation` | **実装は仕様どおり動くか**（実装の正しさ） | 動く/動かないの判定 |
-| `experiment` | **仮説は正しいか**（設計の正しさ） | `data/shared/experiments/` に3点セット保存＋実験の規律（`.claude/rules/template/experiment-discipline.md`）を通過 |
+| `experiment` | **仮説は正しいか**（設計の正しさ）→ data/shared/experiments/ | `data/shared/experiments/` に3点セット保存＋実験の規律（`.claude/rules/template/experiment-discipline.md`）を通過 |
 | `bug` | バグ修正 | バグが解消 |
 | `docs` | ドキュメント | ドキュメント更新完了 |
 | `refactor` | 挙動を変えないコード改善 | コード改善完了 |

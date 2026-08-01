@@ -24,7 +24,7 @@ set -uo pipefail
 # ★ 引数の検証は gh の確認より前に行う。
 #   さもないと `--help` が gh 未認証環境で「スキップ」になって使い方を出せない
 case "${1:-}" in
-  -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   --prune|"") ;;
   *) echo "[labels] 不明な引数: $1（--prune / --help のみ）" >&2; exit 1 ;;
 esac

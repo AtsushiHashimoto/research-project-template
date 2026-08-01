@@ -105,6 +105,33 @@ fi
 
 echo "[skill-labels] 除外行: ${EXCLUDED} 行（コメント / 'skill-labels:allow'）"
 
+# --- labels.md と setup-labels.sh の説明文が食い違っていないか ---
+# 両方を手で更新する運用（labels.md 冒頭の宣言）を機械で担保する。
+# GitHub 上に表示されるのはスクリプト側の文言なので、そちらを正とする。
+# 比較時は Markdown の装飾（** と `）だけ落として本文を突き合わせる
+LABELS_MD=".claude/rules/template/labels.md"
+if [ -f "$LABELS_MD" ]; then
+  while IFS='|' read -r name _color desc; do
+    [ -n "$name" ] || continue
+    row=$(grep -m1 -F "| \`${name}\` |" "$LABELS_MD" || true)
+    if [ -z "$row" ]; then
+      echo "[skill-labels] labels.md に行がありません: ${name}"
+      FOUND=1
+      continue
+    fi
+    md_desc=$(printf '%s' "$row" | awk -F'|' '{print $3}' \
+              | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\*\*//g; s/`//g')
+    sh_desc=$(printf '%s' "$desc" | sed 's/\*\*//g; s/`//g')
+    if [ "$md_desc" != "$sh_desc" ]; then
+      echo "[skill-labels] 説明文の不一致: ${name}"
+      echo "    setup-labels.sh: ${sh_desc}"
+      echo "    labels.md      : ${md_desc}"
+      FOUND=1
+    fi
+  done < <(grep -oE '^[[:space:]]*"[a-z][a-z-]*\|[0-9A-Fa-f]{6}\|[^"]*"' scripts/setup-labels.sh \
+           | sed 's/^[[:space:]]*"//; s/"$//')
+fi
+
 if [ "$FOUND" -ne 0 ]; then
   echo "[skill-labels] 定義済みラベル（scripts/setup-labels.sh が単一情報源）:"
   printf '%s\n' "$DEFINED" | sed 's/^/  /'
