@@ -38,10 +38,58 @@ run_check() {
   fi
 }
 
+# 変更ファイルの解決（#142 / #153）
+#   ツリー全体を検査すると、そのファイルを1行も触っていない PR が既存の指摘で落ちる。
+#   これは #105 が changed-file 判定から取り除いたのと同じ誤検出なので、
+#   ファイル単位の検査は base ref との差分に限定する。
+#   base は origin/<既定> -> ローカル<既定> の順で実在するものを採る。
+#   どちらも解決できないなら「検査が走らなかった」ことを明示して止める（PASS にしない）。
+BASE_REF=""
+CHANGED_FILES=""
+
+resolve_base_ref() {
+  local cand
+  if [ -n "${QUALITY_BASE_BRANCH:-}" ]; then
+    git rev-parse --verify --quiet "$QUALITY_BASE_BRANCH" >/dev/null && {
+      BASE_REF="$QUALITY_BASE_BRANCH"; return 0; }
+    return 1
+  fi
+  local default_branch
+  default_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+  [ -n "$default_branch" ] || default_branch=main
+  for cand in "origin/$default_branch" "$default_branch"; do
+    if git rev-parse --verify --quiet "$cand" >/dev/null; then BASE_REF="$cand"; return 0; fi
+  done
+  return 1
+}
+
+compute_changed_files() {
+  local base
+  resolve_base_ref || return 1
+  base="$(git merge-base HEAD "$BASE_REF" 2>/dev/null)" || return 1
+  CHANGED_FILES="$(git diff --name-only --diff-filter=d "$base" HEAD 2>/dev/null; git diff --name-only --diff-filter=d HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null)" || return 1
+  CHANGED_FILES="$(printf '%s\n' "$CHANGED_FILES" | sort -u)"
+  return 0
+}
+
+# changed_of <拡張子> -> 変更された該当ファイルを1行1件で返す
+changed_of() {
+  printf '%s\n' "$CHANGED_FILES" | grep -E "\\.$1\$" || true
+}
+
 echo "=== Running quality checks ==="
 
 SCOPE="${QUALITY_SCOPE:-all}"
 echo "scope: $SCOPE"
+
+if [ "$SCOPE" != "docs" ]; then
+  if compute_changed_files; then
+    echo "base: $BASE_REF（ファイル単位の検査は変更分のみ）"
+  else
+    echo "!!! FAILED: base ref を解決できず変更ファイルを特定できない（検査が走らなかったことは PASS ではない）"
+    FAILED=1
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # Python (uv + ruff + mypy + pytest)
@@ -88,11 +136,15 @@ if [ "$SCOPE" = "docs" ]; then
 elif ! command -v shellcheck >/dev/null 2>&1; then
   skip "shellcheck (未インストール)"
 else
-  mapfile -t SH_FILES < <(git ls-files '*.sh' 2>/dev/null)
+  mapfile -t SH_FILES < <(changed_of sh)
   if [ ${#SH_FILES[@]} -eq 0 ]; then
-    skip "shellcheck (対象ファイル無し)"
+    skip "shellcheck (変更された *.sh が無い vs $BASE_REF)"
   else
-    run_check "shellcheck (${#SH_FILES[@]} files)" shellcheck "${SH_FILES[@]}"
+    # -x/--source-path: sourced lib を「呼び出し元の CWD」ではなくスクリプト自身の
+    # ディレクトリから解決する。単体検査にすると SC1091 が必ず出るため必須。
+    run_check "shellcheck (${#SH_FILES[@]} changed)" \
+      shellcheck -x --source-path=SCRIPTDIR "${SH_FILES[@]}"
+    echo "    （変更された ${#SH_FILES[@]} 件のみ検査。ツリーの残りは未検査）"
   fi
 fi
 

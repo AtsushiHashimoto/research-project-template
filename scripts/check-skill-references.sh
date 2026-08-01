@@ -20,7 +20,7 @@
 #      新スキルを足したのに一覧を更新しない事故（#114 H6: 6スキルが未掲載）の再発防止
 #
 # 除外（当時の実行記録であり、書き換えると履歴が壊れる）:
-#   .spec/issues/  docs/surveys/  data/shared/integrity-reviews/
+#   .spec/issues/  docs/surveys/  data/shared/integrity-reviews/  results/
 #
 # 行単位の除外（正当に旧名を書く必要がある箇所）:
 #   - `（旧 ...）` / `(旧 ...)` … リネームの移行導線。ユーザーに旧名を示すのが目的
@@ -42,7 +42,7 @@ case "${1:-}" in
 esac
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-cd "$ROOT"
+cd "$ROOT" || exit 1
 
 [ -d .claude/skills ] || { echo "[skill-refs] .claude/skills が無いためスキップ"; exit 0; }
 
@@ -54,6 +54,7 @@ targets() {
     | grep -vE '^\.spec/issues/' \
     | grep -vE '^docs/surveys/' \
     | grep -vE '^data/shared/integrity-reviews/' \
+    | grep -vE '^results/' \
     | grep -E '\.(md|sh|json)$|^claude-san$|^install\.sh$|^setup\.sh$'
 }
 
@@ -78,7 +79,7 @@ while IFS= read -r name; do
   if [ -n "$hits" ]; then
     # 全角括弧が変数名の一部として解釈されるため ${} で明示的に閉じる
     echo "[skill-refs] 旧表記 '${OLD}'（正: ${name}）:"
-    echo "$hits" | sed 's/^/  /'
+    printf '%s\n' "${hits//$'\n'/$'\n'  }" | sed '1s/^/  /'
     FOUND=1
   fi
 done < <(ls .claude/skills)
@@ -94,7 +95,7 @@ for pair in "issue-auto|task-run" "issue-cycle|epic-cycle" "start-task|task-star
     "${FILES[@]}" 2>/dev/null)
   if [ -n "$hits" ]; then
     echo "[skill-refs] 旧名 '${OLD}'（正: ${new}）:"
-    echo "$hits" | sed 's/^/  /'
+    printf '%s\n' "${hits//$'\n'/$'\n'  }" | sed '1s/^/  /'
     FOUND=1
   fi
 done
@@ -139,6 +140,7 @@ else
     | sed -E 's|.*/||' | sort -u)
   if [ -n "$IGNORED" ]; then
     LISTED=$(comm -23 <(printf '%s\n' "$LISTED_RAW") <(printf '%s\n' "$IGNORED"))
+    # shellcheck disable=SC2086  # IGNORED is an intentional word list
     echo "[skill-refs] 一覧から除外（skills-ignore）: $(printf '%s ' $IGNORED)"
   else
     LISTED="$LISTED_RAW"
@@ -187,7 +189,7 @@ if [ "$FOUND" -ne 0 ]; then
   echo "             参照は実在するスキル名（ハイフン区切り）に修正してください。"
   echo "             一覧の差分は上の案内に従うこと（template/ の書き換え可否に注意）。"
   echo "             実在するスキル:"
-  ls .claude/skills | sed 's/^/  \//'
+  find .claude/skills -mindepth 1 -maxdepth 1 -type d -printf '  /%f\n' | sort
   exit 1
 fi
 
