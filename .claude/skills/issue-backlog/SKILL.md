@@ -64,7 +64,7 @@ Skill(skill="issue/unblock")
 ### Phase 2: ブロッカーなし項目の特定
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mechanical)", prompt="
 .dev/backlog.md を分析し、ブロッカーがない（着手可能な）項目を特定してください。
 
 ## 着手可能の条件

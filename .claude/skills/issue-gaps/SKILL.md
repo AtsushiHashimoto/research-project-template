@@ -30,7 +30,7 @@ scan + diff を統合し、乖離を検出してアクションを実行しま�
 `/issue/scan` 相当の処理を実行し、全Issueの状態を把握します。
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mechanical)", prompt="
 /issue/scan を実行し、全Issueの状態を把握してください。
 
 出力形式:
@@ -47,7 +47,7 @@ Task(subagent_type="general-purpose", prompt="
 ```
 # 各open Issueに対して並列実行可能
 for ISSUE_ID in $OPEN_ISSUES; do
-  Task(subagent_type="general-purpose", prompt="
+  Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh verification)", prompt="
   /issue/diff ${ISSUE_ID} を実行し、乖離分析レポートを生成してください。
   ")
 done

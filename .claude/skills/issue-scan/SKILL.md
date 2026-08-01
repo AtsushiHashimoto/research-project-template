@@ -86,7 +86,7 @@ description: Scan all issues and analyze their status (全Issue状態のスキ�
 **issue-scanner エージェントを使用**:
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mechanical)", prompt="
 agents/issue-scanner.md の定義に従って、Issueスキャンレポートを生成してください。
 
 ## 収集データ

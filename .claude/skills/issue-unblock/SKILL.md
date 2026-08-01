@@ -70,7 +70,7 @@ fi
 各バックログ項目の「後回しにした理由」を分析し、分類します。
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mechanical)", prompt="
 .dev/backlog.md の各項目について、ブロッカーを分類してください。
 
 ## 分類ルール
@@ -106,7 +106,7 @@ Task(subagent_type="general-purpose", prompt="
 🤖 自動解消可能と判定された項目について、具体的な不足を分析:
 
 ```
-Task(subagent_type="general-purpose", prompt="
+Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mechanical)", prompt="
 以下のバックログ項目について、ブロッカー解消に必要な実装を特定してください。
 
 ## 対象項目

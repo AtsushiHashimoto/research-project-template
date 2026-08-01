@@ -55,7 +55,7 @@ fi
 
 #### 3-1. アーキテクチャレビュー（Architecture Review）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
 
 レビュー観点：
 - **設計の妥当性**: 変更が既存のアーキテクチャパターンと整合しているか
@@ -84,7 +84,7 @@ git diff main --name-only | xargs wc -l 2>/dev/null | sort -rn | head -20
 
 #### 3-2. リスクレビュー（Risk Review）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh verification` で解決する。
 
 レビュー観点：
 - **対症療法的修正の検出（重要）**: 想定される挙動と異なる振る舞いに対して、挙動を上書きする形での修正を検出。このような修正は保守性を低下させるため禁止
@@ -100,7 +100,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-3. テストレビュー（Test Review）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh verification` で解決する。
 
 **テストの目的原則**: 自動テストの目的は、人間による手動検証を最小化することにある。人間がリアルな環境で試したときに初めて発覚する問題を、自動テストの段階で検出できるようにすることがゴールである。
 
@@ -141,7 +141,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-4. Fallbackチェッカー（Fallback Checker）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh verification` で解決する。
 
 **事前準備**: 仕様ファイルから「承認済みFallbackホワイトリスト」を読み込む。
 
@@ -175,7 +175,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-5. 仕様充足チェッカー（Spec Compliance Checker）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh verification` で解決する。
 
 **事前準備**: 仕様ファイルから「検証チェックリスト」を読み込む。
 
@@ -202,7 +202,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-6. ロジック検証チェッカー（Logic Verification Checker）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh verification` で解決する。
 
 レビュー観点：
 - **ループの必要十分性**: for/while の対象が過不足なく処理されるか
@@ -238,7 +238,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 #### 3-7. Best Practice チェッカー（Pattern Compliance Review）
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh verification` で解決する。
 
 **目的**: 変更された各部品（関数、クラス、モジュール）が、その言語・フレームワークの best practice パターンに沿っているかを個別に検証する。逸脱がある場合、プロジェクト固有の正当な理由があるかを確認する。
 
@@ -282,7 +282,7 @@ Task tool で `subagent_type=general-purpose` を使用。
 
 **GUI/フロントエンド変更がある場合のみ実行**。
 
-Task tool で `subagent_type=general-purpose` を使用。
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh verification` で解決する。
 
 発動条件（いずれかに該当）：
 - 変更ファイル: `**/*.html`, `**/*.css`, `**/*.js`, `**/templates/**`, `**/static/**`

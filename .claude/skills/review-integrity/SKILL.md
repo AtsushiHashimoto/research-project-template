@@ -77,6 +77,10 @@ description: Periodic codebase integrity and consistency review (定期的な実
 
 以下の6エージェントを並列起動する。各エージェントには **判断根拠を含む詳細な分析** を求める。
 
+```
+Agent(subagent_type="Explore", model="$(bash scripts/resolve-model.sh verification)", prompt="...")
+```
+
 | # | ID | 担当 | 出力ファイル名 |
 |---|-----|------|---------------|
 | 1 | structure | プロジェクト構造の探索 | `01-structure.md` |
@@ -135,7 +139,7 @@ ln -sfn "${TIMESTAMP}" data/shared/integrity-reviews/latest
 前回の結果が存在する場合、**7番目のエージェント**を起動して差分を分析する。
 
 ```
-Agent(subagent_type="Explore", prompt="
+Agent(subagent_type="Explore", model="$(bash scripts/resolve-model.sh verification)", prompt="
 前回のレビュー結果: data/shared/integrity-reviews/{prev_timestamp}/
 今回のレビュー結果: data/shared/integrity-reviews/{curr_timestamp}/
 
