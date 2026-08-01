@@ -204,52 +204,67 @@ for item in "${ITEMS[@]}"; do
     fi
 done
 
+# sed -i は GNU と BSD(macOS) で引数解釈が異なる。`-i.bak` + rm が両者で動く唯一の形
+sed_inplace() {
+    local expr="$1" file="$2"
+    sed -i.bak "$expr" "$file" && rm -f "$file.bak"
+}
+
+# Sanitize inputs for sed (escape & and | in replacement strings)
+sanitize_sed() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
+
+# Sanitize values for JSON (escape backslashes and double quotes)
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
 # Handle CLAUDE.md
+CLAUDE_MD_INSTALLED=false
 if [[ -f ".claude/CLAUDE.md" ]]; then
     cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md.template"
     warn "$(msg preserved)"
 else
     cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md"
+    CLAUDE_MD_INSTALLED=true
     success "$(msg installed): .claude/CLAUDE.md"
+fi
 
-    # Interactive placeholder substitution (only if terminal is interactive)
-    if [[ -t 0 ]]; then
-        echo ""
-        info "Setting up project info in CLAUDE.md..."
+# プロジェクト情報の収集（CLAUDE.md の有無に関わらず行う）。
+# template-substitutions.json は /template-contribute の汚染チェックに使うため、
+# 既存 CLAUDE.md があるプロジェクトでも必要になる
+if [[ -t 0 ]]; then
+    echo ""
+    info "Setting up project info..."
 
-        # Derive default project name from directory
-        DEFAULT_PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+    # Derive default project name from directory
+    DEFAULT_PROJECT_NAME="$(basename "$PROJECT_ROOT")"
 
-        read -p "Project name [$DEFAULT_PROJECT_NAME]: " PROJECT_NAME
-        PROJECT_NAME="${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}"
+    read -p "Project name [$DEFAULT_PROJECT_NAME]: " PROJECT_NAME
+    PROJECT_NAME="${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}"
 
-        read -p "Project description (one line): " PROJECT_DESCRIPTION
-        PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-TODO: Add project description}"
+    read -p "Project description (one line): " PROJECT_DESCRIPTION
+    PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-TODO: Add project description}"
 
-        read -p "Researcher name: " RESEARCHER_NAME
-        RESEARCHER_NAME="${RESEARCHER_NAME:-TODO: Add researcher name}"
+    read -p "Researcher name: " RESEARCHER_NAME
+    RESEARCHER_NAME="${RESEARCHER_NAME:-TODO: Add researcher name}"
 
-        START_DATE="$(date +%Y-%m-%d)"
+    START_DATE="$(date +%Y-%m-%d)"
 
-        # Sanitize inputs for sed (escape & and | in replacement strings)
-        sanitize_sed() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
-
-        # Perform substitutions with sanitized values
-        sed -i "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
-
+    # 置換対象は今回インストールした CLAUDE.md のみ（既存は上書きしない）
+    if [[ "$CLAUDE_MD_INSTALLED" == true ]]; then
+        sed_inplace "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
         success "CLAUDE.md configured for: $PROJECT_NAME"
-    else
-        # Non-interactive: leave placeholders, user edits manually
-        info "Edit .claude/CLAUDE.md to replace {{...}} placeholders"
     fi
+elif [[ "$CLAUDE_MD_INSTALLED" == true ]]; then
+    # Non-interactive: leave placeholders, user edits manually
+    info "Edit .claude/CLAUDE.md to replace {{...}} placeholders"
+fi
 
-    # Sanitize values for JSON (escape backslashes and double quotes)
-    json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-
-    # Save substitution log for /template/contribute contamination checks
+# Save substitution log for /template-contribute contamination checks.
+# 値が空のまま書き出すと「ファイルはあるのに汚染チェックが無効」という
+# 気づきにくい状態になるため、値が取れたときだけ書き出す
+if [[ -n "${PROJECT_NAME:-}" ]]; then
     cat > ".claude/template-substitutions.json" <<SUBST_EOF
 {
   "PROJECT_NAME": "$(json_escape "${PROJECT_NAME:-}")",
@@ -260,15 +275,29 @@ else
 }
 SUBST_EOF
     success "$(msg installed): .claude/template-substitutions.json"
+else
+    info "Skipped .claude/template-substitutions.json (プロジェクト情報が未入力)"
+fi
+
+# worktree-config.json のタイムスタンプを実行時刻にする
+# （テンプレートには固定値が入っているため、そのままだと全プロジェクトが同じ日時を持つ）
+if [[ -f ".claude/worktree-config.json" ]]; then
+    NOW_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+    sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
 fi
 
 # Handle .gitignore
 if [[ -f ".gitignore" ]]; then
+    # worktrees/ はドット無し（テンプレート .gitignore と
+    # .claude/rules/template/issue-hierarchy.md の規約に一致させること）
     GITIGNORE_ENTRIES=(
-        ".worktrees/"
+        "worktrees/"
         "data/shared/**"
         "!data/shared/.gitkeep"
         "data/local/"
+        ".claude/rules/template.bak-*/"
+        ".claude/model-policy.local.json"
     )
 
     ADDED=false
@@ -314,7 +343,9 @@ if [[ -t 0 ]]; then
 
     if [[ ! "$do_init" =~ ^[Nn]$ ]]; then
         echo ""
-        "$PROJECT_ROOT/scripts/init-data.sh" "$PROJECT_ROOT"
+        # 初期化シーケンス（相対パス設定 → ラベル作成 → データディレクトリ）の
+        # 単一情報源は worktree-init のラッパー。ここに手順を複製しないこと
+        bash "$PROJECT_ROOT/.claude/skills/worktree-init/init.sh" "$PROJECT_ROOT"
     else
         echo ""
         info "$(msg init_later)"

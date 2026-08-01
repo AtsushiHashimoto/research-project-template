@@ -35,7 +35,11 @@ fi
 # （postCreateCommand 時点では .bashrc が updateRemoteUserUID により上書きされる可能性があるため）
 
 # claude-san symlink
-sudo ln -sf "$(pwd)/claude-san" /usr/local/bin/claude-san
+# claude-san はテンプレート付属のランチャで、install.sh 経由の派生プロジェクトには
+# 配布されない。存在しないまま ln -sf すると壊れた symlink が無言で作られるためガードする
+if [ -f "$(pwd)/claude-san" ]; then
+  sudo ln -sf "$(pwd)/claude-san" /usr/local/bin/claude-san
+fi
 
 # worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
 if [ -x ./scripts/configure-worktree-paths.sh ]; then
