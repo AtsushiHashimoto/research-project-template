@@ -356,13 +356,17 @@ if [[ -t 0 ]]; then
         #   インストール先にラッパーが無い場合があるため（--force 無しの再インストール）。
         #   --root で対象を明示するのは、サブディレクトリ指定時に git のトップレベルが
         #   外側リポジトリを指してしまうのを避けるため
+        # 初期化が失敗しても installer は落とさない（ファイル配置は完了しているため）。
+        # 黙らせず警告と再実行方法を出す
         INIT_WRAPPER="$TMP_DIR/template/.claude/skills/worktree-init/init.sh"
         if [[ -f "$INIT_WRAPPER" ]]; then
-            bash "$INIT_WRAPPER" --root "$PROJECT_ROOT" "$PROJECT_ROOT"
+            bash "$INIT_WRAPPER" --root "$PROJECT_ROOT" "$PROJECT_ROOT" \
+                || warn "初期化が完了しませんでした。後で実行: bash .claude/skills/worktree-init/init.sh"
         elif [[ -x "$PROJECT_ROOT/scripts/init-data.sh" ]]; then
             warn "初期化ラッパーが見つかりません。データディレクトリのみ作成します"
             warn "  ラベル作成は後で: bash scripts/setup-labels.sh"
-            "$PROJECT_ROOT/scripts/init-data.sh" "$PROJECT_ROOT"
+            "$PROJECT_ROOT/scripts/init-data.sh" "$PROJECT_ROOT" \
+                || warn "初期化が完了しませんでした。後で実行: bash scripts/init-data.sh"
         else
             warn "初期化スクリプトが見つかりませんでした。手動で実行してください"
         fi
