@@ -173,9 +173,9 @@ if [[ -L "data/shared" ]]; then
     echo ""
 
     if [[ -t 0 ]]; then
-        read -p "$(msg recreate): " recreate
+        read -r -p "$(msg recreate): " recreate
         if [[ ! "$recreate" =~ ^[Yy]$ ]]; then
-            echo "$(msg cancelled)"
+            msg cancelled
             exit 0
         fi
         rm data/shared

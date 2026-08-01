@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # scripts/commit-merge.sh
 #
 # PRをマージし、worktreeをクリーンアップするスクリプト

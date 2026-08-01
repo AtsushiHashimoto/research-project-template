@@ -66,7 +66,16 @@ if [ -d "data/local" ]; then
     for ext in "${IMPORTANT_EXTENSIONS[@]}"; do
         while IFS= read -r -d '' file; do
             # Skip if already in list
-            if [[ ! " ${IMPORTANT_FILES[@]} " =~ " ${file} " ]]; then
+            # 配列を [[ ]] 内で展開すると連結されて誤判定するため（SC2199）、明示的に走査する。
+            # set -u 下では空配列の "${arr[@]}" 展開自体がエラーになるのでガードを付ける
+            already=0
+            for existing in ${IMPORTANT_FILES[@]+"${IMPORTANT_FILES[@]}"}; do
+                if [[ "$existing" == "$file" ]]; then
+                    already=1
+                    break
+                fi
+            done
+            if [[ "$already" -eq 0 ]]; then
                 IMPORTANT_FILES+=("$file")
             fi
         done < <(find data/local -type f -name "$ext" -print0 2>/dev/null || true)
@@ -88,7 +97,7 @@ if [ ${#IMPORTANT_FILES[@]} -gt 0 ]; then
     echo "  2. Continue with removal (delete files)"
     echo "  3. Cancel"
     echo ""
-    read -p "Choice [1/2/3]: " choice
+    read -r -p "Choice [1/2/3]: " choice
 
     case "$choice" in
         1)
@@ -152,7 +161,7 @@ echo "  - All uncommitted code changes"
 echo "  - Entire worktree directory"
 echo ""
 
-read -p "Are you sure you want to remove this worktree? [y/N]: " final_confirm
+read -r -p "Are you sure you want to remove this worktree? [y/N]: " final_confirm
 if [[ ! "$final_confirm" =~ ^[Yy]$ ]]; then
     echo "Removal cancelled."
     exit 0

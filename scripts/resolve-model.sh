@@ -94,8 +94,11 @@ remove_disabled_from() {
   [ -f "$f" ] || return 1
   jq -e --arg m "$m" '(.disabled // []) | index($m) != null' "$f" >/dev/null 2>&1 || return 1
   tmp=$(mktemp)
-  jq --arg m "$m" '.disabled = ((.disabled // []) - [$m])' "$f" > "$tmp" && mv "$tmp" "$f" || { rm -f "$tmp"; return 1; }
-  return 0
+  if jq --arg m "$m" '.disabled = ((.disabled // []) - [$m])' "$f" > "$tmp" && mv "$tmp" "$f"; then
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
 }
 
 case "${1:-}" in
@@ -130,7 +133,9 @@ case "${1:-}" in
     [ -z "${2:-}" ] && { echo "usage: --disable <model>"; exit 1; }
     [ -f "$LOCAL_POLICY" ] || echo '{}' > "$LOCAL_POLICY"
     tmp=$(mktemp)
-    jq --arg m "$2" '.disabled = ((.disabled // []) + [$m] | unique)' "$LOCAL_POLICY" > "$tmp" && mv "$tmp" "$LOCAL_POLICY" || { rm -f "$tmp"; exit 1; }
+    if ! { jq --arg m "$2" '.disabled = ((.disabled // []) + [$m] | unique)' "$LOCAL_POLICY" > "$tmp" && mv "$tmp" "$LOCAL_POLICY"; }; then
+      rm -f "$tmp"; exit 1
+    fi
     echo "disabled に追加: $2 (.claude/model-policy.local.json)"
     ;;
   --enable)

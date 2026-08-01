@@ -153,9 +153,9 @@ if [[ -f "$CONFIG_FILE" ]]; then
     echo ""
 
     if [[ -t 0 ]]; then
-        read -p "$(msg reconfigure): " reconfigure
+        read -r -p "$(msg reconfigure): " reconfigure
         if [[ ! "$reconfigure" =~ ^[Yy]$ ]]; then
-            echo "$(msg keeping)"
+            msg keeping
             exit 0
         fi
     else
@@ -191,7 +191,7 @@ elif [[ -t 0 ]]; then
     echo "     $(msg option2_desc)"
     echo ""
 
-    read -p "$(msg choice): " choice
+    read -r -p "$(msg choice): " choice
 
     case "$choice" in
         1)
@@ -208,7 +208,7 @@ elif [[ -t 0 ]]; then
             echo "  /mnt/research-data/$REPO_NAME/shared"
             echo "  /Volumes/ExternalSSD/$REPO_NAME/shared"
             echo ""
-            read -p "$(msg path_prompt): " CUSTOM_PATH
+            read -r -p "$(msg path_prompt): " CUSTOM_PATH
 
             CUSTOM_PATH="${CUSTOM_PATH/#\~/$HOME}"
 

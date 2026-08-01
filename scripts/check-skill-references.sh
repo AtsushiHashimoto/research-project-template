@@ -42,7 +42,7 @@ case "${1:-}" in
 esac
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-cd "$ROOT"
+cd "$ROOT" || { echo "[skill-refs] cd に失敗: $ROOT" >&2; exit 1; }
 
 [ -d .claude/skills ] || { echo "[skill-refs] .claude/skills が無いためスキップ"; exit 0; }
 
@@ -78,7 +78,7 @@ while IFS= read -r name; do
   if [ -n "$hits" ]; then
     # 全角括弧が変数名の一部として解釈されるため ${} で明示的に閉じる
     echo "[skill-refs] 旧表記 '${OLD}'（正: ${name}）:"
-    echo "$hits" | sed 's/^/  /'
+    printf '%s\n' "$hits" | sed 's/^/  /'
     FOUND=1
   fi
 done < <(ls .claude/skills)
@@ -94,7 +94,7 @@ for pair in "issue-auto|task-run" "issue-cycle|epic-cycle" "start-task|task-star
     "${FILES[@]}" 2>/dev/null)
   if [ -n "$hits" ]; then
     echo "[skill-refs] 旧名 '${OLD}'（正: ${new}）:"
-    echo "$hits" | sed 's/^/  /'
+    printf '%s\n' "$hits" | sed 's/^/  /'
     FOUND=1
   fi
 done
@@ -139,7 +139,7 @@ else
     | sed -E 's|.*/||' | sort -u)
   if [ -n "$IGNORED" ]; then
     LISTED=$(comm -23 <(printf '%s\n' "$LISTED_RAW") <(printf '%s\n' "$IGNORED"))
-    echo "[skill-refs] 一覧から除外（skills-ignore）: $(printf '%s ' $IGNORED)"
+    echo "[skill-refs] 一覧から除外（skills-ignore）: $(printf '%s\n' "$IGNORED" | tr '\n' ' ')"
   else
     LISTED="$LISTED_RAW"
   fi
@@ -187,7 +187,7 @@ if [ "$FOUND" -ne 0 ]; then
   echo "             参照は実在するスキル名（ハイフン区切り）に修正してください。"
   echo "             一覧の差分は上の案内に従うこと（template/ の書き換え可否に注意）。"
   echo "             実在するスキル:"
-  ls .claude/skills | sed 's/^/  \//'
+  while IFS= read -r s; do echo "  /$s"; done < <(ls .claude/skills)
   exit 1
 fi
 

@@ -204,6 +204,7 @@ SYNC_TARGETS=(
     ".claude/worktree-config.json"
     ".claude/model-policy.json"
     ".devcontainer"
+    ".github/workflows/quality.yml"
     "scripts"
 )
 

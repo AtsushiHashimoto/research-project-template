@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# 品質チェック CI（テンプレート同梱 / #121 D5）
+#
+# scripts/quality-check.sh をそのまま実行する。ローカルに shellcheck や ruff が
+# 無い環境でも「必ずどこかで検査が走る」状態を作るための backstop であり、
+# quality-check.sh 側の「検査系が未インストールなら警告だけで通す」Fallback は
+# この CI があることを前提に許可されている。CI を落とすなら Fallback も無効になる。
+#
+# ★ 無効化する方法（private 派生リポジトリでは Actions の無料枠を消費します）
+#   1. このファイル（.github/workflows/quality.yml）を削除する、または
+#   2. リポジトリの Settings > Actions > General で Actions を Disable にする
+#   いずれの場合も backstop が消えるため、ローカルに shellcheck / ruff を
+#   導入したうえで scripts/quality-check.sh を必ず通す運用に切り替えること。
+# ---------------------------------------------------------------------------
+name: quality
+
+# トリガは最小限（main への push と PR のみ）
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同じ ref で走っている古いジョブはキャンセルする（Actions 枠の節約）
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-check:
+    # 軽量な単一ジョブ。matrix は使わない
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure shellcheck
+        run: |
+          command -v shellcheck >/dev/null 2>&1 \
+            || { sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck; }
+          shellcheck --version
+
+      # uv: pyproject.toml があるプロジェクトの検査に使う
+      # ruff: pyproject.toml が無いプロジェクトの standalone 検査（scripts/qa 等）に使う
+      - name: Install uv and ruff
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/uv" tool install ruff
+
+      - name: Run quality checks
+        run: bash scripts/quality-check.sh

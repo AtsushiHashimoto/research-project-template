@@ -12,6 +12,7 @@
 #
 # 既定の除外（＝install.sh が配布する開発ハーネス一式＋テンプレート付属物）:
 #   .claude/  .spec/  .dev/  .devcontainer/  worktrees/  scripts/
+#   .github/workflows/quality.yml
 #   claude-san  install.sh  .gitattributes
 #   docs/claude-san.md  docs/devcontainer-internals.md  docs/security.md
 #
@@ -43,13 +44,18 @@ DEFAULT_EXCLUDES=(
   "scripts"
   "claude-san"
   "install.sh"
+  # 同梱 CI は scripts/quality-check.sh を実行する開発ハーネス。
+  # scripts/ を除外する成果物に残すと参照先の無い workflow になる（#121）
+  ".github/workflows/quality.yml"
   ".gitattributes"
   "docs/claude-san.md"
   "docs/devcontainer-internals.md"
   "docs/security.md"
 )
 
-usage() { sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; }
+# 行番号を固定するとヘッダを増やすたびに末尾が切れる（#118・#119 で再発）。
+# shebang の次から最初の非コメント行までを出す
+usage() { awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"; }
 
 REF="HEAD"
 OUT=""

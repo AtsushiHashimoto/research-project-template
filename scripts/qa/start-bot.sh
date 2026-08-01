@@ -17,6 +17,7 @@ if [ ! -f .env ]; then
 fi
 
 # トークンの確認
+# shellcheck source=/dev/null  # .env は各環境で作られるため静的に追跡できない
 source .env 2>/dev/null || true
 if [ -z "$SLACK_BOT_TOKEN" ] && [ -z "$DISCORD_BOT_TOKEN" ]; then
     echo "[QA Bot] No bot token configured, skipping"
