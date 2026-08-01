@@ -258,7 +258,7 @@ Issue本文の構成:
 ```bash
 gh issue create \
   --title "fix: {問題の要約}" \
-  --label "{bug|refactor|test}" \
+  --label "{bug|refactor|validation}" \
   --body "$(cat <<'EOF'
 ## 背景
 Integrity Review {TIMESTAMP} で検出 (#{review_issue_number})

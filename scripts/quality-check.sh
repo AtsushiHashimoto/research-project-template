@@ -123,6 +123,16 @@ else
   run_check "スキル参照名の実在" bash scripts/check-skill-references.sh
 fi
 
+# スキルが使うラベルの定義済み検証
+#   未定義ラベルを渡すと gh が 422 で失敗し、当該ステップが必ず落ちる（#118）
+if [ ! -d .claude/skills ]; then
+  skip "スキルのラベル定義検証（.claude/skills/ が無い）"
+elif [ ! -f scripts/check-skill-labels.sh ]; then
+  skip "スキルのラベル定義検証（scripts/check-skill-labels.sh が無い）"
+else
+  run_check "スキルのラベル定義" bash scripts/check-skill-labels.sh
+fi
+
 # ---------------------------------------------------------------------------
 # 結果
 # ---------------------------------------------------------------------------
