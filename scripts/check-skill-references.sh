@@ -128,8 +128,21 @@ while IFS= read -r f; do [ -f "$f" ] && LIST_FILES+=("$f"); done \
 if [ "${#LIST_FILES[@]}" -eq 0 ]; then
   echo "[skill-refs] スキル一覧との差分検査はスキップ（.claude/rules/template/skills.md が無い）"
 else
-  LISTED=$(grep -h -v 'skill-refs:allow' "${LIST_FILES[@]}" 2>/dev/null \
+  LISTED_RAW=$(grep -h -v 'skill-refs:allow' "${LIST_FILES[@]}" 2>/dev/null \
     | grep -oE '^\|[[:space:]]*`/[a-z0-9][a-z0-9-]*' | sed -E 's/^\|[[:space:]]*`\///' | sort -u)
+
+  # 採用しないテンプレート同梱スキルは、ローカル rules に
+  #   skills-ignore: /release
+  # と書いて一覧から差し引ける。template/ を書き換えずに幽霊掲載を解消するための出口。
+  # これが無いと、同梱スキルを削除した派生プロジェクトが恒久的に赤になる
+  IGNORED=$(grep -h -oE 'skills-ignore:[[:space:]]*/[a-z0-9][a-z0-9-]*' "${LIST_FILES[@]}" 2>/dev/null \
+    | sed -E 's|.*/||' | sort -u)
+  if [ -n "$IGNORED" ]; then
+    LISTED=$(comm -23 <(printf '%s\n' "$LISTED_RAW") <(printf '%s\n' "$IGNORED"))
+    echo "[skill-refs] 一覧から除外（skills-ignore）: $(printf '%s ' $IGNORED)"
+  else
+    LISTED="$LISTED_RAW"
+  fi
   # ディレクトリのみを対象にする（.claude/skills 直下に置かれた .md 等を拾わない）
   ACTUAL=$(find .claude/skills -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort -u)
 
@@ -149,9 +162,11 @@ else
   if [ -n "$GHOST" ]; then
     echo "[skill-refs] スキル一覧の幽霊掲載（一覧にあるが .claude/skills に無い）:"
     printf '%s\n' "$GHOST" | sed 's|^|  /|'
-    echo "  → 実体を復元するか、該当行を一覧から削除してください"
-    echo "    （テンプレート同梱スキルを消した場合は .claude/rules/ 直下のローカル rules に"
-    echo "      「このプロジェクトでは使わない」旨を書き、template/ は触らないこと）"
+    echo "  → 実体を復元するか、一覧から外してください:"
+    echo "    ・自分で足した行なら、その行を削除する"
+    echo "    ・テンプレート同梱スキルを採用しない場合は、template/ を書き換えず、"
+    echo "      .claude/rules/ 直下のローカル rules に次の行を追加する:"
+    printf '%s\n' "$GHOST" | sed 's|^|        skills-ignore: /|'
     FOUND=1
   fi
 
