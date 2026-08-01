@@ -1,5 +1,5 @@
 ---
-description: task 配下の issue を既定順で自動処理する（旧 /issue-auto）
+description: task 配下の issue を既定順で自動処理する（旧 /task-run）
 argument-hint: <task番号>
 ---
 
@@ -36,7 +36,7 @@ argument-hint: <task番号>
 |---|---|
 | **task の goal が未確定** | 空白を埋めて goal を発明すると、以降の全 issue がその上に積み上がる。安全側に倒しようがない |
 | **negative result のトリアージ未完了** | 実装バグを見逃して「効かない」と確定させる害のほうが大きい（後述 Step 4-2） |
-| **goal の書き換えを含む提案** | ゴールの不変性に反する（CLAUDE.md 参照） |
+| **goal の書き換えを含む提案** | ゴールの不変性に反する（`.claude/rules/template/issue-hierarchy.md` 参照） |
 
 ## Workflow
 
@@ -129,7 +129,7 @@ git branch "$SNAPSHOT_BRANCH" main
 Skill(skill="issue-start", args="#${ISSUE_ID}")
 ```
 
-worktree とブランチを作成する（`--relative-paths` を使用。理由は CLAUDE.md 参照）。
+worktree とブランチを作成する（`--relative-paths` を使用。理由は `.claude/rules/template/git-workflow.md` 参照）。
 
 #### Step 1.5: 仕様レビュー（`/review-spec`）
 

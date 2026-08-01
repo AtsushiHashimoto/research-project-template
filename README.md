@@ -103,13 +103,13 @@ my-project/
 
 ```bash
 # 1. Start a task
-/issue/start Implement data preprocessing
+/issue-start Implement data preprocessing
 
 # 2. Work and save progress
-/commit/push
+/commit-push
 
 # 3. Complete task
-/issue/finish
+/issue-finish
 ```
 
 ---
@@ -118,21 +118,21 @@ my-project/
 
 | Skill | Purpose |
 |-------|---------|
-| `/issue/start [desc]` | Start new task (Issue + Branch + Worktree) |
-| `/issue/branch [desc]` | Create child task in current worktree |
-| `/issue/report` | Report progress to Issue |
-| `/issue/finish` | Complete task (review + merge + cleanup) |
+| `/issue-start [desc]` | Start new task (Issue + Branch + Worktree) |
+| `/issue-branch [desc]` | Create child task in current worktree |
+| `/issue-report` | Report progress to Issue |
+| `/issue-finish` | Complete task (review + merge + cleanup) |
 | `/task-run [ids...]` | Auto-process multiple Issues in sequence (with snapshot) |
 | `/commit` | Local commit only |
-| `/commit/push` | Commit & push (save progress) |
-| `/commit/merge` | Commit & merge (complete task) |
+| `/commit-push` | Commit & push (save progress) |
+| `/commit-merge` | Commit & merge (complete task) |
 | `/review` | Multi-perspective code review |
 | `/review-spec` | Review and validate specification before implementation |
-| `/qa/setup` | Set up QA system (Slack/Discord) |
-| `/qa/ask` | Ask a question to humans |
-| `/qa/check` | Check for unanswered questions |
-| `/template/sync` | Sync updates from template |
-| `/template/contribute` | Contribute improvements to template |
+| `/qa-setup` | Set up QA system (Slack/Discord) |
+| `/qa-ask` | Ask a question to humans |
+| `/qa-check` | Check for unanswered questions |
+| `/template-sync` | Sync updates from template |
+| `/template-contribute` | Contribute improvements to template |
 
 ---
 

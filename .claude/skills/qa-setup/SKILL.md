@@ -5,9 +5,9 @@ QAシステム（Slack/Discord連携）のセットアップを対話的にガ�
 ## Usage
 
 ```
-/qa/setup           # 対話的セットアップを開始
-/qa/setup slack     # Slackセットアップのみ
-/qa/setup discord   # Discordセットアップのみ
+/qa-setup           # 対話的セットアップを開始
+/qa-setup slack     # Slackセットアップのみ
+/qa-setup discord   # Discordセットアップのみ
 ```
 
 ## Prerequisites
@@ -240,8 +240,8 @@ asyncio.run(test())
 │   - docs/qa/answers.jsonl                                   │
 │                                                             │
 │ 使い方:                                                     │
-│   /qa/ask "質問内容"  - 質問を投稿                          │
-│   /qa/check           - 回答を確認                          │
+│   /qa-ask "質問内容"  - 質問を投稿                          │
+│   /qa-check           - 回答を確認                          │
 │                                                             │
 │ Bot起動:                                                    │
 │   python scripts/qa_bot.py                                  │
@@ -293,5 +293,5 @@ asyncio.run(test())
 
 | スキル | 用途 |
 |-------|------|
-| `/qa/ask` | 質問を投稿 |
-| `/qa/check` | 回答を確認 |
+| `/qa-ask` | 質問を投稿 |
+| `/qa-check` | 回答を確認 |

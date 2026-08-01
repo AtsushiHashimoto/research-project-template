@@ -49,7 +49,7 @@ msg() {
                 "usage_shared") echo "重要なデータはこちらに保存（Worktree間で共有）" ;;
                 "usage_local") echo "一時ファイルはこちら（Worktree削除時に消えます）" ;;
                 "remember") echo "注意" ;;
-                "use_safe_remove") echo "Worktree削除時は /worktree/safe-remove を使用してください" ;;
+                "use_safe_remove") echo "Worktree削除時は /worktree-safe-remove を使用してください" ;;
             esac
             ;;
         zh)
@@ -75,7 +75,7 @@ msg() {
                 "usage_shared") echo "重要数据保存在这里（Worktree 间共享）" ;;
                 "usage_local") echo "临时文件放这里（删除 Worktree 时会被删除）" ;;
                 "remember") echo "注意" ;;
-                "use_safe_remove") echo "删除 Worktree 时请使用 /worktree/safe-remove" ;;
+                "use_safe_remove") echo "删除 Worktree 时请使用 /worktree-safe-remove" ;;
             esac
             ;;
         *)
@@ -101,7 +101,7 @@ msg() {
                 "usage_shared") echo "Save important data here (shared across worktrees)" ;;
                 "usage_local") echo "Temporary files here (deleted with worktree)" ;;
                 "remember") echo "Remember" ;;
-                "use_safe_remove") echo "Use /worktree/safe-remove when deleting this worktree" ;;
+                "use_safe_remove") echo "Use /worktree-safe-remove when deleting this worktree" ;;
             esac
             ;;
     esac

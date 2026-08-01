@@ -6,21 +6,21 @@ description: Analyze backlog blockers and create issues to resolve them (ブロ�
 
 バックログ (`.dev/backlog.md`) のブロッカーを分析し、自動解消可能なものについてIssueを作成します。
 
-**注意**: このスキルはブロッカー解消のみを担当します。ブロッカーがない項目のIssue化は `/issue/backlog` が担当します。
+**注意**: このスキルはブロッカー解消のみを担当します。ブロッカーがない項目のIssue化は `/issue-backlog` が担当します。
 
 ## Usage
 
 ```
-/issue/unblock              # バックログ分析・Issue作成
-/issue/unblock --dry-run    # 分析のみ、Issue作成しない
-/issue/unblock --all        # ユーザー確認必要な項目も含めて報告
+/issue-unblock              # バックログ分析・Issue作成
+/issue-unblock --dry-run    # 分析のみ、Issue作成しない
+/issue-unblock --all        # ユーザー確認必要な項目も含めて報告
 ```
 
 ## Concept
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    /issue/unblock                           │
+│                    /issue-unblock                           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │   .dev/backlog.md                                           │
@@ -147,7 +147,7 @@ ${ISSUE_BODY}
 - Unblocks: ${BL_ID} in .dev/backlog.md
 
 ---
-*このIssueは /issue/unblock により自動生成されました*" \
+*このIssueは /issue-unblock により自動生成されました*" \
     --label "$LABEL"
 done
 ```
@@ -155,7 +155,7 @@ done
 ### Phase 5: ユーザー確認必要項目のIssue化と通知
 
 👤 ユーザー確認必要と判定された項目もIssue化し、`user-action` ラベルを付与します。
-その後、`/qa/ask` でユーザーに通知します。
+その後、`/qa-ask` でユーザーに通知します。
 
 ```bash
 if [ -n "$USER_ACTION_REQUIRED_ITEMS" ]; then
@@ -183,7 +183,7 @@ ${REQUIRED_ACTION}
 - Unblocks: ${BL_ID} in .dev/backlog.md
 
 ---
-*このIssueは /issue/unblock により自動生成されました*
+*このIssueは /issue-unblock により自動生成されました*
 *⚠️ user-action: ユーザーによる確認・検証が必要です*" \
       --label "${LABEL}" \
       --label "user-action")
@@ -192,7 +192,7 @@ ${REQUIRED_ACTION}
   done
 
   # QA通知を投稿
-  /qa/ask --type deferred "## 📋 ユーザー対応Issueが作成されました
+  /qa-ask --type deferred "## 📋 ユーザー対応Issueが作成されました
 
 以下のIssueは実ハードウェア/実運用での確認が必要です:
 
@@ -219,7 +219,7 @@ fi
 ### Phase 6: 完了報告
 
 ```markdown
-# /issue/unblock 完了
+# /issue-unblock 完了
 
 **実行日時**: YYYY-MM-DD HH:MM
 
@@ -301,7 +301,7 @@ fi
 
 | スキル | 関係 |
 |-------|------|
-| `/issue/backlog` | /issue/unblock を呼び出した後、ブロッカーなし項目をIssue化 |
-| `/epic-cycle` | 収束後に /issue/backlog を呼び出し（間接的に unblock も実行） |
-| `/issue/gaps` | Gap分析ロジックを共有 |
+| `/issue-backlog` | /issue-unblock を呼び出した後、ブロッカーなし項目をIssue化 |
+| `/epic-cycle` | 収束後に /issue-backlog を呼び出し（間接的に unblock も実行） |
+| `/issue-gaps` | Gap分析ロジックを共有 |
 | `/task-run` | 作成されたIssueを自動処理 |

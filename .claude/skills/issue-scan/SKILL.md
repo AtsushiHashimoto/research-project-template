@@ -9,9 +9,9 @@ description: Scan all issues and analyze their status (全Issue状態のスキ�
 ## Usage
 
 ```
-/issue/scan              # 全open Issueをスキャン
-/issue/scan --all        # closed も含めてスキャン
-/issue/scan --recent 7   # 直近7日間に更新されたIssueのみ
+/issue-scan              # 全open Issueをスキャン
+/issue-scan --all        # closed も含めてスキャン
+/issue-scan --recent 7   # 直近7日間に更新されたIssueのみ
 ```
 
 ## Output
@@ -131,5 +131,5 @@ agents/issue-scanner.md の出力形式に従ってレポートを生成。
 
 | スキル | 関係 |
 |-------|------|
-| `/issue/diff` | 個別Issueの詳細乖離分析 |
-| `/issue/gaps` | scan結果を元にアクション実行 |
+| `/issue-diff` | 個別Issueの詳細乖離分析 |
+| `/issue-gaps` | scan結果を元にアクション実行 |

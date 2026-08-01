@@ -517,7 +517,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 
 ### 備考
 - 動作確認後、マージ前に必ず永続化を確認すること
-- `/commit/merge` で永続化チェックが行われる
+- `/commit-merge` で永続化チェックが行われる
 
 ## 変更履歴
 
@@ -531,15 +531,15 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 
 2. **質問への回答**: 質問リストの項目についてユーザーに確認
    - ユーザーが即座に回答できる場合 → 直接対話で解決
-   - **ユーザーが不在・後で確認したい場合** → `/qa/ask` で Slack に質問を投げる
+   - **ユーザーが不在・後で確認したい場合** → `/qa-ask` で Slack に質問を投げる
 
    ```bash
    # 例: 質問リストの項目をQAに投稿
-   /qa/ask --type provisional --decision "案A" "質問リストの項目1について、案Aと案Bどちらが好ましいですか？"
+   /qa-ask --type provisional --decision "案A" "質問リストの項目1について、案Aと案Bどちらが好ましいですか？"
    ```
 
 3. **重要な決定事項のQA記録**
-   - 仕様に関する重要な決定は、後から参照できるよう `/qa/ask` で記録することを推奨
+   - 仕様に関する重要な決定は、後から参照できるよう `/qa-ask` で記録することを推奨
    - 特に「なぜその選択をしたか」の理由を残す
 
 4. **仕様ファイルの保存**: `.spec/issues/{issue_id}-{description}.md` に保存
@@ -563,6 +563,6 @@ mkdir -p .spec/issues
 
 ## Note
 
-- このコマンドは `/issue/start` フローから自動的に呼び出される
+- このコマンドは `/issue-start` フローから自動的に呼び出される
 - 2回目以降の実行では既存ファイルを更新し、変更履歴に記録
 - 仕様が固まったら `/review-spec` を再実行して最終確認可能

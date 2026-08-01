@@ -9,7 +9,7 @@ description: Report progress on current task to GitHub issue
 ## Usage
 
 ```
-/issue/report
+/issue-report
 ```
 
 ## Workflow

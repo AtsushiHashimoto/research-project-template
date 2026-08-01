@@ -8,7 +8,7 @@ tools: Read, Grep, Glob, Bash
 
 # Issue Diff Analyzer Agent
 
-`/issue/diff` 実行時に単一IssueとHEAD実装の乖離を分析するエージェント。
+`/issue-diff` 実行時に単一IssueとHEAD実装の乖離を分析するエージェント。
 
 ---
 

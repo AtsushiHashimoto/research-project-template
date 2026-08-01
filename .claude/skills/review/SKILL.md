@@ -9,7 +9,7 @@ description: Multi-agent review of current branch changes (多角的レビュー
 ## 用途
 
 - コミット前の品質確認
-- `/commit/merge` 前のプリレビュー
+- `/commit-merge` 前のプリレビュー
 - 設計判断の妥当性検証
 - 仕様との整合性確認
 
@@ -95,7 +95,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 - **データ保護**: 重要データが `data/shared/` に保存され、Worktree削除時に失われない設計か
 - **ハードコーディング**: マジックナンバー、固定パス、環境依存値が設定に抽出されているか
 - **ポータビリティ**: 他の環境でも動作するか
-- **プロジェクトルール遵守**: `.claude/CLAUDE.md` および `.claude/workflows/` で定義されたルール（コミット規則、ブランチ命名規則、開発ガイドライン等）に従っているか
+- **プロジェクトルール遵守**: `.claude/CLAUDE.md` および `.claude/rules/`（`template/` 含む）で定義されたルール（コミット規則、ブランチ命名規則、開発ガイドライン等）に従っているか
 - **依存関係の永続化**: 新規パッケージが devcontainer rebuild 後も利用可能か（Python: `pyproject.toml`、システム: `Dockerfile` に追加されているか）
 
 #### 3-3. テストレビュー（Test Review）
@@ -375,7 +375,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 レビュー結果を提示し、以下を確認：
 - Critical Issues がある場合: 修正を提案
 - Warnings のみの場合: 修正するか進めるか確認
-- 問題なしの場合: `/commit/merge` への進行を提案
+- 問題なしの場合: `/commit-merge` への進行を提案
 
 ## Implementation
 
@@ -389,7 +389,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 
 ## Note
 
-- `/commit/merge` のPhase 0（品質チェック）とは独立して実行可能
+- `/commit-merge` のPhase 0（品質チェック）とは独立して実行可能
 - より詳細なレビューが必要な場合にこのコマンドを使用
-- `/commit/merge` は単体でも品質チェックを行うため、両方を実行する必要はない
+- `/commit-merge` は単体でも品質チェックを行うため、両方を実行する必要はない
 - 仕様ファイルが存在しない場合、Fallbackチェッカーと仕様充足チェッカーは「仕様ファイルなし」と報告する

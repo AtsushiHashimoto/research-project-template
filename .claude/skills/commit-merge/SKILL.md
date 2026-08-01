@@ -9,16 +9,16 @@ argument-hint: [--auto | auto]
 
 **重要**:
 - このコマンドはタスク完了時のみ使用
-- 途中保存は `/commit/push` を使用
+- 途中保存は `/commit-push` を使用
 - **Issueをクローズ**し、Worktreeを削除する
-- Issueをクローズしたくない場合は `/commit/push` を使用
+- Issueをクローズしたくない場合は `/commit-push` を使用
 
 ## Auto-Approval モード
 
 ```bash
-/commit/merge              # 従来通り確認あり
-/commit/merge --auto       # 品質チェック通過で自動承認
-/commit/merge auto         # 同上（自然言語）
+/commit-merge              # 従来通り確認あり
+/commit-merge --auto       # 品質チェック通過で自動承認
+/commit-merge auto         # 同上（自然言語）
 ```
 
 **Auto-Approval の動作**:
@@ -28,9 +28,9 @@ argument-hint: [--auto | auto]
 
 `/task-run` から呼び出された場合は自動的に auto モードで動作する。
 
-## vs /commit/push
+## vs /commit-push
 
-| 特徴 | /commit/merge | /commit/push |
+| 特徴 | /commit-merge | /commit-push |
 |------|--------------|--------------|
 | **目的** | タスク完了 | 途中保存 |
 | **品質レビュー** | ✅ 実施 | ❌ なし |
@@ -63,7 +63,7 @@ fi
 
 未回答の質問がある場合：
 - 質問リストを表示
-- タスク完了後にフォローアップIssueを作成（`/issue/finish` の Step 0 で処理）
+- タスク完了後にフォローアップIssueを作成（`/issue-finish` の Step 0 で処理）
 
 **Auto-Approval モード時**: QA回答の確認はスキップする（`/task-run` の Phase 0 で既に処理済み）。
 

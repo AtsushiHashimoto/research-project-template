@@ -1,6 +1,6 @@
 #!/bin/bash
 # Quality check script for the project
-# Called by /commit/merge and /task-run workflows
+# Called by /commit-merge and /task-run workflows
 #
 # Exit codes:
 #   0: All checks passed (or no applicable checks found)
@@ -111,6 +111,16 @@ elif [ ! -f scripts/generate-rules-manifest.sh ]; then
   skip "rules MANIFEST 整合チェック（scripts/generate-rules-manifest.sh が無い）"
 else
   run_check "rules MANIFEST 整合" bash scripts/generate-rules-manifest.sh --check
+fi
+
+# スキル参照名の実在検証
+#   スキルのリネーム時に参照側が追従せず、実行経路が死んでいた事故への再発防止（#117）
+if [ ! -d .claude/skills ]; then
+  skip "スキル参照名の実在検証（.claude/skills/ が無い）"
+elif [ ! -f scripts/check-skill-references.sh ]; then
+  skip "スキル参照名の実在検証（scripts/check-skill-references.sh が無い）"
+else
+  run_check "スキル参照名の実在" bash scripts/check-skill-references.sh
 fi
 
 # ---------------------------------------------------------------------------

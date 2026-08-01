@@ -5,10 +5,10 @@
 ## Usage
 
 ```
-/qa/check
-/qa/check Q001
-/qa/check --all
-/qa/check Q001 --reply "フォローアップメッセージ"
+/qa-check
+/qa-check Q001
+/qa-check --all
+/qa-check Q001 --reply "フォローアップメッセージ"
 ```
 
 ## Parameters
@@ -96,7 +96,7 @@ deferred タスクでした。実装 Issue を作成しますか？
 ### スレッド返信
 
 ```
-/qa/check Q001 --reply "了解しました。JSONで実装を進めます。"
+/qa-check Q001 --reply "了解しました。JSONで実装を進めます。"
 ```
 
 出力:
@@ -106,7 +106,7 @@ deferred タスクでした。実装 Issue を作成しますか？
 
 ## Integration with /task-run
 
-`/task-run` の開始時に自動で `/qa/check` を実行し、
+`/task-run` の開始時に自動で `/qa-check` を実行し、
 前回のセッションで回答があった質問を確認します。
 
 ## Thread Reply Examples
@@ -115,11 +115,11 @@ deferred タスクでした。実装 Issue を作成しますか？
 
 ```bash
 # 回答を確認
-/qa/check Q001
+/qa-check Q001
 
 # 追加の質問
-/qa/check Q001 --reply "ありがとうございます。JSON Schemaは必要ですか？"
+/qa-check Q001 --reply "ありがとうございます。JSON Schemaは必要ですか？"
 
 # 確認メッセージ
-/qa/check Q001 --reply "実装完了しました。確認をお願いします。"
+/qa-check Q001 --reply "実装完了しました。確認をお願いします。"
 ```

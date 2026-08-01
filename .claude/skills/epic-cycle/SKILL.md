@@ -1,5 +1,5 @@
 ---
-description: epic のゴール達成まで task を繰り返し回す（旧 /issue-cycle）
+description: epic のゴール達成まで task を繰り返し回す（旧 /epic-cycle）
 argument-hint: <epic番号> [最大サイクル数]
 ---
 

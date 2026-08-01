@@ -5,26 +5,26 @@ description: Process backlog - unblock then issue-ify ready items (バックロ�
 # Issue Backlog
 
 バックログ (`.dev/backlog.md`) を処理します:
-1. `/issue/unblock` でブロッカー解消Issueを作成
+1. `/issue-unblock` でブロッカー解消Issueを作成
 2. ブロッカーがない項目をIssue化
 3. Issue化した項目を backlog.md から削除
 
 ## Usage
 
 ```
-/issue/backlog              # フル処理（unblock + Issue化 + 削除）
-/issue/backlog --dry-run    # 分析のみ、変更しない
-/issue/backlog --skip-unblock  # unblockをスキップ（Issue化のみ）
+/issue-backlog              # フル処理（unblock + Issue化 + 削除）
+/issue-backlog --dry-run    # 分析のみ、変更しない
+/issue-backlog --skip-unblock  # unblockをスキップ（Issue化のみ）
 ```
 
 ## Concept
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    /issue/backlog                           │
+│                    /issue-backlog                           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│   Step 1: /issue/unblock 呼び出し                          │
+│   Step 1: /issue-unblock 呼び出し                          │
 │   ┌─────────────────────────────────────────────────────┐  │
 │   │ ブロッカー分析 → 自動解消Issue作成                  │  │
 │   │ 例: Issue #70: test(retriever): Add real FAISS E2E │  │
@@ -51,10 +51,10 @@ description: Process backlog - unblock then issue-ify ready items (バックロ�
 
 ## Workflow
 
-### Phase 1: /issue/unblock 呼び出し
+### Phase 1: /issue-unblock 呼び出し
 
 ```
-Skill(skill="issue/unblock")
+Skill(skill="issue-unblock")
 ```
 
 これにより:
@@ -130,7 +130,7 @@ ${BL_CONSIDERATIONS}
 - From Backlog: ${BL_ID}
 
 ---
-*このIssueは /issue/backlog により自動生成されました*" \
+*このIssueは /issue-backlog により自動生成されました*" \
     --label "feature")
 
   echo "Created: $NEW_ISSUE for $BL_ID"
@@ -171,7 +171,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 ### Phase 5: 完了報告
 
 ```markdown
-# /issue/backlog 完了
+# /issue-backlog 完了
 
 **実行日時**: YYYY-MM-DD HH:MM
 
@@ -179,7 +179,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
 ## 処理結果
 
-### ブロッカー解消Issue（/issue/unblock）
+### ブロッカー解消Issue（/issue-unblock）
 
 | Issue | タイトル | Unblocks |
 |-------|---------|----------|
@@ -216,7 +216,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 | オプション | 説明 |
 |-----------|------|
 | `--dry-run` | 分析のみ、Issue作成・backlog更新しない |
-| `--skip-unblock` | /issue/unblock をスキップ |
+| `--skip-unblock` | /issue-unblock をスキップ |
 | `--keep-in-backlog` | Issue作成するがbacklog.mdから削除しない |
 | `--comment-only` | 削除せず「Moved to #XX」コメントを残す |
 
@@ -231,6 +231,6 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
 | スキル | 関係 |
 |-------|------|
-| `/issue/unblock` | Phase 1 で呼び出し |
-| `/epic-cycle` | 収束後に /issue/backlog を呼び出し |
+| `/issue-unblock` | Phase 1 で呼び出し |
+| `/epic-cycle` | 収束後に /issue-backlog を呼び出し |
 | `/task-run` | 作成されたIssueを自動処理 |

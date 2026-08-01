@@ -103,13 +103,13 @@ my-project/
 
 ```bash
 # 1. 开始任务
-/issue/start 实现数据预处理
+/issue-start 实现数据预处理
 
 # 2. 工作并保存进度
-/commit/push
+/commit-push
 
 # 3. 完成任务
-/issue/finish
+/issue-finish
 ```
 
 ---
@@ -118,21 +118,21 @@ my-project/
 
 | 技能 | 用途 |
 |------|------|
-| `/issue/start [描述]` | 开始新任务（Issue + 分支 + Worktree） |
-| `/issue/branch [描述]` | 在当前 Worktree 中创建子任务 |
-| `/issue/report` | 向 Issue 报告进度 |
-| `/issue/finish` | 完成任务（审查 + 合并 + 清理） |
+| `/issue-start [描述]` | 开始新任务（Issue + 分支 + Worktree） |
+| `/issue-branch [描述]` | 在当前 Worktree 中创建子任务 |
+| `/issue-report` | 向 Issue 报告进度 |
+| `/issue-finish` | 完成任务（审查 + 合并 + 清理） |
 | `/task-run [ids...]` | 自动按顺序处理多个 Issue（含快照） |
 | `/commit` | 仅本地提交 |
-| `/commit/push` | 提交并推送（保存进度） |
-| `/commit/merge` | 提交并合并（完成任务） |
+| `/commit-push` | 提交并推送（保存进度） |
+| `/commit-merge` | 提交并合并（完成任务） |
 | `/review` | 多角度代码审查 |
 | `/review-spec` | 实现前的规格审查与验证 |
-| `/qa/setup` | 设置 QA 系统（Slack/Discord） |
-| `/qa/ask` | 向人类提问 |
-| `/qa/check` | 检查未回答的问题 |
-| `/template/sync` | 同步模板最新更新 |
-| `/template/contribute` | 向模板贡献改进 |
+| `/qa-setup` | 设置 QA 系统（Slack/Discord） |
+| `/qa-ask` | 向人类提问 |
+| `/qa-check` | 检查未回答的问题 |
+| `/template-sync` | 同步模板最新更新 |
+| `/template-contribute` | 向模板贡献改进 |
 
 ---
 
