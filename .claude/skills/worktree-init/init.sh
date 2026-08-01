@@ -16,16 +16,13 @@ if [ -x "$REPO_ROOT/scripts/configure-worktree-paths.sh" ]; then
 fi
 
 # GitHub ラベルのプロビジョニング
-# gh 未認証・remote 未設定はインストール時点で正常にありうる状態なので、
-# 失敗しても初期化全体は止めない。ただし**黙って続行しない**（後で手動実行できるよう案内する）
+# gh 未認証・remote 未設定はインストール時点で正常にありうる状態なので、初期化全体は止めない。
+# 案内メッセージは setup-labels.sh 自身が出す（終了コード 2 = スキップ、要ユーザー対応）
 if [ -x "$REPO_ROOT/scripts/setup-labels.sh" ]; then
-  if ! "$REPO_ROOT/scripts/setup-labels.sh"; then
-    echo ""
-    echo "[WARN] GitHub ラベルの作成に失敗しました（gh 未認証 / remote 未設定など）。"
-    echo "       GitHub リポジトリを用意したあと、次を実行してください:"
-    echo "         bash scripts/setup-labels.sh"
-    echo "       ラベルが無いと /issue-create が前提チェックで停止します。"
-    echo ""
+  "$REPO_ROOT/scripts/setup-labels.sh"
+  labels_rc=$?
+  if [ "$labels_rc" -ne 0 ]; then
+    echo "[init] ラベル作成は未完了です（上の案内を参照）。初期化は続行します。"
   fi
 fi
 
