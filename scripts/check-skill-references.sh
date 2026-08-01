@@ -15,6 +15,9 @@
 #      … 実在スキル名から機械生成したペアだけを見るので、ファイルパスと誤認しない
 #   2. リネーム済みの旧名（/issue-auto, /issue-cycle, /start-task, /finish-task） skill-refs:allow
 #   3. `Skill(skill="...")` が指すスキルの不在
+#   4. スキル一覧（rules の skills.md）と `.claude/skills/` の差分（#119）
+#      … 両方向を見る。未掲載スキル（一覧に無い）と幽霊掲載（実体が無い）の双方で FAIL
+#      新スキルを足したのに一覧を更新しない事故（#114 H6: 6スキルが未掲載）の再発防止
 #
 # 除外（当時の実行記録であり、書き換えると履歴が壊れる）:
 #   .spec/issues/  docs/surveys/  data/shared/integrity-reviews/
@@ -28,12 +31,12 @@
 #
 # Exit codes:
 #   0 問題なし（または .claude/skills が無くスキップ）
-#   1 参照切れを検出
+#   1 参照切れ、またはスキル一覧との差分を検出
 
 set -uo pipefail
 
 case "${1:-}" in
-  -h|--help) sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   "") ;;
   *) echo "不明な引数: $1" >&2; exit 1 ;;
 esac
@@ -113,6 +116,41 @@ done < <(
     | sort -u
 )
 
+# --- 4. スキル一覧（rules の skills.md）と .claude/skills/ の差分 ---
+# 一覧の実体は .claude/rules/template/skills.md。プロジェクト固有スキルは
+# .claude/rules/ 直下のローカル rules に書けるので、そちらも掲載元として読む。
+# 掲載の抽出は「表の1列目が `/name`」の行だけを見る（本文中の言及やパスと混ざらないため）。
+LIST_FILES=()
+[ -f .claude/rules/template/skills.md ] && LIST_FILES+=(.claude/rules/template/skills.md)
+while IFS= read -r f; do [ -f "$f" ] && LIST_FILES+=("$f"); done \
+  < <(find .claude/rules -maxdepth 1 -name '*.md' 2>/dev/null | sort)
+
+if [ "${#LIST_FILES[@]}" -eq 0 ]; then
+  echo "[skill-refs] スキル一覧との差分検査はスキップ（.claude/rules/template/skills.md が無い）"
+else
+  LISTED=$(grep -h -v 'skill-refs:allow' "${LIST_FILES[@]}" 2>/dev/null \
+    | grep -oE '^\| `/[a-z0-9][a-z0-9-]*' | sed -E 's/^\| `\///' | sort -u)
+  ACTUAL=$(ls .claude/skills | sort -u)
+
+  UNLISTED=$(comm -23 <(printf '%s\n' "$ACTUAL") <(printf '%s\n' "$LISTED"))
+  GHOST=$(comm -13 <(printf '%s\n' "$ACTUAL") <(printf '%s\n' "$LISTED"))
+
+  if [ -n "$UNLISTED" ]; then
+    echo "[skill-refs] スキル一覧に未掲載（.claude/skills にあるが skills.md に無い）:"
+    printf '%s\n' "$UNLISTED" | sed 's|^|  /|'
+    FOUND=1
+  fi
+  if [ -n "$GHOST" ]; then
+    echo "[skill-refs] スキル一覧の幽霊掲載（skills.md にあるが .claude/skills に無い）:"
+    printf '%s\n' "$GHOST" | sed 's|^|  /|'
+    FOUND=1
+  fi
+
+  N_ACTUAL=$(printf '%s\n' "$ACTUAL" | grep -c . || true)
+  N_LISTED=$(printf '%s\n' "$LISTED" | grep -c . || true)
+  echo "[skill-refs] スキル一覧の照合: 実体 ${N_ACTUAL} / 掲載 ${N_LISTED}（掲載元: ${#LIST_FILES[@]} ファイル）"
+fi
+
 # 除外は行単位なので、その行に本物の参照切れが隠れても見逃す。
 # 緩和を不可視にしないため、適用件数を必ず報告する（無言の切り捨て禁止）
 SKIPPED=$(grep -l -e 'skill-refs:allow' -e '[（(]旧' "${FILES[@]}" 2>/dev/null | wc -l | tr -d ' ')
@@ -121,7 +159,9 @@ SKIPPED_LINES=$(grep -h -c -e 'skill-refs:allow' -e '[（(]旧' "${FILES[@]}" 2>
 echo "[skill-refs] 除外行: ${SKIPPED_LINES} 行 / ${SKIPPED} ファイル（'skill-refs:allow' または「（旧 ...）」注記）"
 
 if [ "$FOUND" -ne 0 ]; then
-  echo "[skill-refs] 参照切れを検出しました。実在するスキル名（ハイフン区切り）に修正してください:"
+  echo "[skill-refs] 参照切れ／一覧との差分を検出しました。"
+  echo "             参照は実在するスキル名（ハイフン区切り）に修正し、"
+  echo "             一覧の差分は .claude/rules/template/skills.md を実体に合わせてください:"
   ls .claude/skills | sed 's/^/  \//'
   exit 1
 fi

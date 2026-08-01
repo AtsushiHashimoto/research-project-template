@@ -78,8 +78,10 @@ With VS Code Dev Container:
 my-project/
 ├── .claude/
 │   ├── CLAUDE.md              # Project config & workflow
-│   ├── commands/              # Custom skills (commands)
-│   └── skills/                # Additional skills
+│   ├── skills/                # Custom skills (slash commands)
+│   ├── rules/                 # Workflow rules (template/ is synced)
+│   └── agents/                # Subagent definitions
+├── .spec/                     # Required context (core-rules / invariants / known-issues)
 ├── scripts/                   # Standalone scripts
 ├── .devcontainer/
 │   ├── Dockerfile                # Shared image (CPU/GPU)
@@ -112,27 +114,9 @@ my-project/
 /issue-finish
 ```
 
----
-
-## Available Skills
-
-| Skill | Purpose |
-|-------|---------|
-| `/issue-start [desc]` | Start new task (Issue + Branch + Worktree) |
-| `/issue-branch [desc]` | Create child task in current worktree |
-| `/issue-report` | Report progress to Issue |
-| `/issue-finish` | Complete task (review + merge + cleanup) |
-| `/task-run [ids...]` | Auto-process multiple Issues in sequence (with snapshot) |
-| `/commit` | Local commit only |
-| `/commit-push` | Commit & push (save progress) |
-| `/commit-merge` | Commit & merge (complete task) |
-| `/review` | Multi-perspective code review |
-| `/review-spec` | Review and validate specification before implementation |
-| `/qa-setup` | Set up QA system (Slack/Discord) |
-| `/qa-ask` | Ask a question to humans |
-| `/qa-check` | Check for unanswered questions |
-| `/template-sync` | Sync updates from template |
-| `/template-contribute` | Contribute improvements to template |
+**Full skill list**: [`.claude/rules/template/skills.md`](.claude/rules/template/skills.md)
+(epic / task / issue layers, commit, review, QA, template management, worktree, spec).
+The list lives there only — this README does not duplicate it.
 
 ---
 

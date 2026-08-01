@@ -241,89 +241,114 @@ ${NEW_ISSUE_CANDIDATES}
 
 #### 4-1: Missing機能のIssue
 
-`PARTIALLY_IMPLEMENTED` のIssueから残作業を抽出してIssue作成:
+`PARTIALLY_IMPLEMENTED` のIssueから残作業を抽出してIssue作成します。
+**Issue 作成は `/issue-create` が単一情報源です。`gh issue create` を直接呼ばないこと。**
 
-```bash
-# ラベルの決定
-LABELS="feature"
-if [ -n "$BLOCKED_BY" ]; then
-  LABELS="${LABELS},blocked"
-fi
-if echo "$REQUIRES_USER_ACTION" | grep -q "$MISSING_FEATURE"; then
-  LABELS="${LABELS},user-action"
-  USER_ACTION_NOTE="
-*⚠️ user-action: ユーザーによる確認・検証が必要です*"
-else
-  USER_ACTION_NOTE=""
-fi
+> ⚠️ bash の `for` ループから Skill は呼び出せません。
+> **エージェントが1件ずつ順に `/issue-create` を呼ぶ**反復として実行します。
 
-gh issue create \
-  --title "feat: ${MISSING_FEATURE}" \
-  --body "## 概要
+各 missing 機能について**1件ずつ**:
 
-${PARENT_ISSUE} で未実装だった機能を実装します。
+1. 状態ラベルと本文を決める
 
-## 背景
+   ```bash
+   # 状態ラベル（--extra-label で渡す。落とすと自動処理の挙動が変わる）
+   EXTRA=""
+   [ -n "$BLOCKED_BY" ] && EXTRA="$EXTRA --extra-label blocked"
+   if echo "$REQUIRES_USER_ACTION" | grep -q "$MISSING_FEATURE"; then
+     EXTRA="$EXTRA --extra-label user-action"
+     USER_ACTION_NOTE="
+   *⚠️ user-action: ユーザーによる確認・検証が必要です*"
+   else
+     USER_ACTION_NOTE=""
+   fi
 
-${PARENT_ISSUE_TITLE} の一部として計画されていましたが、実装されていませんでした。
+   BODY_FILE=$(mktemp)
+   cat > "$BODY_FILE" <<EOF
+   ## 概要
 
-## 関係
-- Parent: #${PARENT_ISSUE_ID}
-${BLOCKED_BY:+- Blocked by: ${BLOCKED_BY} (Phase 3.5で検出)}
-${RELATED:+- Related: ${RELATED}}
+   ${PARENT_ISSUE} で未実装だった機能を実装します。
 
-## タスク
+   ## 背景
 
-${TASK_DESCRIPTION}
+   ${PARENT_ISSUE_TITLE} の一部として計画されていましたが、実装されていませんでした。
 
----
-*このIssueは /issue-gaps により自動生成されました*${USER_ACTION_NOTE}" \
-  --label "$LABELS"
-```
+   ## 関係
+   ${BLOCKED_BY:+- Blocked by: ${BLOCKED_BY} (Phase 3.5で検出)}
+   ${RELATED:+- Related: ${RELATED}}
+
+   ## タスク
+
+   ${TASK_DESCRIPTION}
+
+   ---
+   *このIssueは /issue-gaps により自動生成されました*${USER_ACTION_NOTE}
+   EOF
+   ```
+
+2. `/issue-create` を呼ぶ
+
+   ```
+   Skill(skill="issue-create", args="--type feature --title \"${MISSING_FEATURE}\" --parent ${PARENT_ISSUE_ID} ${EXTRA} --body-file ${BODY_FILE}")
+   ```
+
+- **親は元の Issue**（issue 層）。小タスクとして扱われ、`/issue-create` は停止しません
+- 親子関係は `/issue-create` が sub-issue API で張るため、本文に `Parent: #N` は書きません
+  （`.claude/rules/template/labels.md`「親子は本文テキストに書かない」）
+- 元 Issue が特定できない場合は `--parent` を省略します（単独 issue として作成され、その旨が出力されます）
 
 #### 4-2: 未追跡実装のIssue
 
-Issueなしで実装されたコードに対するドキュメントIssueを作成:
+Issueなしで実装されたコードに対するドキュメントIssueを作成します。
+ここも **`/issue-create` 経由**で、**1件ずつエージェントが反復**します。
 
-```bash
-# ラベルの決定
-LABELS="docs"
-if [ -n "$BLOCKED_BY" ]; then
-  LABELS="${LABELS},blocked"
-fi
-if echo "$REQUIRES_USER_ACTION" | grep -q "$UNTRACKED_FEATURE"; then
-  LABELS="${LABELS},user-action"
-  USER_ACTION_NOTE="
-*⚠️ user-action: ユーザーによる確認・検証が必要です*"
-else
-  USER_ACTION_NOTE=""
-fi
+1. 状態ラベルと本文を決める
 
-gh issue create \
-  --title "docs: ${UNTRACKED_FEATURE} のドキュメント作成" \
-  --body "## 概要
+   ```bash
+   EXTRA=""
+   [ -n "$BLOCKED_BY" ] && EXTRA="$EXTRA --extra-label blocked"
+   if echo "$REQUIRES_USER_ACTION" | grep -q "$UNTRACKED_FEATURE"; then
+     EXTRA="$EXTRA --extra-label user-action"
+     USER_ACTION_NOTE="
+   *⚠️ user-action: ユーザーによる確認・検証が必要です*"
+   else
+     USER_ACTION_NOTE=""
+   fi
 
-以下のコードがIssueなしで実装されていることが検出されました。
+   BODY_FILE=$(mktemp)
+   cat > "$BODY_FILE" <<EOF
+   ## 概要
 
-## 対象コード
+   以下のコードがIssueなしで実装されていることが検出されました。
 
-- ${FILE_PATH}
+   ## 対象コード
 
-${BLOCKED_BY:+## 関係
-- Blocked by: ${BLOCKED_BY} (Phase 3.5で検出)
-${RELATED:+- Related: ${RELATED}}
-}
+   - ${FILE_PATH}
 
-## タスク
+   ${BLOCKED_BY:+## 関係
+   - Blocked by: ${BLOCKED_BY} (Phase 3.5で検出)
+   ${RELATED:+- Related: ${RELATED}}
+   }
 
-- [ ] 機能の目的を確認
-- [ ] ドキュメントを作成
-- [ ] 必要に応じてリファクタリング
+   ## タスク
 
----
-*このIssueは /issue-gaps により自動生成されました*${USER_ACTION_NOTE}" \
-  --label "$LABELS"
-```
+   - [ ] 機能の目的を確認
+   - [ ] ドキュメントを作成
+   - [ ] 必要に応じてリファクタリング
+
+   ---
+   *このIssueは /issue-gaps により自動生成されました*${USER_ACTION_NOTE}
+   EOF
+   ```
+
+2. `/issue-create` を呼ぶ
+
+   ```
+   Skill(skill="issue-create", args="--type docs --title \"${UNTRACKED_FEATURE} のドキュメント作成\" ${EXTRA} --body-file ${BODY_FILE}")
+   ```
+
+未追跡実装には対応する親 Issue が存在しないため `--parent` は省略します
+（`/issue-create` が単独 issue として作成し、その旨を出力に表示します）。
 
 #### 4-3: ユーザーアクションIssueの通知
 

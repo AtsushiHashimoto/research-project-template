@@ -24,10 +24,14 @@ argument-hint: --type <epic|task|issue-type> --title <題> [--parent <N>]
 
 | 引数 | 必須 | 説明 |
 |---|---|---|
-| `--type` | ✅ | `epic` / `task` / 種類ラベル（`survey` `spec` `feature` `validation` `experiment` `bug` `docs` `refactor` `chore`） |
+| `--type` | ✅ | `scripts/setup-labels.sh` に定義済みのラベル。`epic` / `task` / 種類ラベル（`survey` `spec` `feature` `validation` `experiment` `bug` `docs` `refactor` `chore`）／**報告ラベル**（`review-integrity`） |
 | `--title` | ✅ | タイトル。接頭辞は付けない（種別はラベルで表す） |
-| `--parent` | epic 以外は原則必須 | 親 Issue 番号。GitHub ネイティブ sub-issue でリンクする |
+| `--parent` | 原則必須（省略可） | 親 Issue 番号。GitHub ネイティブ sub-issue でリンクする。**省略時は単独 issue** として作成し、その旨を出力に表示する |
 | `--body-file` | | 本文ファイル。省略時は type に応じた雛形 |
+| `--extra-label` | | 状態ラベル等の追加付与（`user-action` `blocked`）。複数指定可 |
+
+**`--extra-label` がある理由**: 状態ラベルを呼び出し側の `gh issue edit` で後付けにすると
+2ステップになり、「issue-create を通せば正しく作られる」という単一情報源の意味が薄れる。
 
 ## Workflow
 
@@ -50,7 +54,16 @@ fi
 |---|---|
 | `epic` | なし（最上位） |
 | `task` | `epic` |
-| issue（種類ラベル） | `task` |
+| issue（種類ラベル） | `task`（**省略可**。単発の修正・調査は単独 issue でよい） |
+| **小タスク** | **issue**（`/issue-branch` が使う。worktree を親と共有する粒度） |
+| 報告 issue（報告ラベル） | なし（単独） |
+
+**親が issue 層でも停止しない。** 小タスクは「worktree を共有する粒度」であり、
+階層としては issue の下に属する（`.claude/rules/template/issue-hierarchy.md` の階層表）。
+
+**`--parent` の省略も停止理由にしない。** ブロッカー解消 issue やレビュー報告のように、
+どの task にも属さない単発の issue は実在する。ただし
+**「親なしで作成した」ことを必ず出力に表示する**（黙って親なしにしない）。
 
 ```bash
 if [ -n "$PARENT" ]; then
@@ -106,10 +119,16 @@ fi
 ### Step 4: Issue 作成
 
 ```bash
+# --extra-label は複数指定可（LABEL_ARGS に展開して渡す）
+LABEL_ARGS=(--label "$TYPE")
+for l in "${EXTRA_LABELS[@]:-}"; do
+  [ -n "$l" ] && LABEL_ARGS+=(--label "$l")
+done
+
 URL=$(gh issue create \
   --title "$TITLE" \
   --body-file "$BODY_FILE" \
-  --label "$TYPE" \
+  "${LABEL_ARGS[@]}" \
   --assignee @me)
 
 # URL から番号を取得する（gh issue list に頼らない）
@@ -134,6 +153,11 @@ GitHub ネイティブの sub-issue を使う。**本文テキストの `Parent:
 構造の正は API 側とする。**
 
 ```bash
+if [ -z "$PARENT" ]; then
+  # 親なしは許容するが、黙って作らない（後から辿れなくなるため必ず知らせる）
+  echo "注意: 親を指定せずに単独 issue として作成しました（#$ISSUE_ID）"
+fi
+
 if [ -n "$PARENT" ]; then
   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
   CHILD_NODE_ID=$(gh api "repos/$REPO/issues/$ISSUE_ID" --jq '.id')
@@ -170,9 +194,11 @@ gh api -X DELETE "repos/$REPO/issues/$PARENT/sub_issue" -F sub_issue_id="$CHILD_
 |-------|------|
 | `/task-start` | epic / task と既定構成の子 issue を作成 |
 | `/issue-start` | 新規 issue の作成（既存 issue への着手時は呼ばない） |
-| `/issue-gaps` | 乖離検出で見つかった不足 issue |
-| `/issue-unblock` | ブロッカー解消 issue |
+| `/issue-branch` | 小タスク（親＝issue 層。worktree を共有する粒度） |
+| `/issue-gaps` | 乖離検出で見つかった不足 issue / 未追跡実装の issue |
+| `/issue-unblock` | ブロッカー解消 issue（`user-action` は `--extra-label`） |
 | `/issue-backlog` | バックログの issue 化 |
+| `/review-integrity` | レビュー報告 issue（`--type review-integrity`）と修正 issue |
 | `/epic-cycle` | integrity 検出結果の issue 化 |
 
 **これらのスキルで `gh issue create` を直接呼ばないこと。**

@@ -12,8 +12,9 @@
 # レビュー報告 issue の投稿自体がラベル無しを強いられた。
 #
 # 検査対象の記法:
-#   --label "X"      --label X
-#   --add-label X    --remove-label X
+#   --label "X"        --label X
+#   --add-label X      --remove-label X
+#   --extra-label X  … /issue-create が状態ラベルを受け取る形（#119）
 #
 # 除外:
 #   - コメント行（`#` で始まる行）
@@ -35,7 +36,7 @@
 set -uo pipefail
 
 case "${1:-}" in
-  -h|--help) sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   "") ;;
   *) echo "不明な引数: $1" >&2; exit 1 ;;
 esac
@@ -67,14 +68,14 @@ for f in "${FILES[@]}"; do
     case "$line" in
       \#*|*skill-labels:allow*)
         case "$line" in
-          *--label*|*--add-label*|*--remove-label*) EXCLUDED=$((EXCLUDED + 1)) ;;
+          *--label*|*--add-label*|*--remove-label*|*--extra-label*) EXCLUDED=$((EXCLUDED + 1)) ;;
         esac
         continue ;;
     esac
     # ラベル指定を抽出（クォート有無の両方）
     printf '%s\n' "$line" \
-      | grep -oE -- '--(add-|remove-)?label[= ]+"[^"]+"|--(add-|remove-)?label[= ]+[A-Za-z0-9{}|_-]+' \
-      | sed -E 's/^--(add-|remove-)?label[= ]+//; s/^"//; s/"$//' \
+      | grep -oE -- '--(add-|remove-|extra-)?label[= ]+"[^"]+"|--(add-|remove-|extra-)?label[= ]+[A-Za-z0-9{}|_-]+' \
+      | sed -E 's/^--(add-|remove-|extra-)?label[= ]+//; s/^"//; s/"$//' \
       | while IFS= read -r val; do
           case "$val" in
             *'$'*) continue ;;                     # シェル変数は静的に解決できない

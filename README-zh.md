@@ -78,8 +78,10 @@ gh repo create YOUR_ORG/my-project --source=. --push --private
 my-project/
 ├── .claude/
 │   ├── CLAUDE.md              # 项目配置与工作流
-│   ├── commands/              # 自定义技能（命令）
-│   └── skills/                # 附加技能
+│   ├── skills/                # 自定义技能（斜杠命令）
+│   ├── rules/                 # 工作流规则（template/ 为同步对象）
+│   └── agents/                # 子代理定义
+├── .spec/                     # 必读上下文（core-rules / invariants / known-issues）
 ├── scripts/                   # 独立脚本
 ├── .devcontainer/
 │   ├── Dockerfile                # 共享镜像（CPU/GPU）
@@ -112,27 +114,9 @@ my-project/
 /issue-finish
 ```
 
----
-
-## 可用技能
-
-| 技能 | 用途 |
-|------|------|
-| `/issue-start [描述]` | 开始新任务（Issue + 分支 + Worktree） |
-| `/issue-branch [描述]` | 在当前 Worktree 中创建子任务 |
-| `/issue-report` | 向 Issue 报告进度 |
-| `/issue-finish` | 完成任务（审查 + 合并 + 清理） |
-| `/task-run [ids...]` | 自动按顺序处理多个 Issue（含快照） |
-| `/commit` | 仅本地提交 |
-| `/commit-push` | 提交并推送（保存进度） |
-| `/commit-merge` | 提交并合并（完成任务） |
-| `/review` | 多角度代码审查 |
-| `/review-spec` | 实现前的规格审查与验证 |
-| `/qa-setup` | 设置 QA 系统（Slack/Discord） |
-| `/qa-ask` | 向人类提问 |
-| `/qa-check` | 检查未回答的问题 |
-| `/template-sync` | 同步模板最新更新 |
-| `/template-contribute` | 向模板贡献改进 |
+**完整技能列表**: [`.claude/rules/template/skills.md`](.claude/rules/template/skills.md)
+（epic / task / issue 各层、提交、审查、QA、模板管理、Worktree、规格）。
+列表只存放于该文件，本 README 不再重复。
 
 ---
 
