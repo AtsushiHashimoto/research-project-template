@@ -173,6 +173,10 @@ ITEMS=(
 
 cd "$PROJECT_ROOT"
 
+# 既存設定の有無を配置前に記録する（既存ファイルのタイムスタンプは書き換えない）
+WORKTREE_CONFIG_EXISTED=false
+[[ -e ".claude/worktree-config.json" ]] && WORKTREE_CONFIG_EXISTED=true
+
 # Create directories
 mkdir -p .claude
 
@@ -237,13 +241,13 @@ if [[ -t 0 ]]; then
     # Derive default project name from directory
     DEFAULT_PROJECT_NAME="$(basename "$PROJECT_ROOT")"
 
-    read -p "Project name [$DEFAULT_PROJECT_NAME]: " PROJECT_NAME
+    read -r -p "Project name [$DEFAULT_PROJECT_NAME]: " PROJECT_NAME
     PROJECT_NAME="${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}"
 
-    read -p "Project description (one line): " PROJECT_DESCRIPTION
+    read -r -p "Project description (one line): " PROJECT_DESCRIPTION
     PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-TODO: Add project description}"
 
-    read -p "Researcher name: " RESEARCHER_NAME
+    read -r -p "Researcher name: " RESEARCHER_NAME
     RESEARCHER_NAME="${RESEARCHER_NAME:-TODO: Add researcher name}"
 
     START_DATE="$(date +%Y-%m-%d)"
@@ -281,7 +285,8 @@ fi
 
 # worktree-config.json のタイムスタンプを実行時刻にする
 # （テンプレートには固定値が入っているため、そのままだと全プロジェクトが同じ日時を持つ）
-if [[ -f ".claude/worktree-config.json" ]]; then
+# 既存ファイルには触れない（再インストール時に初回作成時刻を失わないため）
+if [[ -f ".claude/worktree-config.json" ]] && [[ "$WORKTREE_CONFIG_EXISTED" != true ]]; then
     NOW_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
     sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
@@ -344,8 +349,23 @@ if [[ -t 0 ]]; then
     if [[ ! "$do_init" =~ ^[Nn]$ ]]; then
         echo ""
         # 初期化シーケンス（相対パス設定 → ラベル作成 → データディレクトリ）の
-        # 単一情報源は worktree-init のラッパー。ここに手順を複製しないこと
-        bash "$PROJECT_ROOT/.claude/skills/worktree-init/init.sh" "$PROJECT_ROOT"
+        # 単一情報源は worktree-init のラッパー。ここに手順を複製しないこと。
+        #
+        # ★ ダウンロードしたテンプレート側のラッパーを使う。
+        #   プロジェクトに既存の .claude/skills があると ITEMS の配置がスキップされ、
+        #   インストール先にラッパーが無い場合があるため（--force 無しの再インストール）。
+        #   --root で対象を明示するのは、サブディレクトリ指定時に git のトップレベルが
+        #   外側リポジトリを指してしまうのを避けるため
+        INIT_WRAPPER="$TMP_DIR/template/.claude/skills/worktree-init/init.sh"
+        if [[ -f "$INIT_WRAPPER" ]]; then
+            bash "$INIT_WRAPPER" --root "$PROJECT_ROOT" "$PROJECT_ROOT"
+        elif [[ -x "$PROJECT_ROOT/scripts/init-data.sh" ]]; then
+            warn "初期化ラッパーが見つかりません。データディレクトリのみ作成します"
+            warn "  ラベル作成は後で: bash scripts/setup-labels.sh"
+            "$PROJECT_ROOT/scripts/init-data.sh" "$PROJECT_ROOT"
+        else
+            warn "初期化スクリプトが見つかりませんでした。手動で実行してください"
+        fi
     else
         echo ""
         info "$(msg init_later)"

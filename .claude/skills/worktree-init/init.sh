@@ -8,7 +8,16 @@
 #   2. setup-labels.sh             … GitHub ラベルのプロビジョニング
 #   3. init-data.sh                … データディレクトリの作成
 
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+# --root <dir> で対象を明示できる（install.sh から呼ぶときに使う）。
+# 省略時は git のトップレベル、それも無ければカレント。
+# ★ 明示指定が必要な理由: git リポジトリのサブディレクトリを対象にする場合、
+#   git rev-parse は外側のリポジトリを指してしまい、scripts/ を見つけられない
+if [ "${1:-}" = "--root" ] && [ -n "${2:-}" ]; then
+  REPO_ROOT="$2"
+  shift 2
+else
+  REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+fi
 
 # worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
 if [ -x "$REPO_ROOT/scripts/configure-worktree-paths.sh" ]; then
