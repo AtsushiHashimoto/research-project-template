@@ -173,13 +173,17 @@ Agent(subagent_type="Explore", model="$(bash scripts/resolve-model.sh verificati
 ### Phase 4: GitHub Issue投稿
 
 統合レポートを GitHub Issue として投稿する。
+**Issue 作成は `/issue-create` が単一情報源。`gh issue create` を直接呼ばない。**
 
-```bash
-gh issue create \
-  --title "Integrity Review: ${TIMESTAMP}" \
-  --label "review-integrity" \
-  --body-file "${REVIEW_DIR}/summary.md"
 ```
+Skill(skill="issue-create", args="--type review-integrity --title \"Integrity Review: ${TIMESTAMP}\" --body-file ${REVIEW_DIR}/summary.md")
+```
+
+- `review-integrity` は**報告ラベル**（`.claude/rules/template/labels.md`）。
+  `/issue-create` の `--type` は `scripts/setup-labels.sh` に定義済みのラベルを受け付けるため、
+  報告ラベルもそのまま渡せる
+- 報告 issue はどの task にも属さないので `--parent` は指定しない
+  （`/issue-create` が単独 issue として作成し、その旨を出力に表示する）
 
 Issue本文の構成:
 ```markdown
@@ -255,28 +259,42 @@ Issue本文の構成:
 
 ### Issue作成テンプレート
 
-```bash
-gh issue create \
-  --title "fix: {問題の要約}" \
-  --label "{bug|refactor|validation}" \
-  --body "$(cat <<'EOF'
-## 背景
-Integrity Review {TIMESTAMP} で検出 (#{review_issue_number})
+**`/issue-create` 経由で作成する。`gh issue create` を直接呼ばない。**
 
-## 対象
-- `file1.py:L100` - 問題の説明
-- `file2.py:L200` - 問題の説明
+> ⚠️ bash の `for` ループから Skill は呼び出せません。
+> グルーピング後の各 Issue について、**エージェントが1件ずつ `/issue-create` を呼ぶ**。
 
-## 修正方針
-...
+1. 本文ファイルを書き出す
 
-## 完了条件
-- [ ] 修正実装
-- [ ] テスト追加/更新
-- [ ] CI pass
-EOF
-)"
-```
+   ```bash
+   BODY_FILE=$(mktemp)
+   cat > "$BODY_FILE" <<'EOF'
+   ## 背景
+   Integrity Review {TIMESTAMP} で検出 (#{review_issue_number})
+
+   ## 対象
+   - `file1.py:L100` - 問題の説明
+   - `file2.py:L200` - 問題の説明
+
+   ## 修正方針
+   ...
+
+   ## 完了条件
+   - [ ] 修正実装
+   - [ ] テスト追加/更新
+   - [ ] CI pass
+   EOF
+   ```
+
+2. `/issue-create` を呼ぶ（`TYPE` は `bug` / `refactor` / `validation` から1つ選ぶ）
+
+   ```
+   Skill(skill="issue-create", args="--type ${TYPE} --title \"{問題の要約}\" --body-file ${BODY_FILE}")
+   ```
+
+修正 Issue は特定の task に属さないため `--parent` は省略する
+（`/issue-create` が単独 issue として作成し、その旨を出力に表示する）。
+まとめ用の task が既にある場合は `--parent <task番号>` を付ける。
 
 ## 出力形式（summary.md）
 

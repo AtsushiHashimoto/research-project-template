@@ -102,41 +102,51 @@ Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mec
 
 ### Phase 3: Issue作成
 
-着手可能な項目をIssue化:
+着手可能な項目をIssue化します。
+**Issue 作成は `/issue-create` が単一情報源です。`gh issue create` を直接呼ばないこと。**
 
-```bash
-for BL_ITEM in $READY_ITEMS; do
-  BL_ID=$(echo "$BL_ITEM" | jq -r '.id')
-  BL_TITLE=$(echo "$BL_ITEM" | jq -r '.title')
-  BL_DESCRIPTION=$(echo "$BL_ITEM" | jq -r '.description')
-  BL_CONSIDERATIONS=$(echo "$BL_ITEM" | jq -r '.considerations')
+> ⚠️ bash の `for` ループから Skill は呼び出せません。
+> **エージェントが1件ずつ順に `/issue-create` を呼ぶ**反復として実行します。
 
-  NEW_ISSUE=$(gh issue create \
-    --title "feat: ${BL_TITLE}" \
-    --body "## 概要
+`$READY_ITEMS` の各項目について**1件ずつ**:
 
-${BL_DESCRIPTION}
+1. 本文ファイルを書き出す
 
-## 背景
+   ```bash
+   BODY_FILE=$(mktemp)
+   cat > "$BODY_FILE" <<EOF
+   ## 概要
 
-バックログ項目 ${BL_ID} より。
-ブロッカーが解消されたため、Issue化しました。
+   ${BL_DESCRIPTION}
 
-## 実装時の考慮点
+   ## 背景
 
-${BL_CONSIDERATIONS}
+   バックログ項目 ${BL_ID} より。
+   ブロッカーが解消されたため、Issue化しました。
 
-## 関係
-- From Backlog: ${BL_ID}
+   ## 実装時の考慮点
 
----
-*このIssueは /issue-backlog により自動生成されました*" \
-    --label "feature")
+   ${BL_CONSIDERATIONS}
 
-  echo "Created: $NEW_ISSUE for $BL_ID"
-  CREATED_ISSUES+=("$BL_ID:$NEW_ISSUE")
-done
-```
+   ## 関係
+   - From Backlog: ${BL_ID}
+
+   ---
+   *このIssueは /issue-backlog により自動生成されました*
+   EOF
+   ```
+
+2. `/issue-create` を呼ぶ
+
+   ```
+   Skill(skill="issue-create", args="--type feature --title \"${BL_TITLE}\" --body-file ${BODY_FILE}")
+   ```
+
+3. 出力の Issue URL / 番号を `CREATED_ISSUES` に `${BL_ID}:<URL>` の形で記録し、次の項目へ
+
+バックログ項目は特定の task に属さないため `--parent` を省略します
+（`/issue-create` が単独 issue として作成し、その旨を出力に表示します）。
+所属先の task が判明している場合は `--parent <task番号>` を付けてください。
 
 ### Phase 4: backlog.md から削除
 

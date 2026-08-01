@@ -128,70 +128,93 @@ ${AUTO_RESOLVABLE_ITEMS}
 
 ### Phase 4: Issue作成
 
-自動解消可能なブロッカーに対してIssueを作成:
+自動解消可能なブロッカーに対してIssueを作成します。
+**Issue 作成は `/issue-create` が単一情報源です。`gh issue create` を直接呼ばないこと。**
 
-```bash
-for BLOCKER in $AUTO_RESOLVABLE_BLOCKERS; do
-  BL_ID=$(echo "$BLOCKER" | jq -r '.bl_id')
-  ISSUE_TITLE=$(echo "$BLOCKER" | jq -r '.issue_title')
-  ISSUE_BODY=$(echo "$BLOCKER" | jq -r '.issue_body')
-  LABEL=$(echo "$BLOCKER" | jq -r '.label')
+> ⚠️ bash の `for` ループから Skill は呼び出せません。
+> **エージェントが1件ずつ順に `/issue-create` を呼ぶ**反復として実行します。
 
-  gh issue create \
-    --title "$ISSUE_TITLE" \
-    --body "## 概要
+Phase 3 が出力した自動解消可能項目を**1件ずつ**処理します（項目が尽きるまで繰り返す）:
 
-${ISSUE_BODY}
+1. 本文ファイルを書き出す
 
-## 関係
-- Unblocks: ${BL_ID} in .dev/backlog.md
+   ```bash
+   BODY_FILE=$(mktemp)
+   cat > "$BODY_FILE" <<EOF
+   ## 概要
 
----
-*このIssueは /issue-unblock により自動生成されました*" \
-    --label "$LABEL"
-done
-```
+   ${ISSUE_BODY}
+
+   ## 関係
+   - Unblocks: ${BL_ID} in .dev/backlog.md
+
+   ---
+   *このIssueは /issue-unblock により自動生成されました*
+   EOF
+   ```
+
+2. `/issue-create` を呼ぶ（`${LABEL}` は Phase 3 が出した種類ラベル `feature` / `bug` / `chore` 等）
+
+   ```
+   Skill(skill="issue-create", args="--type ${LABEL} --title \"${ISSUE_TITLE}\" --body-file ${BODY_FILE}")
+   ```
+
+3. 出力された Issue 番号を記録して次の項目へ
+
+**親の指定について**: ブロッカー解消 issue は特定の task に属さないため `--parent` を省略します。
+`/issue-create` は単独 issue として作成し、「親なしで作成した」旨を出力に表示します（黙って親なしにしない）。
+所属させたい task が判明している場合は `--parent <task番号>` を付けてください。
 
 ### Phase 5: ユーザー確認必要項目のIssue化と通知
 
 👤 ユーザー確認必要と判定された項目もIssue化し、`user-action` ラベルを付与します。
 その後、`/qa-ask` でユーザーに通知します。
 
+**ここも `/issue-create` 経由です。`user-action` ラベルは `--extra-label` で渡します**
+（後付けの `gh issue edit` にすると2ステップになり、付け忘れが起きるため）。
+
+> ⚠️ bash の `for` ループから Skill は呼び出せません。
+> **エージェントが1件ずつ順に `/issue-create` を呼ぶ**反復として実行します。
+
+`$USER_ACTION_REQUIRED_ITEMS` の各項目について**1件ずつ**:
+
+1. 本文ファイルを書き出す
+
+   ```bash
+   BODY_FILE=$(mktemp)
+   cat > "$BODY_FILE" <<EOF
+   ## 概要
+
+   ${BL_TITLE} のユーザー確認作業です。
+
+   ## 必要なアクション
+
+   ${REQUIRED_ACTION}
+
+   ## 関係
+   - Unblocks: ${BL_ID} in .dev/backlog.md
+
+   ---
+   *このIssueは /issue-unblock により自動生成されました*
+   *⚠️ user-action: ユーザーによる確認・検証が必要です*
+   EOF
+   ```
+
+2. `/issue-create` を呼ぶ（`${LABEL}` は種類ラベル。既定は `validation`）
+
+   ```
+   Skill(skill="issue-create", args="--type ${LABEL} --title \"${BL_TITLE}\" --extra-label user-action --body-file ${BODY_FILE}")
+   ```
+
+3. 出力の Issue URL / 番号を `CREATED_USER_ACTION_ISSUES` に蓄積して次の項目へ
+
+**状態ラベルを落とさないこと。** `user-action` が付かないと `/task-run` がスキップせず、
+ユーザー確認が必要な作業を自動処理が走り抜けます。
+
+全件作成後、QA通知を投稿:
+
 ```bash
-if [ -n "$USER_ACTION_REQUIRED_ITEMS" ]; then
-  CREATED_USER_ACTION_ISSUES=""
-
-  # ユーザーアクション必要項目をIssue化
-  for ITEM in $USER_ACTION_REQUIRED_ITEMS; do
-    BL_ID=$(echo "$ITEM" | jq -r '.id')
-    BL_TITLE=$(echo "$ITEM" | jq -r '.title')
-    REQUIRED_ACTION=$(echo "$ITEM" | jq -r '.required_action')
-    LABEL=$(echo "$ITEM" | jq -r '.label // "validation"')
-
-    # Issue作成（user-action ラベル付き）
-    ISSUE_URL=$(gh issue create \
-      --title "${LABEL}: ${BL_TITLE}" \
-      --body "## 概要
-
-${BL_TITLE} のユーザー確認作業です。
-
-## 必要なアクション
-
-${REQUIRED_ACTION}
-
-## 関係
-- Unblocks: ${BL_ID} in .dev/backlog.md
-
----
-*このIssueは /issue-unblock により自動生成されました*
-*⚠️ user-action: ユーザーによる確認・検証が必要です*" \
-      --label "${LABEL}" \
-      --label "user-action")
-
-    CREATED_USER_ACTION_ISSUES="$CREATED_USER_ACTION_ISSUES $ISSUE_URL"
-  done
-
-  # QA通知を投稿
+if [ -n "$CREATED_USER_ACTION_ISSUES" ]; then
   /qa-ask --type deferred "## 📋 ユーザー対応Issueが作成されました
 
 以下のIssueは実ハードウェア/実運用での確認が必要です:

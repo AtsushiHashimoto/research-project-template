@@ -107,7 +107,7 @@ Issue #{question.issue} で仮決定した内容について、確認が必要�
 
 ## 関係
 
-- Parent: #{question.issue}
+（親子は `/issue-create --parent {question.issue}` で張る。本文には書かない）
 """
 
     # Issue 作成は /issue-create 経由で行う（gh を直接呼ばない）

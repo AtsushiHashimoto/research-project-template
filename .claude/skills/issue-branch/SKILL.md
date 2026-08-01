@@ -20,10 +20,10 @@ argument-hint: [short-description]
 1. **現在のブランチから親Issue番号を取得**
    - ブランチ名から自動抽出（例: `feature/5-description` → Issue #5）
 
-2. **子Issueを作成**
+2. **子Issueを作成**（`/issue-create` 経由。`gh issue create` は直接呼ばない）
    - タイトル: 引数から生成
-   - 親Issueへの参照を含める
-   - ラベル: 自動判定
+   - 親: 現在のブランチの Issue（**親が issue 層の「小タスク」**。`/issue-create` は停止しない）
+   - ラベル: 作業内容から種類ラベルを1つ選ぶ（`feature` / `bug` / `docs` など）
 
 3. **親Issueに子Issue作成を報告**
    - 親Issueのコメントに子Issueへのリンクを追加
@@ -48,29 +48,41 @@ if [ -z "$PARENT_ISSUE_ID" ]; then
 fi
 ```
 
-子Issueを作成:
+子Issueの本文を用意:
 ```bash
 CHILD_ISSUE_TITLE="$1"
+CHILD_TYPE="feature"   # 作業内容に応じた種類ラベル（feature / bug / docs / refactor など）
 
-gh issue create \
-  --title "$CHILD_ISSUE_TITLE" \
-  --body "親Issue: #${PARENT_ISSUE_ID}
-
+BODY_FILE=$(mktemp)
+cat > "$BODY_FILE" <<EOF
 ## 概要
 [子タスクの詳細説明]
 
 ## 親タスクとの関連
-このIssueは #${PARENT_ISSUE_ID} のサブタスクです。
+このIssueは #${PARENT_ISSUE_ID} のサブタスク（小タスク）です。
 
 ## 作業場所
 - ブランチ: \`${BRANCH}\`
-- Worktree: 親タスクと同じ"
+- Worktree: 親タスクと同じ
+EOF
 ```
 
-子Issue番号を取得:
-```bash
-CHILD_ISSUE_ID=$(gh issue list --limit 1 --json number --jq '.[0].number')
+子Issueを作成（**Issue 作成の単一情報源である `/issue-create` を必ず経由する**）:
+
 ```
+Skill(skill="issue-create", args="--type ${CHILD_TYPE} --title \"${CHILD_ISSUE_TITLE}\" --parent ${PARENT_ISSUE_ID} --body-file ${BODY_FILE}")
+```
+
+- 親が **issue 層**でも `/issue-create` は停止しない（小タスクとして扱う。
+  `.claude/rules/template/issue-hierarchy.md` の階層表）
+- 親子リンク（GitHub ネイティブ sub-issue）は `/issue-create` が張る
+
+子Issue番号は **`/issue-create` の出力（Step 6 の「作成: #N」）から受け取る**。
+以降の手順ではこの番号を `CHILD_ISSUE_ID` として扱う（bash 変数への代入ではなく、
+エージェントが出力から読み取って後続コマンドに埋め込む）。
+
+> ❌ `gh issue list --limit 1 --json number --jq '.[0].number'` で番号を取ってはいけない。
+> 並行 worktree では他タスクの Issue を掴む（`/issue-create` Step 4 の禁止事項）。
 
 親Issueに報告:
 ```bash

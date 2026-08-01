@@ -76,8 +76,10 @@ VS Code で Dev Container を使用する場合:
 my-project/
 ├── .claude/
 │   ├── CLAUDE.md              # プロジェクト設定・ワークフロー定義
-│   ├── commands/              # カスタムスキル（コマンド）
-│   └── skills/                # 追加スキル
+│   ├── skills/                # カスタムスキル（スラッシュコマンド）
+│   ├── rules/                 # ワークフロールール（template/ は同期対象）
+│   └── agents/                # サブエージェント定義
+├── .spec/                     # 必須コンテキスト（core-rules / invariants / known-issues）
 ├── scripts/                   # スタンドアロンスクリプト
 ├── .devcontainer/
 │   ├── Dockerfile                # 共通イメージ（CPU/GPU対応）
@@ -110,27 +112,9 @@ my-project/
 /issue-finish
 ```
 
----
-
-## カスタムスキル一覧
-
-| スキル | 用途 |
-|-------|------|
-| `/issue-start [説明]` | 新しいタスクを開始（Issue + Branch + Worktree） |
-| `/issue-branch [説明]` | 現在のWorktree内で子タスクを作成 |
-| `/issue-report` | 進捗をIssueに報告 |
-| `/issue-finish` | タスクを完了（レビュー + マージ + クリーンアップ） |
-| `/task-run [ids...]` | 複数Issueを自動処理（スナップショット付き） |
-| `/commit` | ローカルにコミット |
-| `/commit-push` | コミット＆プッシュ（途中保存） |
-| `/commit-merge` | コミット＆マージ（タスク完了） |
-| `/review` | 多角的コードレビュー |
-| `/review-spec` | 実装前の仕様レビュー・検証 |
-| `/qa-setup` | QAシステムのセットアップ（Slack/Discord） |
-| `/qa-ask` | 人間に質問を送信 |
-| `/qa-check` | 未回答の質問を確認 |
-| `/template-sync` | テンプレートの最新更新を取り込み |
-| `/template-contribute` | テンプレートへの改善PRを作成 |
+**スキルの一覧**: [`.claude/rules/template/skills.md`](.claude/rules/template/skills.md)
+（epic / task / issue の各層、コミット、レビュー、QA、テンプレート管理、Worktree、仕様）。
+一覧はそこだけに置き、この README では重複させません。
 
 ---
 

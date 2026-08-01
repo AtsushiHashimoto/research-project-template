@@ -4,7 +4,7 @@ description: Multi-agent review of current branch changes (多角的レビュー
 
 # Multi-Agent Review（多角的コードレビュー）
 
-現在のブランチの変更内容を、6つの専門的な観点から並列にレビューします。
+現在のブランチの変更内容を、複数の専門的な観点から並列にレビューします（観点は Step 3 に列挙）。
 
 ## 用途
 
@@ -43,9 +43,11 @@ if [ -n "$SPEC_FILE" ]; then
 fi
 ```
 
-### Step 3: 6つのサブエージェントを並列実行
+### Step 3: 各観点のサブエージェントを並列実行
 
-**6つのサブエージェントを Task tool で並列に起動**し、それぞれ異なる観点でレビューを行います。
+**以下の各観点につき1つのサブエージェントを Task tool で並列に起動**し、それぞれの視点でレビューを行います。
+
+**件数は書かない。** 観点は増減するため、数を書くとどこかで必ずずれる（#114 C4）。
 
 各サブエージェントには以下を渡します：
 - `git diff main` の出力（変更内容）
@@ -318,7 +320,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 
 ### Step 4: レビュー結果の統合
 
-8つのサブエージェントの結果を統合し（UI/UX レビューは条件付き）、以下の形式で報告：
+Step 3 の各観点のサブエージェントの結果を統合し（UI/UX レビューは条件付き）、以下の形式で報告：
 
 ```markdown
 ## 🔍 Multi-Agent Review Results
@@ -382,7 +384,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 1. `git diff main` で変更内容を取得
 2. `gh issue view` でIssue目的を取得
 3. 仕様ファイル `.spec/issues/{issue_id}-*.md` を読み込み
-4. **Task tool を7回並列に呼び出し**（+ UI/UX は条件付き）、各サブエージェントにレビュー指示を渡す
+4. **Step 3 の各観点につき Task tool を1回、すべて並列に呼び出し**（UI/UX は条件付き）、各サブエージェントにレビュー指示を渡す
 5. 結果を統合してユーザーに提示
 
 **重要**: サブエージェントは必ず**並列**（同一メッセージ内で複数のTask tool呼び出し）で起動すること。
