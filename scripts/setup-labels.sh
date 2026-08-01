@@ -15,8 +15,22 @@
 
 set -uo pipefail
 
-command -v gh >/dev/null 2>&1 || { echo "[labels] gh が必要です"; exit 1; }
-gh repo view >/dev/null 2>&1 || { echo "[labels] GitHub リポジトリではないためスキップ"; exit 0; }
+# ラベルを作れないまま先に進むと /issue-create が前提チェックで停止する。
+# インストール直後は gh 未認証・remote 未設定が正常にありうるので処理は止めないが、
+# **後で何をすればよいかを必ず案内する**（黙ってスキップしない）
+#
+# 終了コード: 0=作成した / 2=スキップ（要ユーザー対応）/ 1=エラー
+# 呼び出し側（worktree-init/init.sh, install.sh）は 2 を致命的として扱わない
+skip_with_guidance() {
+  echo "[labels] $1"
+  echo "[labels] GitHub リポジトリを用意したあと、次を実行してください:"
+  echo "[labels]   bash scripts/setup-labels.sh"
+  echo "[labels] ラベルが無いと /issue-create が前提チェックで停止します。"
+  exit 2
+}
+
+command -v gh >/dev/null 2>&1 || skip_with_guidance "gh が見つからないためスキップ"
+gh repo view >/dev/null 2>&1 || skip_with_guidance "GitHub リポジトリではない（または未認証）ためスキップ"
 
 # name|color|description
 LABELS=(

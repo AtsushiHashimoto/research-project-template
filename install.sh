@@ -173,6 +173,17 @@ ITEMS=(
 
 cd "$PROJECT_ROOT"
 
+# 既存設定の有無と初回作成時刻を配置前に記録する。
+# --force ではテンプレート（固定タイムスタンプ入り）で上書きされるため、
+# あとで created_at を復元できるようにここで控えておく
+WORKTREE_CONFIG_EXISTED=false
+PREV_CREATED_AT=""
+if [[ -e ".claude/worktree-config.json" ]]; then
+    WORKTREE_CONFIG_EXISTED=true
+    PREV_CREATED_AT=$(sed -n 's/.*"created_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        ".claude/worktree-config.json" | head -1)
+fi
+
 # Create directories
 mkdir -p .claude
 
@@ -204,52 +215,67 @@ for item in "${ITEMS[@]}"; do
     fi
 done
 
+# sed -i は GNU と BSD(macOS) で引数解釈が異なる。`-i.bak` + rm が両者で動く唯一の形
+sed_inplace() {
+    local expr="$1" file="$2"
+    sed -i.bak "$expr" "$file" && rm -f "$file.bak"
+}
+
+# Sanitize inputs for sed (escape & and | in replacement strings)
+sanitize_sed() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
+
+# Sanitize values for JSON (escape backslashes and double quotes)
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
 # Handle CLAUDE.md
+CLAUDE_MD_INSTALLED=false
 if [[ -f ".claude/CLAUDE.md" ]]; then
     cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md.template"
     warn "$(msg preserved)"
 else
     cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md"
+    CLAUDE_MD_INSTALLED=true
     success "$(msg installed): .claude/CLAUDE.md"
+fi
 
-    # Interactive placeholder substitution (only if terminal is interactive)
-    if [[ -t 0 ]]; then
-        echo ""
-        info "Setting up project info in CLAUDE.md..."
+# プロジェクト情報の収集（CLAUDE.md の有無に関わらず行う）。
+# template-substitutions.json は /template-contribute の汚染チェックに使うため、
+# 既存 CLAUDE.md があるプロジェクトでも必要になる
+if [[ -t 0 ]]; then
+    echo ""
+    info "Setting up project info..."
 
-        # Derive default project name from directory
-        DEFAULT_PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+    # Derive default project name from directory
+    DEFAULT_PROJECT_NAME="$(basename "$PROJECT_ROOT")"
 
-        read -p "Project name [$DEFAULT_PROJECT_NAME]: " PROJECT_NAME
-        PROJECT_NAME="${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}"
+    read -r -p "Project name [$DEFAULT_PROJECT_NAME]: " PROJECT_NAME
+    PROJECT_NAME="${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}"
 
-        read -p "Project description (one line): " PROJECT_DESCRIPTION
-        PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-TODO: Add project description}"
+    read -r -p "Project description (one line): " PROJECT_DESCRIPTION
+    PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-TODO: Add project description}"
 
-        read -p "Researcher name: " RESEARCHER_NAME
-        RESEARCHER_NAME="${RESEARCHER_NAME:-TODO: Add researcher name}"
+    read -r -p "Researcher name: " RESEARCHER_NAME
+    RESEARCHER_NAME="${RESEARCHER_NAME:-TODO: Add researcher name}"
 
-        START_DATE="$(date +%Y-%m-%d)"
+    START_DATE="$(date +%Y-%m-%d)"
 
-        # Sanitize inputs for sed (escape & and | in replacement strings)
-        sanitize_sed() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
-
-        # Perform substitutions with sanitized values
-        sed -i "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
-        sed -i "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
-
+    # 置換対象は今回インストールした CLAUDE.md のみ（既存は上書きしない）
+    if [[ "$CLAUDE_MD_INSTALLED" == true ]]; then
+        sed_inplace "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
+        sed_inplace "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
         success "CLAUDE.md configured for: $PROJECT_NAME"
-    else
-        # Non-interactive: leave placeholders, user edits manually
-        info "Edit .claude/CLAUDE.md to replace {{...}} placeholders"
     fi
+elif [[ "$CLAUDE_MD_INSTALLED" == true ]]; then
+    # Non-interactive: leave placeholders, user edits manually
+    info "Edit .claude/CLAUDE.md to replace {{...}} placeholders"
+fi
 
-    # Sanitize values for JSON (escape backslashes and double quotes)
-    json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-
-    # Save substitution log for /template/contribute contamination checks
+# Save substitution log for /template-contribute contamination checks.
+# 値が空のまま書き出すと「ファイルはあるのに汚染チェックが無効」という
+# 気づきにくい状態になるため、値が取れたときだけ書き出す
+if [[ -n "${PROJECT_NAME:-}" ]]; then
     cat > ".claude/template-substitutions.json" <<SUBST_EOF
 {
   "PROJECT_NAME": "$(json_escape "${PROJECT_NAME:-}")",
@@ -260,15 +286,39 @@ else
 }
 SUBST_EOF
     success "$(msg installed): .claude/template-substitutions.json"
+else
+    info "Skipped .claude/template-substitutions.json (プロジェクト情報が未入力)"
+fi
+
+# worktree-config.json のタイムスタンプを実行時刻にする
+# （テンプレートには固定値が入っているため、放置すると全プロジェクトが同じ日時を持つ）
+#
+#   新規          : created_at / updated_at とも現在時刻
+#   --force で上書 : created_at は上書き前の値を復元し、updated_at のみ現在時刻
+#   保持（非force）: 触らない
+if [[ -f ".claude/worktree-config.json" ]]; then
+    NOW_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    if [[ "$WORKTREE_CONFIG_EXISTED" != true ]]; then
+        sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+        sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+    elif [[ "$FORCE" == true ]]; then
+        # 復元値は既存ファイル由来＝任意の文字列になりうるため、必ずエスケープする
+        sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$(sanitize_sed "${PREV_CREATED_AT:-$NOW_UTC}")\"|" ".claude/worktree-config.json"
+        sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+    fi
 fi
 
 # Handle .gitignore
 if [[ -f ".gitignore" ]]; then
+    # worktrees/ はドット無し（テンプレート .gitignore と
+    # .claude/rules/template/issue-hierarchy.md の規約に一致させること）
     GITIGNORE_ENTRIES=(
-        ".worktrees/"
+        "worktrees/"
         "data/shared/**"
         "!data/shared/.gitkeep"
         "data/local/"
+        ".claude/rules/template.bak-*/"
+        ".claude/model-policy.local.json"
     )
 
     ADDED=false
@@ -310,11 +360,40 @@ if [[ -t 0 ]]; then
     echo -e "${BLUE}$(msg init_prompt)${NC}"
     echo "$(msg init_desc)"
     echo ""
-    read -p "[Y/n]: " do_init
+    read -r -p "[Y/n]: " do_init
 
     if [[ ! "$do_init" =~ ^[Nn]$ ]]; then
         echo ""
-        "$PROJECT_ROOT/scripts/init-data.sh" "$PROJECT_ROOT"
+        # 初期化シーケンス（相対パス設定 → ラベル作成 → データディレクトリ）の
+        # 単一情報源は worktree-init のラッパー。ここに手順を複製しないこと。
+        #
+        # ★ ダウンロードしたテンプレート側のラッパーを使う。
+        #   プロジェクトに既存の .claude/skills があると ITEMS の配置がスキップされ、
+        #   インストール先にラッパーが無い場合があるため（--force 無しの再インストール）。
+        #   --root で対象を明示するのは、サブディレクトリ指定時に git のトップレベルが
+        #   外側リポジトリを指してしまうのを避けるため
+        # 初期化が失敗しても installer は落とさない（ファイル配置は完了しているため）。
+        # 黙らせず警告と再実行方法を出す
+        # 再実行の案内は「インストール先に実在するパス」を示す。
+        # 既存 .claude/skills があるとラッパーは配置されないため、決め打ちにしない
+        if [[ -f "$PROJECT_ROOT/.claude/skills/worktree-init/init.sh" ]]; then
+            INIT_HINT="bash .claude/skills/worktree-init/init.sh"
+        else
+            INIT_HINT="bash scripts/init-data.sh && bash scripts/setup-labels.sh"
+        fi
+
+        INIT_WRAPPER="$TMP_DIR/template/.claude/skills/worktree-init/init.sh"
+        if [[ -f "$INIT_WRAPPER" ]]; then
+            bash "$INIT_WRAPPER" --root "$PROJECT_ROOT" "$PROJECT_ROOT" \
+                || warn "初期化が完了しませんでした。後で実行: $INIT_HINT"
+        elif [[ -x "$PROJECT_ROOT/scripts/init-data.sh" ]]; then
+            warn "初期化ラッパーが見つかりません。データディレクトリのみ作成します"
+            warn "  ラベル作成は後で: bash scripts/setup-labels.sh"
+            "$PROJECT_ROOT/scripts/init-data.sh" "$PROJECT_ROOT" \
+                || warn "初期化が完了しませんでした。後で実行: bash scripts/init-data.sh"
+        else
+            warn "初期化スクリプトが見つかりませんでした。手動で実行してください"
+        fi
     else
         echo ""
         info "$(msg init_later)"
