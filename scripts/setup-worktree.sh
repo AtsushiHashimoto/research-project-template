@@ -39,6 +39,8 @@ msg() {
                 "symlink_exists") echo "data/shared シンボリックリンクは既に存在します" ;;
                 "stray_link_removed") echo "旧バージョンが作った不要なリンクを削除しました" ;;
                 "gitkeep_tracked") echo "data/shared/.gitkeep が git 追跡下にあります。メインリポジトリで次を実行して移行してください:" ;;
+                "is_shared_store") echo "data/shared は共有データストアそのものです。ここでリンクを張ると共有データを失います" ;;
+                "move_conflict_note") echo "同名ファイルがある場合は -n により移動されません。残ったものは中身を確認してから手動で統合してください。" ;;
                 "dir_has_data") echo "data/shared がシンボリックリンクではなく実体のあるディレクトリで、中にデータがあります" ;;
                 "move_data_first") echo "そのままではリンクできません。次のコマンドで中身をメインリポジトリへ移してから再実行してください:" ;;
                 "dir_replaced") echo "空の data/shared ディレクトリを削除しました（シンボリックリンクに置き換えます）" ;;
@@ -73,6 +75,8 @@ msg() {
                 "symlink_exists") echo "data/shared 符号链接已存在" ;;
                 "stray_link_removed") echo "已删除旧版本创建的多余链接" ;;
                 "gitkeep_tracked") echo "data/shared/.gitkeep 仍被 git 跟踪。请在主仓库中执行以下命令完成迁移:" ;;
+                "is_shared_store") echo "data/shared 就是共享数据存储本身。在此创建链接会丢失共享数据" ;;
+                "move_conflict_note") echo "如有同名文件，-n 会跳过移动。请检查剩余文件后手动合并。" ;;
                 "dir_has_data") echo "data/shared 是真实目录（非符号链接）且其中包含数据" ;;
                 "move_data_first") echo "当前状态无法创建链接。请用以下命令将内容移动到主仓库后重新执行:" ;;
                 "dir_replaced") echo "已删除空的 data/shared 目录（将替换为符号链接）" ;;
@@ -107,6 +111,8 @@ msg() {
                 "symlink_exists") echo "data/shared symlink already exists" ;;
                 "stray_link_removed") echo "Removed a stray link created by an older version" ;;
                 "gitkeep_tracked") echo "data/shared/.gitkeep is still tracked by git. Run these in the main repository to migrate:" ;;
+                "is_shared_store") echo "data/shared IS the shared data store. Linking here would destroy the shared data" ;;
+                "move_conflict_note") echo "Files with the same name are skipped by -n. Inspect what remains and merge manually." ;;
                 "dir_has_data") echo "data/shared is a real directory (not a symlink) and contains data" ;;
                 "move_data_first") echo "Cannot link as-is. Move its contents to the main repository and re-run:" ;;
                 "dir_replaced") echo "Removed the empty data/shared directory (replacing it with a symlink)" ;;
@@ -231,6 +237,22 @@ fi
 # worktree 削除でデータが失われる silent-wrong だった。
 mkdir -p data
 
+# ★ F-1: data/shared が**共有ストアそのもの**なら絶対に触らない。
+#   メインリポジトリで実行された場合（git worktree list の第1行なので worktree 判定を通る）、
+#   ここを消すと共有データを削除して自己参照 symlink を張り、
+#   以後 "Too many levels of symbolic links" で復旧不能になる。
+#   これは本 issue が塞ごうとしている silent-wrong と同型なので、最優先で止める
+if [ -d "data/shared" ] && [ ! -L "data/shared" ]; then
+    _here=$(cd data/shared 2>/dev/null && pwd -P || echo "")
+    _store=$(cd "$SHARED_DATA_PATH" 2>/dev/null && pwd -P || echo "")
+    if [ -n "$_here" ] && [ "$_here" = "$_store" ]; then
+        echo -e "${RED}[ERROR]${NC} $(msg is_shared_store)" >&2
+        echo "  data/shared = $_here" >&2
+        echo "  $(msg run_in_worktree)" >&2
+        exit 1
+    fi
+fi
+
 if [ -e "data/shared" ] && [ ! -L "data/shared" ]; then
     if [ ! -d "data/shared" ]; then
         # 実ファイル。ln -sf は黙って上書きするので必ず止める
@@ -260,15 +282,23 @@ if [ -e "data/shared" ] && [ ! -L "data/shared" ]; then
     #   旧ポリシー（data/shared/** + !data/shared/.gitkeep）の派生プロジェクトでは
     #   worktree 展開時に必ず .gitkeep が具現化するため、これをデータとして扱うと
     #   **sync した瞬間に全 worktree 作成が止まる**（実測）
-    remaining=$(find data/shared -mindepth 1 \
-        -not -name '.DS_Store' -not -name '.gitkeep' -print -quit 2>/dev/null)
+    # find が失敗する（辿れない・未対応の find 等）場合に無言終了しないこと。
+    # set -e 下では代入の失敗でそのまま落ち、理由が一切出なくなる
+    if ! remaining=$(find data/shared -mindepth 1 \
+        -not -name '.DS_Store' -not -name '.gitkeep' -print -quit 2>/dev/null); then
+        echo -e "${RED}[ERROR]${NC} $(msg dir_unreadable)" >&2
+        exit 1
+    fi
     if [ -n "$remaining" ]; then
         echo -e "${RED}[ERROR]${NC} $(msg dir_has_data)" >&2
         echo "" >&2
         echo "  $(msg move_data_first)" >&2
         echo "    mkdir -p \"$SHARED_DATA_PATH\"" >&2
-        echo "    mv data/shared/* \"$SHARED_DATA_PATH\"/" >&2
+        echo "    mv -n data/shared/* \"$SHARED_DATA_PATH\"/   # -n: 同名を上書きしない" >&2
+        echo "    mv -n data/shared/.[!.]* \"$SHARED_DATA_PATH\"/ 2>/dev/null || true  # 隠しファイル" >&2
         echo "    rmdir data/shared" >&2
+        echo "" >&2
+        echo "  $(msg move_conflict_note)" >&2
         echo "" >&2
         exit 1
     fi
