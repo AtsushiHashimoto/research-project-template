@@ -33,6 +33,7 @@ MODEL=$(bash scripts/resolve-model.sh abstract-review)
 | 呼び出し箇所 | role |
 |---|---|
 | `/review-spec` の各サブエージェント | `abstract-review` |
+| `/review-spec` 3-4b（epic goal 整合チェッカー） | `abstract-review` |
 | `auto-reviewer` の代理判断 | `abstract-review` |
 | `/task-run` Step 2（実装） | `implementation` |
 | `/task-run` Step 4-2（仕様整合性チェック） | `verification` |
