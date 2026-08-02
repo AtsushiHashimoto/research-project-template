@@ -56,26 +56,44 @@ shebang を `#!/usr/bin/env bash` に統一する（`commit-merge.sh` も同様�
 
 未実行がある場合は**必ず列挙する**（無言の切り捨て禁止。#117〜#119 の踏襲）。
 
-### D5: CI（GitHub Actions）
+### D5: CI（GitHub Actions）— **撤回**
 
-`.github/workflows/quality.yml` を追加し、push / PR で `quality-check.sh` を実行する。
-shellcheck を導入した ubuntu-latest 上で走らせることで、
-ローカルに shellcheck が無くても**必ずどこかで検査が走る**状態にする。
+当初は `.github/workflows/quality.yml` を追加して backstop にする設計だったが、
+**ユーザー判断により CI は使わない**ことになったため撤回した（実装済みだったものを削除）。
 
-**テンプレート由来ファイルなので install.sh の ITEMS と sync 対象にも加える**
-（さもないと派生プロジェクトに CI が届かない — #114 H1 と同型の配布漏れになる）。
+- 直接の契機: gh トークンに `workflow` スコープが無く push が拒否された
+- ユーザーの回答: 「CI は使わない」
+
+3点対称（install ITEMS / SYNC_TARGETS / contribute-detect）への登録と
+`release-export.sh` の除外も併せて撤去した。
 
 ## Fallback ホワイトリスト
 
 - D2 の「shellcheck 未インストールでも exit 1 にしない」のみ。
   **警告表示とサマリへの列挙を必須**とし、無言にしない。
 
-**auto-reviewer による許可条件（満たさなければ禁止に戻る）**:
+**auto-reviewer による当初の許可条件**:
 
 1. **D5 の CI が同一 issue で実際に入ること。** 「どこかで必ず検査が走る」という
    前提が崩れると、この Fallback は単なるゲートの緩和になる
 2. 未実行がある場合、最終バナーを素の `All quality checks passed` にせず
    **`passed（未実行あり: N件）`** の形にする
+
+### ★ 条件1 からの逸脱（記録）
+
+**CI は使わないというユーザー判断により、条件1 は満たせなくなった。**
+黙って緩和を残さず、backstop を差し替えたうえで逸脱を記録する。
+
+| 項目 | 内容 |
+|---|---|
+| 差し替えた backstop | **devcontainer**（`.devcontainer/Dockerfile` が shellcheck を導入する） |
+| 根拠 | 本テンプレートの標準作業環境は devcontainer であり、そこでは必ず検査が走る |
+| 残るリスク | **ホストで作業した場合、shellcheck が走らないまま完了ゲートを通過しうる** |
+| 緩和策 | 警告の明示、未実行としてのサマリ列挙、「devcontainer で再実行するか手元に導入せよ」の案内 |
+| 条件2 | **維持**（未実行があれば `passed（未実行あり: N件）`） |
+
+**この逸脱を受け入れられない場合の代替**は「shellcheck 未導入で exit 1」だが、
+ホスト作業時に完了ゲートが常時閉じるため採らなかった。
 
 ## 実装条件（auto-reviewer）
 

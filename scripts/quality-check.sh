@@ -62,8 +62,10 @@ skip() { echo "--- skip: $*"; append_notrun "$*"; }
 # warn_missing: 検査系そのものが導入されていない。skip とは意味が違うので関数を分ける（#121 D2/D4）。
 #   「検査対象が無い」のと「検査系が入っていない」のは別事象で、後者は環境の不備。
 #   ここで exit 1 にしないのは唯一の Fallback（ホスト環境で完了ゲートが常時閉じるのを避ける）。
-#   その代わり (a) 警告を出す (b) 未実行として必ず列挙する (c) RAN_ANY に数えない、
-#   そして backstop として .github/workflows/quality.yml の CI が必ず検査する。
+#   その代わり (a) 警告を出す (b) 未実行として必ず列挙する (c) RAN_ANY に数えない。
+#   **backstop は devcontainer**（.devcontainer/Dockerfile が shellcheck を導入する）。
+#   本テンプレートの標準作業環境は devcontainer であり、そこでは必ず検査が走る。
+#   ホストで作業する場合は検査が走らないことがあるので、下のサマリで必ず確認すること。
 warn_missing() {
   echo "!!! WARNING: $* — 検査系が未導入のため実行できません"
   append_notrun "⚠ $*"
@@ -240,7 +242,8 @@ print_summary() {
     echo "  未実行 (${NOTRUN_N}件): $(join_names "$NOTRUN_NAMES")"
     case "$NOTRUN_NAMES" in
       *"⚠"*)
-        echo "    ※ ⚠ 印は「検査系が未導入」。CI（.github/workflows/quality.yml）側では実行されます"
+        echo "    ※ ⚠ 印は「検査系が未導入」。devcontainer 内では導入済みなので、"
+        echo "      ホストで作業している場合は devcontainer で再実行するか、手元に導入してください"
         ;;
     esac
   fi

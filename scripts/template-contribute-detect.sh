@@ -16,7 +16,6 @@
 #     .claude/worktree-config.json
 #     .claude/model-policy.json
 #     .devcontainer/
-#     .github/workflows/quality.yml （テンプレート同梱の CI。他の workflow は対象外）
 #     scripts/
 #     .spec/*.md の**既定節のみ**（`# プロジェクト固有` 以降は還流しない）
 #     .claude/rules/template.bak-*/ （sync が退避したローカル改変＝還流候補そのもの）
@@ -208,8 +207,7 @@ scan_dir ".devcontainer"
 scan_dir "scripts"
 
 # --- テンプレート由来の単体ファイル ---
-for single in ".claude/worktree-config.json" ".claude/model-policy.json" \
-              ".github/workflows/quality.yml"; do
+for single in ".claude/worktree-config.json" ".claude/model-policy.json"; do
   [ -f "$PROJECT_ROOT/$single" ] || continue
   compare_file "$single" "$SOURCE_DIR/$single" "$PROJECT_ROOT/$single"
 done

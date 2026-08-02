@@ -12,7 +12,6 @@
 #
 # 既定の除外（＝install.sh が配布する開発ハーネス一式＋テンプレート付属物）:
 #   .claude/  .spec/  .dev/  .devcontainer/  worktrees/  scripts/
-#   .github/workflows/quality.yml
 #   claude-san  install.sh  .gitattributes
 #   docs/claude-san.md  docs/devcontainer-internals.md  docs/security.md
 #
@@ -46,7 +45,6 @@ DEFAULT_EXCLUDES=(
   "install.sh"
   # 同梱 CI は scripts/quality-check.sh を実行する開発ハーネス。
   # scripts/ を除外する成果物に残すと参照先の無い workflow になる（#121）
-  ".github/workflows/quality.yml"
   ".gitattributes"
   "docs/claude-san.md"
   "docs/devcontainer-internals.md"
