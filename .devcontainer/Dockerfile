@@ -18,6 +18,7 @@ RUN apt-get update && \
     htop \
     sudo \
     tmux \
+    shellcheck \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 非rootユーザーを作成（既存のUID/GIDがあれば再利用）

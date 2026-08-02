@@ -152,7 +152,7 @@ info "$(msg installing): $PROJECT_ROOT"
 
 # Create temp directory
 TMP_DIR=$(mktemp -d)
-trap "rm -rf $TMP_DIR" EXIT
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Download template
 info "$(msg downloading)"
@@ -358,7 +358,7 @@ echo ""
 # Ask about initialization (only if interactive)
 if [[ -t 0 ]]; then
     echo -e "${BLUE}$(msg init_prompt)${NC}"
-    echo "$(msg init_desc)"
+    msg init_desc
     echo ""
     read -r -p "[Y/n]: " do_init
 
@@ -399,7 +399,7 @@ if [[ -t 0 ]]; then
         info "$(msg init_later)"
     fi
 else
-    echo "$(msg init_later)"
+    msg init_later
 fi
 
 echo ""

@@ -48,7 +48,7 @@ case "${1:-}" in
 esac
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-cd "$ROOT"
+cd "$ROOT" || { echo "[skill-labels] cd に失敗: $ROOT" >&2; exit 1; }
 
 [ -d .claude/skills ] || { echo "[skill-labels] .claude/skills が無いためスキップ"; exit 0; }
 [ -f scripts/setup-labels.sh ] || {
@@ -96,7 +96,7 @@ for f in "${FILES[@]}"; do
           esac
           # {a|b|c} 形式は分割して各候補を見る
           val="${val#\{}"; val="${val%\}}"
-          printf '%s\n' "$val" | tr ',|' '\n\n' \
+          printf '%s\n' "$val" | tr ',' '\n' | tr '|' '\n' \
             | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
             | while IFS= read -r one; do
                 [ -n "$one" ] || continue
