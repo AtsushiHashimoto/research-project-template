@@ -10,8 +10,10 @@ quality-check は `/commit-merge` `/task-run` `/issue-finish` の**完了ゲー�
 
 - shellcheck が devcontainer に未導入で**無言スキップ**
 - `mapfile` は bash 4+ 専用。macOS（bash 3.2）＋shellcheck 有の環境では
-  `SH_FILES: unbound variable` で MANIFEST 検査に到達する前に異常終了
-- `scripts/qa/*.py`（10ファイル）と `claude-san` はそもそも検査対象外
+  `mapfile: command not found` → `SH_FILES: unbound variable` となり、
+  **shellcheck を黙って飛ばしたまま `All quality checks passed` / exit 0 になる**
+  （検証で判明。当初「異常終了」と書いていたが、実態は緑で通る silent-wrong だった）
+- `scripts/qa/*.py`（11ファイル）と `claude-san` はそもそも検査対象外
 - CI も無い
 
 なお #117/#118/#119 で再発防止検査3種（スキル参照名の実在 / ラベル定義と説明文 /
@@ -117,7 +119,7 @@ shellcheck を導入した ubuntu-latest 上で走らせることで、
 `pyproject.toml` が無い場合、`ruff` が PATH にあれば
 `ruff check --isolated --select E9,F <targets>` を実行する。CI では `uv tool install ruff`
 で ruff を入れるため、テンプレート本体でも `scripts/qa/*.py` が**実際に検査される**
-（実測: 10ファイル PASS）。ruff が無い環境では `warn_missing` として未実行に列挙する。
+（実測: 11ファイル PASS）。ruff が無い環境では `warn_missing` として未実行に列挙する。
 
 - **CI 側だけに検査を書かない**理由: 検査内容の単一情報源を `quality-check.sh` に保つため。
   CI は「ツールを入れて quality-check.sh を呼ぶ」だけにする

@@ -50,5 +50,13 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           "$HOME/.local/bin/uv" tool install ruff
 
+      # ★ 導入をアサートする。ruff が PATH に無いと quality-check は
+      #   「未実行」に落ちて緑のまま通り、Fallback の前提
+      #   （必ずどこかで検査が走る）が黙って崩れる
+      - name: Assert tools are available
+        run: |
+          shellcheck --version
+          ruff --version
+
       - name: Run quality checks
         run: bash scripts/quality-check.sh
