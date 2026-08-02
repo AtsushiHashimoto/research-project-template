@@ -21,12 +21,19 @@
 # 何も勝手に上書きしない。作成するのは「存在しないとき」だけで、内容は空。
 #
 # Usage:
-#   bash scripts/ensure-host-mounts.sh
+#   bash scripts/ensure-host-mounts.sh [--help]
 #
 # Exit codes:
 #   0  常に 0（devcontainer の起動を止めない）。問題は警告として表示する
+#   1  引数エラー
 
 set -uo pipefail
+
+case "${1:-}" in
+  -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
+  "") ;;
+  *) echo "不明な引数: $1（引数は取りません）" >&2; exit 1 ;;
+esac
 
 HOME_DIR="${HOME:-}"
 if [ -z "$HOME_DIR" ]; then

@@ -257,7 +257,15 @@ printf '%s\n' ${DIFF_LINES[@]+"${DIFF_LINES[@]}"} # 変更・ローカルのみ
 #### `.gitignore` の必須エントリ
 
 ```bash
-bash scripts/ensure-gitignore.sh --check || bash scripts/ensure-gitignore.sh
+# ★ ダウンロードしたテンプレート側のスクリプトを使う。
+#   本項目が対象とする「#122 以前のプロジェクト」にはローカルに当該スクリプトが
+#   存在せず、ローカル版を呼ぶとエントリが1つも追加されない（install.sh と同じ形にする）
+ENSURE="$TMP_DIR/template/scripts/ensure-gitignore.sh"
+if [ -f "$ENSURE" ]; then
+    bash "$ENSURE" --root "$(git rev-parse --show-toplevel)"
+else
+    echo "警告: ensure-gitignore.sh が見つかりません（.gitignore の確認をスキップ）"
+fi
 ```
 
 一覧の実体は `scripts/ensure-gitignore.sh`（install.sh と共用の単一情報源）。

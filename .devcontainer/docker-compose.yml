@@ -14,12 +14,12 @@ services:
       args:
         USER_UID: ${UID:-1000}
         USER_GID: ${GID:-1000}
-    # hostname は**指定しない**。固定値（旧: devcontainer）だと複数プロジェクトの
-    # コンテナが同じホスト名になり、シェルのプロンプトやログで区別できなかった。
-    # 未指定なら Docker がコンテナ名（= compose プロジェクト名にワークスペース名が入る）
-    # を hostname に使うため、プロジェクトごとに自然に変わる。
-    # 固定したい場合はホスト側で DEVCONTAINER_HOSTNAME を定義して次を有効にする:
-    #   hostname: ${DEVCONTAINER_HOSTNAME:-}
+    # hostname: 固定値（旧: devcontainer）だと複数プロジェクトのコンテナが同じ
+    # ホスト名になり、シェルのプロンプトやログで区別できなかった。
+    # ★ 未指定にすると Docker はコンテナ ID の16進をホスト名にする（実測）。
+    #   「コンテナ名が使われる」わけではないので、未指定では識別できない。
+    # そこでホスト側の DEVCONTAINER_HOSTNAME で指定できるようにする（空なら Docker 既定）。
+    hostname: ${DEVCONTAINER_HOSTNAME:-}
 
     # shm_size: PyTorch DataLoader の worker はプロセス間のテンソル受け渡しに
     # /dev/shm を使う。Docker 既定の 64MB では num_workers>0 で

@@ -81,10 +81,17 @@ log_info "PRのマージが完了しました"
 log_info "mainブランチを更新中..."
 if ! git checkout main; then
     log_error "main ブランチへの切り替えに失敗しました"
-    log_error "  本テンプレートは既定ブランチを main に固定しています"
-    log_error "  （.claude/rules/template/git-workflow.md「既定ブランチ」を参照）"
-    log_error "  master 等を使っている場合は、main に切り替えるか手動で後処理してください"
-    log_error "  PR #${PR_NUMBER} のマージは完了しています（worktree / ブランチは未削除）"
+    log_error ""
+    log_error "  よくある原因:"
+    log_error "    ・main が別の worktree でチェックアウト済み（git worktree list で確認）"
+    log_error "    ・作業ツリーに未コミットの変更がある（git status で確認）"
+    log_error "    ・既定ブランチが main でない（本テンプレートは main 固定。"
+    log_error "      .claude/rules/template/git-workflow.md「既定ブランチ」を参照）"
+    log_error ""
+    log_error "  ★ PR #${PR_NUMBER} のマージは完了しています。後処理だけが未実行です:"
+    log_error "    git worktree remove ${WORKTREE_PATH:-<worktree>}"
+    log_error "    git branch -D ${BRANCH_TO_DELETE:-<branch>}"
+    log_error "    git push origin --delete ${BRANCH_TO_DELETE:-<branch>}"
     exit 1
 fi
 git pull

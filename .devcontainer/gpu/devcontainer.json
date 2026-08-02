@@ -28,7 +28,7 @@
   // --- [Template] GPU 固有のライフサイクル ---
   // bind mount 元の用意（#122 M）→ NVIDIA symlink 確認、の順で実行する。
   // 前者は失敗しても起動を止めない設計（スクリプト側が常に exit 0）
-  "initializeCommand": "bash scripts/ensure-host-mounts.sh; bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
+  "initializeCommand": "bash scripts/ensure-host-mounts.sh || true; bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
   "postStartCommand": "bash .devcontainer/post-start.sh; nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost. Container restart required.' >&2",
 
   // --- [Project] プロジェクト固有の追加セットアップをここに追記 ---

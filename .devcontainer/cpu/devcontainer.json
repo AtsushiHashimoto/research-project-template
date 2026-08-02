@@ -28,7 +28,7 @@
   },
   // bind mount 元（~/.gitconfig, ~/.config/gh）をホスト側で先に用意する。
   // 無いまま起動すると Docker がディレクトリを自動作成してホストの git を壊す（#122 M）
-  "initializeCommand": "bash scripts/ensure-host-mounts.sh",
+  "initializeCommand": "bash scripts/ensure-host-mounts.sh || true",
   "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}",
   "postStartCommand": "bash .devcontainer/post-start.sh"
 }
