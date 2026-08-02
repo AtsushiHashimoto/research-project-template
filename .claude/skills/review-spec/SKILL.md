@@ -288,6 +288,63 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 - [ ] `パターン` - 理由
 ```
 
+#### 3-4b. epic goal 整合チェッカー（Goal Alignment Check）
+
+**対象 issue が epic / task の子である場合のみ実行**（親が無ければスキップし、その旨を出力）。
+
+Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
+
+**事前準備**: 親番号と**親のラベル**を解決してから goal と完了条件を取得する。
+
+```bash
+PARENT=$(gh issue view "$ISSUE_ID" --json parent -q '.parent.number // empty')
+if [ -z "$PARENT" ]; then
+  echo "親 issue なし（単発）→ 本観点はスキップ"
+else
+  PARENT_LABELS=$(gh issue view "$PARENT" --json labels -q '[.labels[].name] | join(",")')
+  gh issue view "$PARENT" --json title,body
+fi
+```
+
+**★ 照合先は親のラベルで分岐する**（親の有無だけで判定しない。小タスクでは親が issue 層になる）:
+
+| 親の層（ラベル） | 参照する節 |
+|---|---|
+| `epic` | 親 issue 本文の `## 完了条件` |
+| `task` | 親 issue 本文の `## 目標の状態` の「成功条件」 |
+| issue 層（`epic` / `task` のどちらも付いていない＝小タスクの親） | **照合しない。明示的にスキップし、その旨を出力する** |
+| 親なし | スキップし、その旨を出力する |
+
+**スキップした場合も必ず出力に残す**（黙って観点を落とさない）。
+
+レビュー観点:
+
+- **対応関係**: この仕様は親の**どの完了条件に対応するか**を1行で言えるか。言えない場合、
+  goal に貢献しない作業が epic 配下に紛れている可能性がある
+- **範囲の切り縮め**: 仕様が親の完了条件の一部を**暗黙に落としていない**か。
+  「先行タスクの結果次第で不要になる」という記述があれば、その判断が goal に明示されているか確認する
+- **独立性**: 先行タスクの結果に依存する記述がある場合、両者が**同じ仮説・同じ問い**を扱っているか。
+  別の問いなら先行の失敗は本仕様の実施可否を左右しない
+- **クローズ条件**: 仕様の検証チェックリストを全て満たしたとき、親の完了条件のうち
+  どれが満たされるかが追跡できるか
+
+出力形式:
+```markdown
+## epic goal 整合チェック結果
+
+### 親の goal（引用）
+> [epic / task の goal をそのまま引用。スキップした場合はスキップ理由を記載]
+
+### 対応する完了条件
+- [ ] 親の完了条件 N: [本仕様がどう対応するか1行で]
+
+### 判定
+- ✅ goal に前進する / ⚠️ 対応が不明瞭 / ❌ 完了条件を切り縮めている / ⏭️ スキップ（理由）
+
+### 懸念
+- [あれば。特に「先行が失敗したら不要」型の記述]
+```
+
 #### 3-5. 妥当性検証チェッカー（Validation Checker）
 
 Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scripts/resolve-model.sh abstract-review` で解決する。
@@ -395,7 +452,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 
 ### Step 4: 結果の統合と出力
 
-6つのサブエージェントの結果を統合し、以下の形式で仕様ファイルを生成：
+全サブエージェントの結果を統合し、以下の形式で仕様ファイルを生成（3-4b は親が無い／親が issue 層の場合スキップ、3-6 は GUI/フロントエンド実装の場合のみ）：
 
 ```markdown
 # Issue #N: タイトル
@@ -468,6 +525,10 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 | 箇所 | 出力内容 |
 |------|---------|
 | [箇所] | [内容] |
+
+## epic goal 整合
+
+[3-4b の結果。親が無い場合は「親 issue なし（単発）」、親が issue 層（小タスク）の場合は「親が issue 層のためスキップ」と記載]
 
 ## 検証チェックリスト
 
