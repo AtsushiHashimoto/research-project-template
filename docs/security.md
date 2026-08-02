@@ -159,13 +159,34 @@
 
 **何をしているか**: vscode ユーザーがパスワードなしで root 権限を取得できます。
 
+**前提**: コンテナの**既定ユーザーは非 root（`vscode`）**です。`.devcontainer/Dockerfile` の末尾で
+`USER vscode` に切り替えているため、`docker compose run` / `docker exec` を
+**引数なしで**叩いた場合も root にはなりません（#141）。
+
+**★ これは「root になれない」という意味ではありません。**
+`docker exec -u 0` / `docker run --user root` を指定すれば sudo 無しで root になれます。
+コンテナの USER 指定は**既定値**であって、境界ではありません。
+
 **リスク**:
-- コンテナ内で root として任意の操作が可能
+- コンテナ内で `sudo` により root として任意の操作が可能
+- `-u 0` を明示すれば sudo を経ずに root で起動できる（USER 指定では防げない）
 
 **緩和要因**:
 - DevContainer の標準的な設定
+- 既定では非 root で動作するため、**うっかり root で作業する**事故は減る
 - コンテナ外のホスト環境には影響しない（Docker-outside-of-Docker を除く）
 - 開発環境では一般的に許容される
+
+**`/workspace` の所有者について**: 非 root 化の狙いの一つは、bind mount した
+`/workspace`（ホストのリポジトリ）に root 所有ファイルを残さないことです。
+ただし上記のとおり `sudo` や `-u 0` を使えば root 所有ファイルは作れるため、
+**保証ではなく既定の改善**です。
+なお macOS の Docker Desktop は UID を写像するため、この差はホスト側から観測できません
+（root で作ったファイルもホストユーザー所有に見える）。**差が出るのは Linux ホストです。**
+
+**依存関係（変更時の注意）**: `docker-outside-of-docker` feature は、非 root ユーザーから
+Docker socket を使えるようにする権限調整に `sudo` を使います。
+`NOPASSWD` を外す場合は、この依存を先に解消してください。
 
 ## 総合評価
 
