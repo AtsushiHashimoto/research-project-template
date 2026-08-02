@@ -33,8 +33,9 @@ set -uo pipefail
 REQUIRED_ENTRIES=(
   # worktrees/ はドット無し（.claude/rules/template/issue-hierarchy.md の規約に一致させる）
   "worktrees/"
-  "data/shared/**"
-  "!data/shared/.gitkeep"
+  # data/shared 自体を無視する（`/**` だと symlink 化したパス自体が露出し、
+  # `git add .` でホスト絶対パスを含む symlink がコミットされる）。#133
+  "data/shared"
   "data/local/"
   # /template-sync が退避したローカル改変（還流候補。コミットはしない）
   ".claude/rules/template.bak-*/"

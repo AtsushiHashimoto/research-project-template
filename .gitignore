@@ -2,8 +2,16 @@
 worktrees/
 
 # データディレクトリ（共有データは追跡しない）
-data/shared/**
-!data/shared/.gitkeep
+# data/shared 自体を追跡しないこと（.gitkeep も置かない）。
+# 追跡すると `git worktree add` が実ディレクトリを具現化し、
+# 共有データへの symlink を張れなくなる（張ると git が恒久的に汚れる）。
+# メインリポジトリ側の data/shared は scripts/init-data.sh が作る。
+#
+# ★ `data/shared/**` ではなく `data/shared` と書くこと。
+#   `/**` は配下にしかマッチせずパス自体にマッチしないため、worktree で symlink 化した
+#   data/shared が未追跡として露出し、`git add .` でホストの絶対パスを含む symlink が
+#   コミットされてしまう。`data/shared` なら symlink 自体も配下も両方無視される。
+data/shared
 data/local/
 
 # Python
