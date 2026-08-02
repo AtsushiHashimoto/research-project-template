@@ -47,6 +47,9 @@ DEFAULT_EXCLUDES=(
   ".devcontainer"
   "worktrees"
   "scripts"
+  # tests/ は scripts/ を参照する（quality-check.sh 等）。scripts を除外する成果物に
+  # 残すと参照切れになる。#121 で CI workflow を除外したのと同じ理由（#135 検証の指摘）
+  "tests"
   "claude-san"
   "install.sh"
   # 同梱 CI は scripts/quality-check.sh を実行する開発ハーネス。

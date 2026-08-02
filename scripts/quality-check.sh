@@ -12,6 +12,15 @@
 #   - 実際の検査が落ちた場合のみ失敗させる
 #   - **実行した検査と未実行の検査を最後に必ず列挙する**（#121）。
 #     「失敗0件」と「実行0件」は違う。無言で切り捨てない
+#   - **ファイル単位で完結する検査は変更ファイルに限定する**（#135）。
+#     全件走査だと「そのファイルを1行も触っていない PR」が既存の指摘で落ちる
+#
+# 検査範囲（#135）:
+#   既定は「変更ファイルのみ」。限定するのは shellcheck と ruff だけで、
+#   横断的な整合性検査（MANIFEST / スキル参照 / スキルラベル）・pytest・mypy は全件のまま。
+#   ★ トレードオフ: **その変更で触っていない既存の指摘は既定モードでは検出されない。**
+#   全件の健全性確認は `QUALITY_FULL_SCAN=1 bash scripts/quality-check.sh` を
+#   定期的に（例: main への取り込み後や週次で）実行して行うこと。
 #
 # 互換性:
 #   macOS 標準の bash 3.2 で動く範囲に限定する（`mapfile` 等 bash 4+ 構文は使わない）。
@@ -19,8 +28,14 @@
 #   配列を展開する前に必ず `${#arr[@]}` で件数を確認する。
 #
 # 環境変数:
-#   QUALITY_SCOPE=docs   コード検査をスキップ（survey / docs Issue 用）
-#   QUALITY_SCOPE=all    既定。検出できた検査を全て実行
+#   QUALITY_SCOPE=docs        コード検査をスキップ（survey / docs Issue 用）
+#   QUALITY_SCOPE=all         既定。検出できた検査を全て実行
+#   QUALITY_FULL_SCAN=1       ファイル単位の検査をツリー全件に戻す（既定は変更ファイル限定）
+#   QUALITY_BASE_BRANCH=<ref> 差分の基点を明示する。**無効な値なら黙って既定に落とさず失敗する**
+#
+#   ★ QUALITY_SCOPE と QUALITY_FULL_SCAN は別の軸（#135 D4）。
+#     前者は「どの種類の検査を回すか」、後者は「どの範囲のファイルを見るか」。
+#     1つの変数に2つの意味を持たせない。
 #
 # プロジェクト固有の検査を追加する場合は「プロジェクト固有の検査」節に記述すること。
 
@@ -85,10 +100,116 @@ run_check() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# 検査範囲の決定（#135）
+# ---------------------------------------------------------------------------
+SCOPE_MODE=full        # full | changed。既定値は安全側（全件）にしておく
+BASE_REF=""
+CHANGED_FILES=""
+SCOPE_FALLBACK_REASON=""
+
+# resolve_base_ref: 差分の基点を決める（#135 D1）
+#   QUALITY_BASE_BRANCH → origin/HEAD から検出した既定ブランチ → main
+#
+#   ★ #122 D4（既定ブランチは main 固定）との関係:
+#     本テンプレートの規約は「既定ブランチは main」であり、`origin/HEAD` からの検出は
+#     #122 で**採らなかった**方針である。ここで検出しているのは
+#     「派生プロジェクトが別名を使っていても diff の基点だけは当たる」ための**保険**であり、
+#     検出できなければ必ず `main` に落ちる。**規約そのものを緩めるものではない。**
+#     用途が読み取り専用（diff の基点選択）で、外しても検査範囲が広がる/狭まるだけであり、
+#     ブランチ切替やマージ後処理のような破壊的操作を伴わないことが差分の根拠。
+#
+#   戻り値: 0=解決した / 1=検出できない（全件へフォールバック） / 2=明示指定が無効（失敗させる）
+resolve_base_ref() {
+  local cand default_branch
+  if [ -n "${QUALITY_BASE_BRANCH:-}" ]; then
+    # 明示指定は最優先。無効なら黙って既定に落とさない（利用者の指定を握り潰さない）
+    if git rev-parse --verify --quiet "$QUALITY_BASE_BRANCH" >/dev/null 2>&1; then
+      BASE_REF="$QUALITY_BASE_BRANCH"
+      return 0
+    fi
+    return 2
+  fi
+  default_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+  [ -n "$default_branch" ] || default_branch=main
+  for cand in "origin/$default_branch" "$default_branch"; do
+    if git rev-parse --verify --quiet "$cand" >/dev/null 2>&1; then
+      BASE_REF="$cand"
+      return 0
+    fi
+  done
+  SCOPE_FALLBACK_REASON="base ref を解決できない（origin/$default_branch も $default_branch も存在しない）"
+  return 1
+}
+
+# scope_setup: SCOPE_MODE / BASE_REF / CHANGED_FILES を決めて範囲を表示する（#135 D2/D5）
+#
+#   変更ファイル = merge-base からの差分 ＋ 未コミットの変更 ＋ 未追跡ファイル。
+#   削除されたファイルは `--diff-filter=d` で除く（存在しないファイルを渡すと検査が落ちるため）。
+#
+#   ★ main 上で実行すると merge-base が HEAD 自身になるので**差分は空**になり、
+#     未コミット分しか検査されない。main での定期的な健全性確認は QUALITY_FULL_SCAN=1 を使うこと。
+#
+#   ★ base が解決できない場合は**全件走査にフォールバックする**（新規リポジトリ・shallow clone）。
+#     PR #129 は即 FAIL としていたが、main が本当に無いリポジトリで完了ゲートが恒久的に
+#     赤くなる（RED の常態化）ため意図的に逸脱する。全件走査は限定走査の厳密な上位集合なので
+#     検出漏れ方向の silent-wrong を生まない。**ただし理由は必ず表示する。**
+scope_setup() {
+  local rc mb changed_n
+  if [ "${QUALITY_FULL_SCAN:-}" = "1" ]; then
+    SCOPE_MODE=full
+    echo "対象範囲: 全件走査（QUALITY_FULL_SCAN=1）"
+    return 0
+  fi
+
+  resolve_base_ref
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "!!! FAILED: QUALITY_BASE_BRANCH='${QUALITY_BASE_BRANCH:-}' を解決できません"
+    FAILED=1
+    append_failed "base ref の解決（QUALITY_BASE_BRANCH が無効）"
+    SCOPE_MODE=full
+    echo "対象範囲: 全件走査（base を確定できないため安全側に倒す）"
+    return 0
+  fi
+  if [ "$rc" -ne 0 ]; then
+    SCOPE_MODE=full
+    echo "対象範囲: 全件走査へフォールバック（理由: ${SCOPE_FALLBACK_REASON}）"
+    echo "    基点を明示するには QUALITY_BASE_BRANCH=<ref> を指定してください"
+    return 0
+  fi
+
+  mb="$(git merge-base HEAD "$BASE_REF" 2>/dev/null)"
+  if [ -z "$mb" ]; then
+    SCOPE_MODE=full
+    SCOPE_FALLBACK_REASON="HEAD と $BASE_REF の merge-base が取れない（shallow clone / 履歴が非共有）"
+    echo "対象範囲: 全件走査へフォールバック（理由: ${SCOPE_FALLBACK_REASON}）"
+    return 0
+  fi
+
+  CHANGED_FILES="$(
+    {
+      git diff --name-only --diff-filter=d "$mb" HEAD
+      git diff --name-only --diff-filter=d HEAD
+      git ls-files --others --exclude-standard
+    } 2>/dev/null | sort -u
+  )"
+  SCOPE_MODE=changed
+  changed_n="$(count_names "$CHANGED_FILES")"
+  echo "base: $BASE_REF (merge-base ${mb:0:12})"
+  echo "対象範囲: 変更ファイルのみ ${changed_n} 件（shellcheck / ruff）— 全件は QUALITY_FULL_SCAN=1"
+}
+
 echo "=== Running quality checks ==="
 
 SCOPE="${QUALITY_SCOPE:-all}"
 echo "scope: $SCOPE"
+
+# QUALITY_SCOPE=docs のときはファイル単位の検査自体が走らないので、
+# 範囲計算もフォールバック表示もしない（無意味なノイズになる。#135 D4）
+if [ "$SCOPE" != "docs" ]; then
+  scope_setup
+fi
 
 # ---------------------------------------------------------------------------
 # Python (uv + ruff + mypy + pytest)
@@ -102,19 +223,43 @@ else
     if [ -d "$d" ]; then PY_TARGETS+=("$d"); fi
   done
 
+  # ruff の対象を決める（#135 D3）。変更ファイル限定モードでは
+  # 「PY_TARGETS 配下の変更された *.py」だけに絞る。
+  RUFF_TARGETS=()
+  RUFF_LABEL="${#PY_TARGETS[@]} dirs, 全件"
+  if [ ${#PY_TARGETS[@]} -gt 0 ]; then
+    if [ "$SCOPE_MODE" = "changed" ]; then
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        [ -f "$f" ] || continue
+        case "$f" in *.py) ;; *) continue ;; esac
+        for d in "${PY_TARGETS[@]}"; do
+          case "$f" in "$d"/*) RUFF_TARGETS+=("$f"); break ;; esac
+        done
+      done <<EOF
+$CHANGED_FILES
+EOF
+      RUFF_LABEL="${#RUFF_TARGETS[@]} files, 変更ファイルのみ"
+    else
+      RUFF_TARGETS=("${PY_TARGETS[@]}")
+    fi
+  fi
+
   if [ ! -f pyproject.toml ]; then
     # pyproject.toml が無いプロジェクト（テンプレート自身もこれ）。
     # uv による環境構築はできないが、ruff 単体があれば構文と未定義名だけは検査できる。
     if [ ${#PY_TARGETS[@]} -eq 0 ]; then
       skip "Python 検査（pyproject.toml も Python ディレクトリも無い）"
+    elif [ ${#RUFF_TARGETS[@]} -eq 0 ]; then
+      skip "ruff（変更された Python ファイルが無い）"
     elif ! command -v ruff >/dev/null 2>&1; then
       warn_missing "Python 検査（pyproject.toml が無く ruff も未インストール）"
     else
       # 設定ファイルが無い前提なので --isolated。
       # ruff の既定ルールセットはバージョン更新で増えるため、
       # 完了ゲートが勝手に赤くならないよう安定した E9（構文）/ F（pyflakes）に固定する。
-      run_check "ruff check (standalone: E9,F / ${#PY_TARGETS[@]} dirs)" \
-        ruff check --isolated --select E9,F "${PY_TARGETS[@]}"
+      run_check "ruff check (standalone: E9,F / ${RUFF_LABEL})" \
+        ruff check --isolated --select E9,F "${RUFF_TARGETS[@]}"
     fi
     skip "mypy / pytest（pyproject.toml が無い）"
   elif ! command -v uv >/dev/null 2>&1; then
@@ -131,15 +276,26 @@ else
       if [ ${#PY_TARGETS[@]} -eq 0 ]; then
         skip "ruff / mypy（src/ tests/ scripts/qa/ のいずれも無い）"
       else
-        run_check "ruff check" uv run ruff check "${PY_TARGETS[@]}"
-        run_check "ruff format --check" uv run ruff format --check "${PY_TARGETS[@]}"
+        if [ ${#RUFF_TARGETS[@]} -eq 0 ]; then
+          skip "ruff（変更された Python ファイルが無い）"
+        else
+          run_check "ruff check (${RUFF_LABEL})" uv run ruff check "${RUFF_TARGETS[@]}"
+          run_check "ruff format --check (${RUFF_LABEL})" uv run ruff format --check "${RUFF_TARGETS[@]}"
+        fi
         if [ -d src ]; then
+          # ★ mypy は変更ファイルに限定しない（#135 D3 警告1）。
+          #   型エラーは**ファイル間を伝播する**: シグネチャを変えると未変更の呼び出し側が壊れ、
+          #   既定の follow-imports は未変更ファイルのエラーも報告する。
+          #   ファイル単位で完結する検査（shellcheck / ruff）とは同型に扱えない。
+          #   ※ コメント行を "# shellcheck" で始めないこと。shellcheck ディレクティブと
+          #     解釈されて SC1073（parse error）になる。
           run_check "mypy" uv run mypy src/
         else
           skip "mypy（src/ が無い）"
         fi
       fi
 
+      # pytest も限定しない（テスト全体を回すのが本来の目的）
       if [ -d tests ] || grep -q "\[tool.pytest" pyproject.toml 2>/dev/null; then
         run_check "pytest" uv run pytest
       else
@@ -152,35 +308,65 @@ fi
 # ---------------------------------------------------------------------------
 # Shell script
 # ---------------------------------------------------------------------------
+
+# collect_sh_files: 標準入力のファイル一覧から shellcheck 対象を選ぶ。
+#   **対象判定の単一情報源**（#121 D3 の収集ルール）:
+#     - 拡張子 `*.sh`
+#     - 拡張子を持たなくても shebang が sh/bash/dash/ksh のもの（例: claude-san）
+#       `#!/usr/bin/env python3` や `#!/usr/bin/env zsh` は対象外
+#       （zsh は shellcheck が非対応で、含めると検査自体が落ちる）
+#
+#   全件走査では追跡ファイル一覧を、限定走査では変更ファイル一覧を流し込む。
+#   ★ 限定を「拡張子マッチ」で書き直さないこと（#135 D3 警告2）。
+#     `*.sh` だけで絞ると claude-san のような拡張子なしスクリプトが素通りする。
+#     ルールを1箇所に置き、流し込む集合だけを変えることで両モードの判定を一致させる。
+collect_sh_files() {
+  local f
+  SH_FILES=()
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    # 削除済み・未生成のパスは渡さない（shellcheck が file-not-found で落ちるため）
+    [ -f "$f" ] || continue
+    case "$f" in
+      *.sh) SH_FILES+=("$f"); continue ;;
+    esac
+    if head -n 1 "$f" 2>/dev/null \
+      | LC_ALL=C grep -Eq '^#![[:space:]]*[^[:space:]]*/(env[[:space:]]+)?(ba|da|k)?sh([[:space:]]|$)'; then
+      SH_FILES+=("$f")
+    fi
+  done
+}
+
 if [ "$SCOPE" = "docs" ]; then
   skip "shellcheck（QUALITY_SCOPE=docs）"
 elif ! command -v shellcheck >/dev/null 2>&1; then
   warn_missing "shellcheck（未インストール）"
 else
   SH_FILES=()
-  while IFS= read -r f; do
-    [ -n "$f" ] && SH_FILES+=("$f")
-  done < <(git ls-files '*.sh' 2>/dev/null)
-
-  # 拡張子を持たないシェルスクリプト（例: claude-san）は `*.sh` に一致しないため
-  # shebang で拾う（#121 D3）。`*.sh` 既収集分は除外して二重検査を避ける。
-  # 判定は shellcheck が解釈できる sh/bash/dash/ksh のみ。
-  # `#!/usr/bin/env python3` や `#!/usr/bin/env zsh` は対象外にする
-  # （zsh は shellcheck が非対応で、含めると検査自体が落ちる）。
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    case "$f" in *.sh) continue ;; esac
-    [ -f "$f" ] || continue
-    if head -n 1 "$f" 2>/dev/null \
-      | LC_ALL=C grep -Eq '^#![[:space:]]*[^[:space:]]*/(env[[:space:]]+)?(ba|da|k)?sh([[:space:]]|$)'; then
-      SH_FILES+=("$f")
-    fi
-  done < <(git ls-files 2>/dev/null)
+  SH_LABEL="全件"
+  if [ "$SCOPE_MODE" = "changed" ]; then
+    SH_LABEL="変更ファイルのみ"
+    collect_sh_files <<EOF
+$CHANGED_FILES
+EOF
+  else
+    # 全件走査でも未追跡ファイル（gitignore 対象は除く）を含める。
+    # 含めないと**限定走査の厳密な上位集合にならず**、base 解決不能時のフォールバックで
+    # 「未追跡の新規スクリプトだけが検査されない」という検出漏れが生じる（#135 Fallback の前提）。
+    collect_sh_files < <(git ls-files --cached --others --exclude-standard 2>/dev/null)
+  fi
 
   if [ ${#SH_FILES[@]} -eq 0 ]; then
-    skip "shellcheck（対象ファイル無し）"
+    if [ "$SCOPE_MODE" = "changed" ]; then
+      skip "shellcheck（変更されたシェルスクリプトが無い vs ${BASE_REF:-?}）"
+    else
+      skip "shellcheck（対象ファイル無し）"
+    fi
   else
-    run_check "shellcheck (${#SH_FILES[@]} files)" shellcheck "${SH_FILES[@]}"
+    run_check "shellcheck (${#SH_FILES[@]} files, ${SH_LABEL})" shellcheck "${SH_FILES[@]}"
+    if [ "$SCOPE_MODE" = "changed" ]; then
+      echo "    （変更された ${#SH_FILES[@]} 件のみ検査。ツリーの残りは未検査 — 全件は QUALITY_FULL_SCAN=1）"
+    fi
   fi
 fi
 
@@ -189,6 +375,11 @@ fi
 # ---------------------------------------------------------------------------
 # 例:
 #   run_check "custom lint" ./scripts/my-lint.sh
+#
+# ★ 以降の検査は**変更ファイルに限定しない**（#135 D3）。
+#   いずれもリポジトリ全体の整合性（グラフ的性質）が対象で、変更ファイルだけを見ると
+#   検出原理が壊れる。例: スキルを1つ削除したとき、それを参照している側のファイルは
+#   変更されていないので、限定すると参照切れを永久に検出できない。
 
 # .claude/rules/template/MANIFEST.sha256 の整合
 #   MANIFEST がずれていると /template-sync が無改変のルールを「還流候補」として
@@ -221,6 +412,18 @@ else
   run_check "スキルのラベル定義" bash scripts/check-skill-labels.sh
 fi
 
+# quality-check 自身の検査範囲の回帰テスト（#135 D6）
+#   「限定が壊れて全件走査に戻る」「限定しすぎて検出漏れになる」のどちらも
+#   通常運用では気づけず、下流でしか顕在化しない。ゲート自身で pin する
+#   （#117 / #118 と同じ再発防止の型）。1〜2秒で終わる。
+if [ "$SCOPE" = "docs" ]; then
+  skip "検査範囲の回帰テスト（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_quality_check_scope.sh ]; then
+  skip "検査範囲の回帰テスト（tests/test_quality_check_scope.sh が無い）"
+else
+  run_check "検査範囲の回帰テスト" bash tests/test_quality_check_scope.sh --quiet
+fi
+
 # ---------------------------------------------------------------------------
 # 結果
 #   実行/失敗/未実行を必ず列挙する。無言の切り捨てはしない（#121 D4）
@@ -246,6 +449,10 @@ print_summary() {
         echo "      ホストで作業している場合は devcontainer で再実行するか、手元に導入してください"
         ;;
     esac
+  fi
+  if [ "$SCOPE_MODE" = "changed" ]; then
+    echo "  範囲: 変更ファイルのみ（base: ${BASE_REF}）。触っていないファイルの既存指摘は"
+    echo "        検出されません。全件は QUALITY_FULL_SCAN=1 で確認してください"
   fi
 }
 
