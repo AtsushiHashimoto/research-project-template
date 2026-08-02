@@ -89,7 +89,7 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
-    hostname: devcontainer
+    hostname: ${DEVCONTAINER_HOSTNAME:-}
     shm_size: "8gb"
     ulimits:
       memlock: -1
@@ -216,15 +216,38 @@ deploy:
           capabilities: [gpu]
 ```
 
-### 起動時チェック（GPU のみ）
+### コンテナのホスト名
+
+`hostname` は既定で**未指定（空）**です。未指定のとき Docker はホスト名に
+**コンテナ ID の16進**（例: `614cfeb1a4d1`）を使います。**コンテナ名は使われません。**
+
+複数プロジェクトのコンテナをシェルのプロンプトやログで区別したい場合は、
+ホスト側で環境変数を定義してください。
+
+```bash
+# ホスト側（.zshrc 等）
+export DEVCONTAINER_HOSTNAME=myproject
+```
+
+かつては `hostname: devcontainer` と固定していたため、
+**複数プロジェクトのコンテナが同じホスト名になり区別できませんでした**（#122 項目 H）。
+
+### 起動時チェック
 
 ```jsonc
+// cpu/devcontainer.json
+"initializeCommand": "bash scripts/ensure-host-mounts.sh || true",
+
 // gpu/devcontainer.json
-"initializeCommand": "bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
+"initializeCommand": "bash scripts/ensure-host-mounts.sh || true; bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
 "postStartCommand": "nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost.'"
 ```
 
-コンテナ起動ごとに GPU アクセスを確認。ホストの再起動等で GPU アクセスが失われた場合に警告を表示します。
+- **`ensure-host-mounts.sh`（CPU/GPU 共通）**: bind mount 対象（`~/.gitconfig` `~/.config/gh`）が
+  ホストに無いと、Docker が**ディレクトリとして自動作成**してしまい、以後ホストの git が
+  `fatal: ... is a directory` で動かなくなります。コンテナ作成前に正しい種別で用意します
+- **GPU のみ**: コンテナ起動ごとに GPU アクセスを確認。ホストの再起動等で
+  GPU アクセスが失われた場合に警告を表示します
 
 ## Ollama 設定（プロジェクト固有）
 

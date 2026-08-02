@@ -365,7 +365,11 @@ fi
 
 # テンプレートの所在を記録する（読み取りは scripts/template-source.sh が単一情報源）。
 # fork 運用ではこのファイルだけを書き換えれば sync / contribute の向き先が変わる（#122 D3）
-if [[ ! -f ".claude/template-source.json" ]] || [[ "$FORCE" == true ]]; then
+# ★ --force でも上書きしない。fork 運用ではここが「テンプレートの所在」の正であり、
+#   上書きすると fork 先 URL が黙って本家に戻る（worktree-config.json の
+#   shared_data_path と同じクラスの silent reset）。
+#   template-sync が同ファイルを同期対象から外しているのと同じ理由。
+if [[ ! -f ".claude/template-source.json" ]]; then
     cat > ".claude/template-source.json" <<SRC_EOF
 {
   "repo": "$(json_escape "$TEMPLATE_REPO")",
@@ -375,7 +379,7 @@ if [[ ! -f ".claude/template-source.json" ]] || [[ "$FORCE" == true ]]; then
 SRC_EOF
     success "$(msg installed): .claude/template-source.json"
 else
-    info ".claude/template-source.json は既存の内容を保持しました（$(msg use_force)）"
+    info ".claude/template-source.json は既存の内容を保持しました（fork 先の設定を守るため）"
 fi
 
 # Handle .gitignore

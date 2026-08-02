@@ -199,7 +199,10 @@ scan_dir() {
 }
 
 # --- テンプレート由来ディレクトリ ---
-# install.sh の ITEMS / template-sync の SYNC_TARGETS と対称に保つこと
+# install.sh の ITEMS / template-sync の SYNC_TARGETS と対称に保つこと。
+# ★ 例外（意図的な非対称。対称にしないこと）:
+#   .dev/                      … backlog.md 等はユーザーデータ。還流も同期もしない
+#   .claude/template-source.json … fork 先の URL。上書き・還流の対象にしない
 # MANIFEST.sha256 は generate-rules-manifest.sh の生成物であり、還流の対象にしない
 scan_dir ".claude/rules/template" "$RULES_MANIFEST_NAME"
 scan_dir ".claude/skills"

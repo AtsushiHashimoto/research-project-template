@@ -24,8 +24,8 @@
 #   bash scripts/ensure-host-mounts.sh [--help]
 #
 # Exit codes:
-#   0  常に 0（devcontainer の起動を止めない）。問題は警告として表示する
-#   1  引数エラー
+#   0  処理を実行した（問題があっても devcontainer の起動は止めない。警告で知らせる）
+#   1  引数エラー（--help 以外の引数を渡した場合のみ）
 
 set -uo pipefail
 
@@ -49,7 +49,8 @@ ensure_file() {
     echo "[host-mounts] OK  (file) $path"
   elif [ -e "$path" ]; then
     # 既にディレクトリ等になっている＝過去に Docker が作ってしまった状態。
-    # 勝手に消すと利用者のデータを壊しうるので、**直し方を示して止める**（黙って進めない）
+    # 勝手に消すと利用者のデータを壊しうるので、**直し方を必ず表示する**（黙って進めない）。
+    # ただし devcontainer の起動自体は止めない（ここで止めると作業が始められない）
     echo "[host-mounts] WARNING: ${path} はファイルではありません（ディレクトリ等）" >&2
     echo "[host-mounts]   Docker が bind mount 時に自動作成した可能性があります。" >&2
     echo "[host-mounts]   中身を確認し、不要なら削除してから再度コンテナを起動してください:" >&2

@@ -60,14 +60,14 @@ fi
 [ -n "$QA_DIR" ] || QA_DIR="$DEFAULT_QA_DIR"
 
 # --- 旧パスの検出（loud に案内。自動移動はしない） ---
+# データの有無は参照先に関わらず調べる（--check の表示を正確にするため）。
+# 案内を出すのは「旧パスを参照していない」ときだけ
 legacy_has_data=false
-if [ "$QA_DIR" != "$LEGACY_QA_DIR" ]; then
-  for f in "$ROOT/$LEGACY_QA_DIR/questions.jsonl" "$ROOT/$LEGACY_QA_DIR/answers.jsonl"; do
-    [ -s "$f" ] && legacy_has_data=true
-  done
-fi
+for f in "$ROOT/$LEGACY_QA_DIR/questions.jsonl" "$ROOT/$LEGACY_QA_DIR/answers.jsonl"; do
+  [ -s "$f" ] && legacy_has_data=true
+done
 
-if [ "$legacy_has_data" = true ]; then
+if [ "$legacy_has_data" = true ] && [ "$QA_DIR" != "$LEGACY_QA_DIR" ]; then
   {
     echo "[QA] 旧パスにデータが残っています: $LEGACY_QA_DIR/"
     echo "[QA] 現在の参照先は '$QA_DIR' です。旧データは読み込まれません。"
