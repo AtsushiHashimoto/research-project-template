@@ -40,6 +40,8 @@ msg() {
                 "stray_link_removed") echo "旧バージョンが作った不要なリンクを削除しました" ;;
                 "gitkeep_tracked") echo "data/shared/.gitkeep が git 追跡下にあります。メインリポジトリで次を実行して移行してください:" ;;
                 "is_shared_store") echo "data/shared は共有データストアそのものです。ここでリンクを張ると共有データを失います" ;;
+                "gitkeep_worktree_note") echo "移行後、この worktree で git merge が .gitkeep で止まります。次も実行してください:" ;;
+                "mv_n_note") echo "（-n は同名を上書きしません / 2行目は隠しファイル）" ;;
                 "move_conflict_note") echo "同名ファイルがある場合は -n により移動されません。残ったものは中身を確認してから手動で統合してください。" ;;
                 "dir_has_data") echo "data/shared がシンボリックリンクではなく実体のあるディレクトリで、中にデータがあります" ;;
                 "move_data_first") echo "そのままではリンクできません。次のコマンドで中身をメインリポジトリへ移してから再実行してください:" ;;
@@ -76,6 +78,8 @@ msg() {
                 "stray_link_removed") echo "已删除旧版本创建的多余链接" ;;
                 "gitkeep_tracked") echo "data/shared/.gitkeep 仍被 git 跟踪。请在主仓库中执行以下命令完成迁移:" ;;
                 "is_shared_store") echo "data/shared 就是共享数据存储本身。在此创建链接会丢失共享数据" ;;
+                "gitkeep_worktree_note") echo "迁移后该 worktree 的 git merge 会因 .gitkeep 失败。请同时执行:" ;;
+                "mv_n_note") echo "（-n 不覆盖同名文件 / 第二行为隐藏文件）" ;;
                 "move_conflict_note") echo "如有同名文件，-n 会跳过移动。请检查剩余文件后手动合并。" ;;
                 "dir_has_data") echo "data/shared 是真实目录（非符号链接）且其中包含数据" ;;
                 "move_data_first") echo "当前状态无法创建链接。请用以下命令将内容移动到主仓库后重新执行:" ;;
@@ -112,6 +116,8 @@ msg() {
                 "stray_link_removed") echo "Removed a stray link created by an older version" ;;
                 "gitkeep_tracked") echo "data/shared/.gitkeep is still tracked by git. Run these in the main repository to migrate:" ;;
                 "is_shared_store") echo "data/shared IS the shared data store. Linking here would destroy the shared data" ;;
+                "gitkeep_worktree_note") echo "After migrating, git merge in this worktree will fail on .gitkeep. Also run:" ;;
+                "mv_n_note") echo "(-n does not overwrite; the second line moves hidden files)" ;;
                 "move_conflict_note") echo "Files with the same name are skipped by -n. Inspect what remains and merge manually." ;;
                 "dir_has_data") echo "data/shared is a real directory (not a symlink) and contains data" ;;
                 "move_data_first") echo "Cannot link as-is. Move its contents to the main repository and re-run:" ;;
@@ -242,9 +248,23 @@ mkdir -p data
 #   ここを消すと共有データを削除して自己参照 symlink を張り、
 #   以後 "Too many levels of symbolic links" で復旧不能になる。
 #   これは本 issue が塞ごうとしている silent-wrong と同型なので、最優先で止める
-if [ -d "data/shared" ] && [ ! -L "data/shared" ]; then
-    _here=$(cd data/shared 2>/dev/null && pwd -P || echo "")
-    _store=$(cd "$SHARED_DATA_PATH" 2>/dev/null && pwd -P || echo "")
+# ★ F-6: `-d` で門番してはいけない。.gitkeep を追跡から外した結果、
+#   **clone 直後は data/shared が存在しないのが既定**になった。
+#   存在しない場合も自己参照 symlink を張れてしまうので、パス比較は
+#   「実在するか」に関係なく行う（親ディレクトリまで解決して比較する）
+_resolve_path() {
+    local q="${1%/}"; [ -n "$q" ] || q="/"
+    if [ -d "$q" ]; then
+        (cd "$q" && pwd -P)
+    else
+        local d; d=$(cd "$(dirname "$q")" 2>/dev/null && pwd -P) || return 1
+        printf '%s\n' "${d%/}/$(basename "$q")"
+    fi
+}
+
+if [ ! -L "data/shared" ]; then
+    _here=$(_resolve_path "$(pwd -P)/data/shared" || echo "")
+    _store=$(_resolve_path "$SHARED_DATA_PATH" || echo "")
     if [ -n "$_here" ] && [ "$_here" = "$_store" ]; then
         echo -e "${RED}[ERROR]${NC} $(msg is_shared_store)" >&2
         echo "  data/shared = $_here" >&2
@@ -294,8 +314,9 @@ if [ -e "data/shared" ] && [ ! -L "data/shared" ]; then
         echo "" >&2
         echo "  $(msg move_data_first)" >&2
         echo "    mkdir -p \"$SHARED_DATA_PATH\"" >&2
-        echo "    mv -n data/shared/* \"$SHARED_DATA_PATH\"/   # -n: 同名を上書きしない" >&2
-        echo "    mv -n data/shared/.[!.]* \"$SHARED_DATA_PATH\"/ 2>/dev/null || true  # 隠しファイル" >&2
+        echo "    mv -n data/shared/* \"$SHARED_DATA_PATH\"/" >&2
+        echo "    mv -n data/shared/.[!.]* \"$SHARED_DATA_PATH\"/ 2>/dev/null || true" >&2
+        echo "    $(msg mv_n_note)" >&2
         echo "    rmdir data/shared" >&2
         echo "" >&2
         echo "  $(msg move_conflict_note)" >&2
@@ -309,6 +330,8 @@ if [ -e "data/shared" ] && [ ! -L "data/shared" ]; then
         warn "$(msg gitkeep_tracked)"
         echo "    cd \"$MAIN_REPO\" && git rm --cached data/shared/.gitkeep" >&2
         echo "    bash scripts/ensure-gitignore.sh" >&2
+        echo "  $(msg gitkeep_worktree_note)" >&2
+        echo "    git rm --cached data/shared/.gitkeep   # この worktree でも実行する" >&2
     fi
 
     if ! rm -rf data/shared; then
