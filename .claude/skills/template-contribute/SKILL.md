@@ -25,8 +25,9 @@ description: Contribute improvements back to research-project-template (テン�
 | `.claude/skills/` | `.claude/CLAUDE.md`（固有の概要・制約を含む） |
 | `.claude/agents/` | `.spec/` の**プロジェクト固有節**（`# プロジェクト固有` 以降） |
 | `scripts/` | `.spec/issues/`, `.spec/decisions/`, `.spec/subsystems/` |
-| `.spec/*.md` の**既定節**（`# 既定の` 〜 `# プロジェクト固有` の直前） | `data/`, `docs/`, その他すべて |
-| `.claude/rules/template.bak-*/`（下記） | |
+| `.spec/*.md` の**既定節**（`# 既定の` 〜 `# プロジェクト固有` の直前） | `data/`, `docs/`, `.dev/`, その他すべて |
+| `.claude/rules/template.bak-*/`（下記） | `.claude/template-source.json`（fork 先の URL） |
+| | `.gitignore`（プロジェクト固有の追記が混ざる。テンプレートへ反映したい場合は `scripts/ensure-gitignore.sh` の一覧を編集して還流する） |
 
 **`.claude/rules/template.bak-*/` も検出対象に含めます。** `/template-sync` が
 ローカル改変を検出して退避したディレクトリであり、そこにあるファイルは
@@ -42,8 +43,13 @@ description: Contribute improvements back to research-project-template (テン�
 
 **取得に失敗したら、そこで中止する。** 部分適用も無言終了もしない。
 
+**URL をここに書かないこと。** テンプレートの所在は `.claude/template-source.json` が正で、
+読み取りは `scripts/template-source.sh` が単一情報源（#122 D3）。
+同ファイルが無い既存プロジェクトではハードコードの既定値に落ちるが、その旨が stderr に出る。
+
 ```bash
-TEMPLATE_REPO="https://github.com/AtsushiHashimoto/research-project-template"
+TEMPLATE_REPO=$(bash scripts/template-source.sh)        # 既定値に落ちた場合は警告が出る
+TEMPLATE_NAME=$(bash scripts/template-source.sh --name) # fork 検出の grep に使う
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 TMP_DIR=$(mktemp -d)
 if ! git clone --depth 1 "$TEMPLATE_REPO" "$TMP_DIR/template"; then
@@ -175,12 +181,13 @@ gh repo view "$TEMPLATE_REPO" --json viewerPermission -q '.viewerPermission'
 if [ "$PERM" = "ADMIN" ] || [ "$PERM" = "WRITE" ]; then
   WORK_REPO="$TMP_DIR/template"
 else
+  # 検索語はリポジトリ名から導出する（fork 名をハードコードしない。#122 D3）
   FORK_REPO=$(gh repo list --fork --json nameWithOwner --jq '.[].nameWithOwner' \
-              | grep "research-project-template")
+              | grep -F "$TEMPLATE_NAME")
   if [ -z "$FORK_REPO" ]; then
     gh repo fork "$TEMPLATE_REPO" --clone=false
     FORK_REPO=$(gh repo list --fork --json nameWithOwner --jq '.[].nameWithOwner' \
-                | grep "research-project-template")
+                | grep -F "$TEMPLATE_NAME")
   fi
   git clone "https://github.com/$FORK_REPO" "$TMP_DIR/fork"
   WORK_REPO="$TMP_DIR/fork"

@@ -87,13 +87,13 @@ description: Scan all issues and analyze their status (全Issue状態のスキ�
 
 ```
 Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh mechanical)", prompt="
-agents/issue-scanner.md の定義に従って、Issueスキャンレポートを生成してください。
+.claude/agents/issue-scanner.md の定義に従って、Issueスキャンレポートを生成してください。
 
 ## 収集データ
 ${COLLECTED_DATA}
 
 ## 出力
-agents/issue-scanner.md の出力形式に従ってレポートを生成。
+.claude/agents/issue-scanner.md の出力形式に従ってレポートを生成。
 結果は Markdown 形式で出力してください。
 
 ## 重要: User Action Required セクション
@@ -125,7 +125,7 @@ agents/issue-scanner.md の出力形式に従ってレポートを生成。
 
 | エージェント | ファイル | 用途 |
 |-------------|---------|------|
-| issue-scanner | `agents/issue-scanner.md` | 状態分析と分類 |
+| issue-scanner | `.claude/agents/issue-scanner.md` | 状態分析と分類 |
 
 ## Related Skills
 

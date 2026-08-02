@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Research Project Template Setup Script
 # Usage: ./setup.sh "Project Name" "Project Description" "Researcher Name"
 

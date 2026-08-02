@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # QA Bot 起動スクリプト
 # .env が設定されていれば バックグラウンドで起動
 

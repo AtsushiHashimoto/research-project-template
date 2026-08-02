@@ -1,5 +1,20 @@
 <!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
 
+## ★ 既定ブランチは `main` 固定
+
+**本テンプレートは既定ブランチが `main` であることを前提にします。** `master` 等は想定しません。
+
+worktree 運用・PR マージ後のブランチ削除・`/commit-merge` の後処理はいずれも `main` を前提に
+書かれており、検出（`git symbolic-ref refs/remotes/origin/HEAD`）は `origin/HEAD` 未設定の
+リポジトリやローカル専用リポジトリで失敗して**新たな分岐と失敗モードを増やす**ためです。
+
+- `main` に切り替えられなかった場合、スクリプトは**握り潰さずに停止**します（#122 D4）。
+  以前は `git checkout main 2>/dev/null || true` としていたため、
+  **feature ブランチに居たまま pull と後続処理が走る**という壊れ方をしていました
+- `master` 運用のリポジトリで使う場合は、ブランチを `main` に改名してください
+
+---
+
 ## コミットのルール
 
 - コミットメッセージには必ず Issue を参照: `Fixes #ISSUE_ID` または `Refs #ISSUE_ID`

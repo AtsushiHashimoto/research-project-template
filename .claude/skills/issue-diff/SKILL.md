@@ -70,7 +70,7 @@ argument-hint: <issue_id>
 
 ```
 Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh verification)", prompt="
-agents/issue-diff-analyzer.md の定義に従って、Issue #${ISSUE_ID} の乖離分析を行ってください。
+.claude/agents/issue-diff-analyzer.md の定義に従って、Issue #${ISSUE_ID} の乖離分析を行ってください。
 
 ## Issue情報
 ${ISSUE_DATA}
@@ -91,7 +91,7 @@ ${COMMIT_LOG}
 4. Verdict を判定
 5. 推奨アクションを提示
 
-出力は agents/issue-diff-analyzer.md の出力形式に従ってください。
+出力は .claude/agents/issue-diff-analyzer.md の出力形式に従ってください。
 ")
 ```
 
@@ -123,7 +123,7 @@ ${COMMIT_LOG}
 
 | エージェント | ファイル | 用途 |
 |-------------|---------|------|
-| issue-diff-analyzer | `agents/issue-diff-analyzer.md` | 乖離分析ロジック |
+| issue-diff-analyzer | `.claude/agents/issue-diff-analyzer.md` | 乖離分析ロジック |
 
 ## Related Skills
 

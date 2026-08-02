@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ============================================================
 # Common post-create setup (shared between CPU and GPU)
 # [Template] research-project-template 由来

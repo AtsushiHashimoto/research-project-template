@@ -251,7 +251,9 @@ cmd_release() {
     err "holder 情報を読めません。手動で確認してください: $file"; exit 1
   fi
   if [ "${host:-}" != "$(hostname)" ]; then
-    err "holder は別ホスト/コンテナ（$host, pid=$pid）です。そちらで kill してください:"
+    # ${pid} と括るのは必須。bash 3.2 は `$pid）` の全角括弧の先頭バイトを
+    # 変数名に含めてしまい、set -u 下で unbound variable になる（#122 で実測）
+    err "holder は別ホスト/コンテナ（$host, pid=${pid}）です。そちらで kill してください:"
     err "  kill $pid   # on $host"
     exit 1
   fi

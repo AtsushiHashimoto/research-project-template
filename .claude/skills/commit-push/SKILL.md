@@ -32,8 +32,10 @@ description: Commit and push changes (途中保存)
 コミット前に未確認のQA回答がないか確認：
 
 ```bash
-# docs/qa/answers.jsonl をチェック
-if [ -f "docs/qa/questions.jsonl" ]; then
+# QA ディレクトリの解決は scripts/qa/qa-dir.sh が単一情報源。
+# 旧パス（docs/qa）にデータが残っていれば、ここで移行の案内が出る
+QA_DIR=$(bash scripts/qa/qa-dir.sh)
+if [ -f "$QA_DIR/questions.jsonl" ]; then
   echo "QA回答を確認中..."
 fi
 ```

@@ -23,7 +23,14 @@
 
 ### 1. `--dangerously-skip-permissions` (高リスク)
 
-**何をしているか**: Claude Code の全てのツール実行（ファイル読み書き、コマンド実行、Web アクセス等）をユーザー確認なしで自動実行します。Dockerfile の alias と claude-san スクリプトの両方で適用されます。
+**何をしているか**: Claude Code の全てのツール実行（ファイル読み書き、コマンド実行、Web アクセス等）をユーザー確認なしで自動実行します。
+
+適用箇所は次の2つです（**Dockerfile の alias は 2026-04-01 に廃止済み**）:
+
+| 箇所 | 仕組み |
+|------|--------|
+| `.devcontainer/post-start.sh` | `.bashrc` に `claude()` シェル関数を注入し、`--dangerously-skip-permissions` を常に付与する（`# claude-skip-permissions` マーカー付きブロック） |
+| `claude-san` | 起動コマンドに `--dangerously-skip-permissions` を含める |
 
 **リスク**:
 - Claude Code が生成・実行するコマンドに対する人間のレビューがない
@@ -33,10 +40,10 @@
 **緩和要因**:
 - 実行環境がコンテナ内に限定されている
 - Claude Code 自体にセーフティ機構がある（destructive operation の回避等）
-- `settings.local.json` で一部のコマンドのみ明示的に許可している（ただし alias が全体を上書き）
+- `settings.local.json` で一部のコマンドのみ明示的に許可している（ただし `claude()` ラッパーが全体を上書き）
 
 **対策案（より安全にしたい場合）**:
-- alias を削除し、`settings.local.json` の許可リストのみで運用
+- `claude()` ラッパーの注入をやめ、`settings.local.json` の許可リストのみで運用（手順は下記）
 - `claude-san` から `--dangerously-skip-permissions` を除去
 - 重要な操作は対話モードで確認
 
@@ -73,12 +80,18 @@
 - `gh` の認証トークンは通常、ユーザー自身の権限範囲に限定
 - Git 操作は通常のワークフローで必要
 
+**緩和策（実装済み）**: マウント元の存在は `scripts/ensure-host-mounts.sh` が
+`initializeCommand`（ホスト側・コンテナ作成前）で確認します。
+存在しない場合に Docker が**ディレクトリを自動作成して `~/.gitconfig` を壊す**のを防ぐためで、
+認証情報そのものへのアクセス範囲を狭めるものではありません。
+
 **対策案**:
 - GitHub CLI のトークンスコープを最小限に設定
-- 読み取り専用マウントに変更:
-  ```jsonc
-  "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,readonly"
+- 読み取り専用マウントに変更（`.devcontainer/docker-compose.yml` の `volumes`）:
+  ```yaml
+  - ${HOME}/.config/gh:/home/vscode/.config/gh:ro
   ```
+- そもそもマウントしない（コンテナ内で `gh auth login` を実行する）
 
 ### 4. Named Volume による認証永続化 (低〜中リスク)
 
@@ -140,7 +153,7 @@
 - ファイルシステム操作やネットワークアクセスは含まれていない
 - Issue 駆動ワークフローで必要な最小限の権限
 
-**注意**: `--dangerously-skip-permissions` alias が有効な場合、この設定は実質的に無意味です（全てが許可されるため）。alias を無効化した場合にのみ、この許可リストが効力を持ちます。
+**注意**: `post-start.sh` が注入する `claude()` ラッパーが有効な場合、この設定は実質的に無意味です（全てが許可されるため）。ラッパーを無効化した場合にのみ、この許可リストが効力を持ちます。
 
 ### 7. `sudo NOPASSWD` (低リスク)
 
@@ -168,7 +181,7 @@
 
 | 対策 | 重要度 |
 |------|--------|
-| `--dangerously-skip-permissions` alias の削除 | **必須** |
+| `--dangerously-skip-permissions` の自動付与（`post-start.sh` の `claude()` ラッパー）の削除 | **必須** |
 | Docker-outside-of-Docker の無効化 | **推奨** |
 | GitHub トークンの最小スコープ化 | **推奨** |
 | 使用後の Volume 削除の運用ルール化 | 任意 |
@@ -180,12 +193,17 @@
 
 ## 設定変更の手順
 
-### alias を無効化する場合
+### `--dangerously-skip-permissions` の自動付与を無効化する場合
 
-`.devcontainer/Dockerfile` から以下の行を削除:
+`.devcontainer/post-start.sh` の `# claude-skip-permissions` ブロックを書き込む処理
+（`if ! grep -q "$SKIP_MARKER" ...` 以下の `cat >> "$BASHRC"`）を削除します。
 
-```dockerfile
-RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /etc/bash.bashrc
+既に `.bashrc` へ注入済みのコンテナでは、該当ブロックを手で消してから再ログインしてください:
+
+```bash
+# コンテナ内で ~/.bashrc の該当ブロック（# claude-skip-permissions 以下）を削除
+sed -i '/# claude-skip-permissions/,/^unset _claude_orig$/d' ~/.bashrc
+exec bash -l
 ```
 
 `claude-san` からも `--dangerously-skip-permissions` を除去:
@@ -197,7 +215,8 @@ CLAUDE_CMD="claude $CLAUDE_ARGS"
 
 ### Docker-outside-of-Docker を無効化する場合
 
-`.devcontainer/devcontainer.json` の `features` セクションを削除:
+`.devcontainer/cpu/devcontainer.json`（GPU 版は `.devcontainer/gpu/devcontainer.json`）の
+`features` セクションを削除:
 
 ```jsonc
 // 削除またはコメントアウト

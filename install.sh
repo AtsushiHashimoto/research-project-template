@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Research Project Template Installer
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash
@@ -160,6 +160,11 @@ git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TMP_DIR/templ
     error "$(msg download_failed)"
 
 # Files to install
+#
+# ★ ITEMS と /template-sync の SYNC_TARGETS は**意図的に非対称**である。
+#   `.dev` は install の配布対象（雛形を置く）だが、sync の差分対象には入れない。
+#   backlog.md はユーザーデータであり、sync に載せると毎回「変更あり」の偽差分と
+#   雛形での上書き提案を恒久生成してしまうため（#122 D9）。
 ITEMS=(
     ".claude/skills"
     ".claude/agents"
@@ -169,19 +174,44 @@ ITEMS=(
     ".devcontainer"
     "scripts"
     ".spec"
+    ".dev"
 )
 
 cd "$PROJECT_ROOT"
 
-# 既存設定の有無と初回作成時刻を配置前に記録する。
-# --force ではテンプレート（固定タイムスタンプ入り）で上書きされるため、
-# あとで created_at を復元できるようにここで控えておく
+# 既存設定の有無とユーザーデータを配置前に記録する。
+# --force ではテンプレート（固定値入り）で上書きされるため、
+# あとで復元できるようにここで控えておく。
+#
+# 復元対象（テンプレートの値で潰してはいけないもの）:
+#   created_at        初回作成時刻
+#   shared_data_path  共有データの保存先（silent reset するとデータを見失う。INV-D03）
+#   path_type         上記が relative か absolute か
+#   storage_type      local / external 等の保存形態
 WORKTREE_CONFIG_EXISTED=false
 PREV_CREATED_AT=""
+PREV_SHARED_DATA_PATH=""
+PREV_PATH_TYPE=""
+PREV_STORAGE_TYPE=""
+json_field() {
+    # json_field <file> <key>
+    sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" | head -1
+}
 if [[ -e ".claude/worktree-config.json" ]]; then
     WORKTREE_CONFIG_EXISTED=true
-    PREV_CREATED_AT=$(sed -n 's/.*"created_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-        ".claude/worktree-config.json" | head -1)
+    PREV_CREATED_AT=$(json_field ".claude/worktree-config.json" created_at)
+    PREV_SHARED_DATA_PATH=$(json_field ".claude/worktree-config.json" shared_data_path)
+    PREV_PATH_TYPE=$(json_field ".claude/worktree-config.json" path_type)
+    PREV_STORAGE_TYPE=$(json_field ".claude/worktree-config.json" storage_type)
+fi
+
+# `.dev/backlog.md` はユーザーデータ（バックログ本体）。
+# --force のマージコピーでテンプレートの雛形に潰されないよう、配置前に退避しておく。
+# 「存在しない場合のみ雛形を作る」を、ITEMS に含めたまま実現する（#122 D1）
+DEV_BACKLOG_PRESERVED=""
+if [[ -f ".dev/backlog.md" ]]; then
+    DEV_BACKLOG_PRESERVED="$TMP_DIR/backlog.md.preserved"
+    cp ".dev/backlog.md" "$DEV_BACKLOG_PRESERVED"
 fi
 
 # Create directories
@@ -214,6 +244,12 @@ for item in "${ITEMS[@]}"; do
         success "$(msg installed): $item"
     fi
 done
+
+# 退避しておいたバックログ（ユーザーデータ）を戻す
+if [[ -n "$DEV_BACKLOG_PRESERVED" ]] && [[ -f "$DEV_BACKLOG_PRESERVED" ]]; then
+    cp "$DEV_BACKLOG_PRESERVED" ".dev/backlog.md"
+    info ".dev/backlog.md は既存の内容を保持しました（ユーザーデータのため上書きしません）"
+fi
 
 # sed -i は GNU と BSD(macOS) で引数解釈が異なる。`-i.bak` + rm が両者で動く唯一の形
 sed_inplace() {
@@ -290,49 +326,73 @@ else
     info "Skipped .claude/template-substitutions.json (プロジェクト情報が未入力)"
 fi
 
-# worktree-config.json のタイムスタンプを実行時刻にする
-# （テンプレートには固定値が入っているため、放置すると全プロジェクトが同じ日時を持つ）
+# worktree-config.json をプロジェクトの実態に合わせる
+# （テンプレートには固定値が入っているため、放置すると全プロジェクトが同じ値を持つ）
 #
 #   新規          : created_at / updated_at とも現在時刻
-#   --force で上書 : created_at は上書き前の値を復元し、updated_at のみ現在時刻
+#   --force で上書 : ユーザーデータのフィールドを復元し、updated_at のみ現在時刻
 #   保持（非force）: 触らない
+#
+# ★ --force はテンプレートで丸ごと上書きするので、**復元しないとデータ保存先が
+#   silent reset される**（設定した外部ディスクのパスが data/shared に戻る）。
+#   スキーマの更新（新フィールドの追加）はテンプレート側から届けたいので、
+#   「上書きしない」ではなく「上書き後にユーザーデータだけ戻す」方式を採る（#122 D8）。
 if [[ -f ".claude/worktree-config.json" ]]; then
     NOW_UTC="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+    # restore_field <key> <前回値>
+    # 値はパス文字列でありうる（`&` `|` `\` を含む）ため、必ず sanitize_sed を通す。
+    # 前回値が空（旧スキーマでフィールドが無い）ならテンプレートの既定値のままにする
+    restore_field() {
+        local key="$1" prev="$2"
+        [[ -n "$prev" ]] || return 0
+        sed_inplace "s|\"$key\": \"[^\"]*\"|\"$key\": \"$(sanitize_sed "$prev")\"|" \
+            ".claude/worktree-config.json"
+    }
+
     if [[ "$WORKTREE_CONFIG_EXISTED" != true ]]; then
         sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
         sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
     elif [[ "$FORCE" == true ]]; then
-        # 復元値は既存ファイル由来＝任意の文字列になりうるため、必ずエスケープする
-        sed_inplace "s|\"created_at\": \"[^\"]*\"|\"created_at\": \"$(sanitize_sed "${PREV_CREATED_AT:-$NOW_UTC}")\"|" ".claude/worktree-config.json"
+        restore_field created_at "${PREV_CREATED_AT:-$NOW_UTC}"
+        restore_field shared_data_path "$PREV_SHARED_DATA_PATH"
+        restore_field path_type "$PREV_PATH_TYPE"
+        restore_field storage_type "$PREV_STORAGE_TYPE"
         sed_inplace "s|\"updated_at\": \"[^\"]*\"|\"updated_at\": \"$NOW_UTC\"|" ".claude/worktree-config.json"
+        info "worktree-config.json: 既存の shared_data_path / path_type / storage_type を保持しました"
     fi
 fi
 
+# テンプレートの所在を記録する（読み取りは scripts/template-source.sh が単一情報源）。
+# fork 運用ではこのファイルだけを書き換えれば sync / contribute の向き先が変わる（#122 D3）
+# ★ --force でも上書きしない。fork 運用ではここが「テンプレートの所在」の正であり、
+#   上書きすると fork 先 URL が黙って本家に戻る（worktree-config.json の
+#   shared_data_path と同じクラスの silent reset）。
+#   template-sync が同ファイルを同期対象から外しているのと同じ理由。
+if [[ ! -f ".claude/template-source.json" ]]; then
+    cat > ".claude/template-source.json" <<SRC_EOF
+{
+  "repo": "$(json_escape "$TEMPLATE_REPO")",
+  "branch": "$(json_escape "$TEMPLATE_BRANCH")",
+  "_comment": "テンプレートの所在の単一情報源。install.sh が書き出す。fork して運用する場合はここだけ書き換える（読み取りは scripts/template-source.sh 経由）"
+}
+SRC_EOF
+    success "$(msg installed): .claude/template-source.json"
+else
+    info ".claude/template-source.json は既存の内容を保持しました（fork 先の設定を守るため）"
+fi
+
 # Handle .gitignore
+# 必須エントリの一覧は scripts/ensure-gitignore.sh が単一情報源（install / sync の両方から呼ぶ）。
+# ここで一覧を持つと sync 側に届かない（#122 O）ので、絶対に書き戻さないこと。
+# ダウンロードしたテンプレート側のスクリプトを使う（--force 無しだと scripts/ の配置がスキップされ、
+# インストール先に最新版が無いことがあるため）
 if [[ -f ".gitignore" ]]; then
-    # worktrees/ はドット無し（テンプレート .gitignore と
-    # .claude/rules/template/issue-hierarchy.md の規約に一致させること）
-    GITIGNORE_ENTRIES=(
-        "worktrees/"
-        "data/shared/**"
-        "!data/shared/.gitkeep"
-        "data/local/"
-        ".claude/rules/template.bak-*/"
-        ".claude/model-policy.local.json"
-    )
-
-    ADDED=false
-    for entry in "${GITIGNORE_ENTRIES[@]}"; do
-        if ! grep -qxF "$entry" .gitignore 2>/dev/null; then
-            echo "$entry" >> .gitignore
-            ADDED=true
-        fi
-    done
-
-    if [[ "$ADDED" == true ]]; then
-        success "$(msg updated_gitignore)"
+    ENSURE_GITIGNORE="$TMP_DIR/template/scripts/ensure-gitignore.sh"
+    if [[ -f "$ENSURE_GITIGNORE" ]]; then
+        bash "$ENSURE_GITIGNORE" --root "$PROJECT_ROOT" && success "$(msg updated_gitignore)"
     else
-        success "$(msg gitignore_ok)"
+        warn "scripts/ensure-gitignore.sh が見つかりません（.gitignore の確認をスキップ）"
     fi
 else
     cp "$TMP_DIR/template/.gitignore" ".gitignore"

@@ -1,5 +1,7 @@
 {
-  "name": "Research-Project-Dev-Env (CPU)",
+  // ${localWorkspaceFolderBasename} でワークスペース名が入る（devcontainer.json 専用の変数）。
+  // 固定名だと複数プロジェクトを開いたときにウィンドウを区別できない（#122 H）
+  "name": "${localWorkspaceFolderBasename} (CPU)",
   "shutdownAction": "none",
 
   // --- [Template] docker-compose で共通設定 + CPU override ---
@@ -24,6 +26,9 @@
       "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
     }
   },
+  // bind mount 元（~/.gitconfig, ~/.config/gh）をホスト側で先に用意する。
+  // 無いまま起動すると Docker がディレクトリを自動作成してホストの git を壊す（#122 M）
+  "initializeCommand": "bash scripts/ensure-host-mounts.sh || true",
   "postCreateCommand": "bash .devcontainer/post-create.sh ${localWorkspaceFolderBasename}",
   "postStartCommand": "bash .devcontainer/post-start.sh"
 }

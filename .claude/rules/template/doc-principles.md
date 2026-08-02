@@ -22,10 +22,12 @@
 |---|---|
 | `docs/` | 公開ドキュメント（README から参照するもの、API reference、usage guide） |
 | `docs/surveys/` | survey の成果物（`deliverables.md` 参照。研究成果物なので公開側） |
-| `.dev/` | 内部開発メモ: ADR（`decisions.md`）、バックログ（`backlog.md`）、設計ノート（`design/`） |
+| `.dev/` | 内部開発メモ: ADR（`decisions.md`）、バックログ（`backlog.md`）、設計ノート（`design/`）、QA ログ（`qa/`） |
 
 - `.dev/` は **git 管理する**（ADR・バックログは履歴そのものに価値がある）
-- `/issue-backlog` `/issue-unblock` は `.dev/backlog.md` を参照する
+- `/issue-backlog` `/issue-unblock` は `.dev/backlog.md` を参照する（雛形はテンプレート同梱。
+  **ユーザーデータなので `install.sh --force` でも上書きされない**）
+- `/qa-ask` `/qa-check` の質問・回答ログは `.dev/qa/`（既定値の実体は `scripts/qa/config.py`）
 - 成果物リリース時には `.dev/` を含めない（開発ハーネスの除外対象）
 
 ### ★ アカウント層（`~/.claude/`）に何を置くか

@@ -19,7 +19,7 @@ class QAWatcher:
     Falls back to polling if inotify is not available.
 
     Example:
-        watcher = QAWatcher(Path("docs/qa"))
+        watcher = QAWatcher(Path(".dev/qa"))
         await watcher.start(on_new_question)
     """
 

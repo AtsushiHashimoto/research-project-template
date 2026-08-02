@@ -1,6 +1,11 @@
+---
+description: QA データディレクトリの answers.jsonl から未処理の回答を確認し、スレッドに返信する
+---
+
 # QA Check
 
-`docs/qa/answers.jsonl` から未処理の回答を確認するスキル。
+`<QA_DIR>/answers.jsonl` から未処理の回答を確認するスキル。
+`<QA_DIR>` の既定は `.dev/qa`（`scripts/qa/config.py` の `DEFAULT_QA_DIR` が単一情報源）。
 
 ## Usage
 
@@ -28,16 +33,20 @@ from pathlib import Path
 # Add scripts/ to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "scripts"))
 
+from qa.config import QAConfig
 from qa.models import Answer, Question
 from qa.store import QAStore
+
+# 旧パス（docs/qa）にデータが残っている場合はここで警告が出る（黙って無視しない）
+qa_dir = QAConfig.load().get_qa_dir()
 ```
 
 ## Workflow
 
 ### 回答確認モード（デフォルト）
 
-1. `docs/qa/questions.jsonl` から質問を読み込み
-2. `docs/qa/answers.jsonl` から回答を読み込み
+1. `qa_dir / "questions.jsonl"` から質問を読み込み
+2. `qa_dir / "answers.jsonl"` から回答を読み込み
 3. 未処理の回答（まだ作業に反映していない）を表示
 4. 必要に応じて作業に反映
 
@@ -57,7 +66,7 @@ load_dotenv()
 client = WebClient(token=os.environ['SLACK_BOT_TOKEN'])
 
 # 質問の message_id を取得
-store = QAStore(Path("docs/qa"))
+store = QAStore(QAConfig.load().get_qa_dir())
 question = store.get_question_by_id("Q001")
 
 if question and question.message_id:

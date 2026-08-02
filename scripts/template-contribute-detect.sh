@@ -66,7 +66,8 @@ Exit codes:
 
 Example:
   TMP_DIR=$(mktemp -d)
-  git clone --depth 1 "$TEMPLATE_REPO" "$TMP_DIR/template" || exit 1
+  # テンプレートの URL は scripts/template-source.sh が単一情報源（ハードコードしない）
+  git clone --depth 1 "$(bash scripts/template-source.sh)" "$TMP_DIR/template" || exit 1
   bash scripts/template-contribute-detect.sh --source "$TMP_DIR/template"
   bash scripts/template-contribute-detect.sh --source "$TMP_DIR/template" \
       --diff .claude/rules/template/labels.md
@@ -198,7 +199,10 @@ scan_dir() {
 }
 
 # --- テンプレート由来ディレクトリ ---
-# install.sh の ITEMS / template-sync の SYNC_TARGETS と対称に保つこと
+# install.sh の ITEMS / template-sync の SYNC_TARGETS と対称に保つこと。
+# ★ 例外（意図的な非対称。対称にしないこと）:
+#   .dev/                      … backlog.md 等はユーザーデータ。還流も同期もしない
+#   .claude/template-source.json … fork 先の URL。上書き・還流の対象にしない
 # MANIFEST.sha256 は generate-rules-manifest.sh の生成物であり、還流の対象にしない
 scan_dir ".claude/rules/template" "$RULES_MANIFEST_NAME"
 scan_dir ".claude/skills"

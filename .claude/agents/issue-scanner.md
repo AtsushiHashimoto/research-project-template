@@ -66,8 +66,10 @@ gh issue list --state closed --json number,title,body,labels,closedAt --limit 50
 
 ```bash
 # 各Issueに対応するブランチを確認
-git branch -a | grep "feature/${ISSUE_ID}"
-git branch -a | grep "fix/${ISSUE_ID}"
+# 接頭辞は feature/ だけではない（survey/ spec/ experiment/ fix/ docs/ ...）。
+# 命名規則は <prefix>/<ISSUE_ID>-<description>（dev-guidelines.md）なので、
+# 「/<番号>-」で引く。末尾の `-` により #5 が #55 に誤マッチするのも防げる
+git branch -a | grep -E "/${ISSUE_ID}-"
 
 # PR状態を確認
 gh pr list --state all --json number,headRefName,state

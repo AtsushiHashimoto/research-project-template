@@ -25,7 +25,7 @@ class QABot:
         from qa.notifiers.slack import SlackNotifier
 
         bot = QABot(
-            qa_dir=Path("docs/qa"),
+            qa_dir=Path(".dev/qa"),
             notifier=SlackNotifier(),
         )
         await bot.run()

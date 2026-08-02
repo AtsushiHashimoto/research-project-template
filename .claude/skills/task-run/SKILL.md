@@ -45,7 +45,8 @@ argument-hint: <task番号>
 #### Step 0-1: QA 回答の確認
 
 ```bash
-[ -f docs/qa/questions.jsonl ] && echo "QA回答を確認中..."
+QA_DIR=$(bash scripts/qa/qa-dir.sh)   # 旧 docs/qa にデータがあれば移行案内が出る
+[ -f "$QA_DIR/questions.jsonl" ] && echo "QA回答を確認中..."
 ```
 
 #### Step 0-2: task の妥当性確認

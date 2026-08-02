@@ -73,8 +73,27 @@ fi
 log_info "PRのマージが完了しました"
 
 # mainブランチを更新
+#
+# ★ 失敗を握り潰さない（#122 D4）。
+#   以前は `git checkout main 2>/dev/null || true` だったため、checkout が失敗しても
+#   **feature ブランチに居たまま `git pull` と後続のブランチ削除が走っていた**。
+#   本テンプレートは既定ブランチ main 固定（.claude/rules/template/git-workflow.md）。
 log_info "mainブランチを更新中..."
-git checkout main 2>/dev/null || true
+if ! git checkout main; then
+    log_error "main ブランチへの切り替えに失敗しました"
+    log_error ""
+    log_error "  よくある原因:"
+    log_error "    ・main が別の worktree でチェックアウト済み（git worktree list で確認）"
+    log_error "    ・作業ツリーに未コミットの変更がある（git status で確認）"
+    log_error "    ・既定ブランチが main でない（本テンプレートは main 固定。"
+    log_error "      .claude/rules/template/git-workflow.md「既定ブランチ」を参照）"
+    log_error ""
+    log_error "  ★ PR #${PR_NUMBER} のマージは完了しています。後処理だけが未実行です:"
+    log_error "    git worktree remove ${WORKTREE_PATH:-<worktree>}"
+    log_error "    git branch -D ${BRANCH_TO_DELETE:-<branch>}"
+    log_error "    git push origin --delete ${BRANCH_TO_DELETE:-<branch>}"
+    exit 1
+fi
 git pull
 
 # worktreeの削除（パスが指定された場合）

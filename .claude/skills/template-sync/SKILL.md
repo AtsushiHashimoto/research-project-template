@@ -26,7 +26,11 @@ description: Sync updates from research-project-template (テンプレート更�
 | `.devcontainer/` | 差分表示→選択適用 |
 | `scripts/` | 差分表示→選択適用 |
 | `.spec/*.md` の**既定節** | **マーカー間を自動差し替え**（`scripts/sync-spec-defaults.sh`。**プロジェクト固有節は触らない**） |
+| `.spec/decisions/` `.spec/subsystems/` | **ディレクトリの存在だけ**を揃える（中身はプロジェクト固有なので比較しない） |
+| `.gitignore` | **必須エントリの追記のみ**（`scripts/ensure-gitignore.sh`。既存行は消さない） |
 | `.claude/CLAUDE.md` | **差分表示のみ**（自動上書きしない） |
+| `.dev/` | **同期しない**（`backlog.md` はユーザーデータ。理由は Step 5 参照） |
+| `.claude/template-source.json` | **同期しない**（fork 先の URL を保持するため。install.sh が書き出す） |
 
 ### ★ `.claude/rules/template/` だけを置き換える
 
@@ -73,10 +77,15 @@ description: Sync updates from research-project-template (テンプレート更�
 
 **取得に失敗したら、そこで中止する。** 部分適用も無言終了もしない。
 
+**URL をここに書かないこと。** テンプレートの所在は `.claude/template-source.json` が正で、
+読み取りは `scripts/template-source.sh` が単一情報源（fork 時に書き換える場所を1つにするため。#122 D3）。
+同ファイルが無い既存プロジェクトではハードコードの既定値に落ちるが、**その旨が stderr に表示される**。
+
 ```bash
-TEMPLATE_REPO="https://github.com/AtsushiHashimoto/research-project-template"
+TEMPLATE_REPO=$(bash scripts/template-source.sh)          # 既定値に落ちた場合は警告が出る
+TEMPLATE_BRANCH=$(bash scripts/template-source.sh --branch)
 TMP_DIR=$(mktemp -d)
-if ! git clone --depth 1 "$TEMPLATE_REPO" "$TMP_DIR/template"; then
+if ! git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TMP_DIR/template"; then
     echo "ERROR: テンプレートの取得に失敗しました（ネットワーク / URL を確認）。何も変更していません。" >&2
     rm -rf "$TMP_DIR"
     exit 1
@@ -197,7 +206,14 @@ Issue 番号を完了報告に記録し、sync の残りの Step は通常どお
 `.claude/rules/` は Step 2、`.spec/*.md` は Step 3 で処理済みなので**含めない**。
 
 ```bash
-# 対象（rules と .spec は処理済み）。install.sh の ITEMS / contribute-detect と対称に保つ
+# 対象（rules と .spec は処理済み）。install.sh の ITEMS / contribute-detect と対称に保つ。
+#
+# ★ ただし `.dev` は**意図的に入れない**（#122 D9）。
+#   install.sh の ITEMS には `.dev` があるが（雛形の配布のため）、
+#   `.dev/backlog.md` はユーザーデータなので sync に載せると
+#   毎回「変更あり」の偽差分と、雛形での上書き提案を恒久的に生成してしまう。
+#   この非対称は意図的であり、対称にしないこと。
+# ★ `.claude/template-source.json` も入れない（fork 先の URL を上書きしてしまうため）。
 SYNC_TARGETS=(
     ".claude/agents"
     ".claude/skills"
@@ -207,9 +223,62 @@ SYNC_TARGETS=(
     "scripts"
 )
 
-# 各ファイルのdiffを取得
+# 各ファイルの差分を取得する。
+#
+# ★ `diff -rq A B` は B が存在しないとエラーになる。以前は `2>/dev/null` で
+#   そのエラーごと握り潰していたため、**テンプレートで新設されたディレクトリ／ファイルが
+#   永久に「差分なし」と報告されていた**（新機能が下流に届かない）。#122 D9
+#   stderr を全開放するのではなく、**存在チェックで「新規」を明示報告する**。
+NEW_ITEMS=()
+DIFF_LINES=()
 for target in "${SYNC_TARGETS[@]}"; do
-    diff -rq "$TMP_DIR/template/$target" "$target" 2>/dev/null
+    src="$TMP_DIR/template/$target"
+    [ -e "$src" ] || continue          # テンプレート側に無い＝比較対象外
+    if [ ! -e "$target" ]; then
+        NEW_ITEMS+=("$target")         # ローカルに無い → 丸ごと新規
+        continue
+    fi
+    if [ -d "$src" ]; then
+        # ディレクトリ内の「テンプレートにのみ存在するファイル」も新規として拾う
+        while IFS= read -r rel; do
+            rel="${rel#./}"
+            [ -e "$target/$rel" ] || NEW_ITEMS+=("$target/$rel")
+        done < <(cd "$src" && find . -type f | LC_ALL=C sort)
+    fi
+    # 既存ファイル同士の差分（挙動は従来どおり）
+    while IFS= read -r line; do DIFF_LINES+=("$line"); done \
+        < <(diff -rq "$src" "$target" 2>/dev/null)
+done
+
+printf '%s\n' ${NEW_ITEMS[@]+"${NEW_ITEMS[@]}"}   # 新規（テンプレートにのみ存在）
+printf '%s\n' ${DIFF_LINES[@]+"${DIFF_LINES[@]}"} # 変更・ローカルのみ
+```
+
+#### `.gitignore` の必須エントリ
+
+```bash
+# ★ ダウンロードしたテンプレート側のスクリプトを使う。
+#   本項目が対象とする「#122 以前のプロジェクト」にはローカルに当該スクリプトが
+#   存在せず、ローカル版を呼ぶとエントリが1つも追加されない（install.sh と同じ形にする）
+ENSURE="$TMP_DIR/template/scripts/ensure-gitignore.sh"
+if [ -f "$ENSURE" ]; then
+    bash "$ENSURE" --root "$(git rev-parse --show-toplevel)"
+else
+    echo "警告: ensure-gitignore.sh が見つかりません（.gitignore の確認をスキップ）"
+fi
+```
+
+一覧の実体は `scripts/ensure-gitignore.sh`（install.sh と共用の単一情報源）。
+**追記のみ**で、プロジェクトが足したエントリは消さない。
+
+#### `.spec/` のサブディレクトリ
+
+`.spec/decisions/` `.spec/subsystems/` は**構造だけ**がテンプレート由来で、
+中身はプロジェクト固有（還流対象外）。存在しない場合だけ作る。
+
+```bash
+for d in .spec/decisions .spec/subsystems; do
+    [ -d "$d" ] || { mkdir -p "$d" && touch "$d/.gitkeep" && echo "作成: $d"; }
 done
 ```
 
@@ -255,7 +324,8 @@ rm -rf "$TMP_DIR"
 2. `.claude/rules/template/` を `scripts/template-sync-rules.sh` で同期（退避サマリを必ず報告）
 3. `.spec/*.md` の既定節を `scripts/sync-spec-defaults.sh` で同期（スキップ報告を必ず伝える）
 4. 旧構造（`.claude/rules/` 不在）なら CLAUDE.md の移行判定（auto モードでは issue 起票のみ）
-5. その他の同期対象ファイルを再帰的に比較
+5. その他の同期対象ファイルを再帰的に比較（**テンプレートにのみ存在するものは「新規」として報告**）、
+   `.gitignore` の必須エントリと `.spec/` のサブディレクトリを補う
 6. 差分をカテゴリ別にまとめてユーザーに提示
 7. ユーザーの選択に基づいてファイルをコピー
 8. 一時ディレクトリを削除
@@ -266,11 +336,13 @@ rm -rf "$TMP_DIR"
 - `.claude/rules/` 直下（ローカルルール）には触らない（**例外は旧構造からの移行時のみ**。`template/` が既に存在する場合は同名ファイルも意図的なローカル上書きとして保持される）
 - `.spec/` の**プロジェクト固有節**（`# プロジェクト固有` 以降）は**絶対に触らない**
 - 543行世代の CLAUDE.md 移行は**対話モードのみ**。auto モードでは `user-action` issue を起票する
+- **`.dev/` は同期対象に入れない**（`backlog.md` はユーザーデータ。install の ITEMS とは意図的に非対称）
+- `.gitignore` は**追記のみ**。既存行の削除・並べ替えはしない
 - 適用前に必ずユーザーに確認を取る
 - 既存ファイルを上書きする前にバックアップを表示する（diffで確認できる）
 
 ## Note
 
-- テンプレートリポジトリのURLは `install.sh` と同じものを使用
+- テンプレートリポジトリの URL は `scripts/template-source.sh` から取得する（ハードコード禁止）
 - ネットワーク接続が必要
 - 逆方向（ローカル→テンプレート）の同期は `/template-contribute` を使用

@@ -1,6 +1,12 @@
+---
+description: 質問を QA データディレクトリに追記し、Slack/Discord 経由でユーザーに問い合わせる
+---
+
 # QA Ask
 
-質問を `docs/qa/questions.jsonl` に追記するスキル。
+質問を `<QA_DIR>/questions.jsonl` に追記するスキル。
+`<QA_DIR>` の既定は `.dev/qa`（`scripts/qa/config.py` の `DEFAULT_QA_DIR` が単一情報源。
+`.claude/qa-config.yaml` の `qa_dir` で変更可）。
 
 ## Usage
 
@@ -30,8 +36,13 @@ from pathlib import Path
 # Add scripts/ to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "scripts"))
 
+from qa.config import QAConfig
 from qa.models import Question, QuestionType
 from qa.store import QAStore
+
+# QA ディレクトリの解決は QAConfig が単一情報源。
+# 旧パス（docs/qa）にデータが残っている場合はここで警告が出る（黙って無視しない）
+qa_dir = QAConfig.load().get_qa_dir()
 ```
 
 ## Workflow
@@ -39,7 +50,7 @@ from qa.store import QAStore
 1. 現在のIssue番号を取得（ブランチ名から抽出）
 2. 次の質問IDを生成（Q001, Q002, ...）
 3. Question オブジェクトを作成
-4. `docs/qa/questions.jsonl` に追記
+4. `qa_dir / "questions.jsonl"` に追記
 
 ## Example Output
 
@@ -66,7 +77,7 @@ from pathlib import Path
 
 def wait_for_answer(question_id: str, timeout: int = 60, interval: int = 5) -> str | None:
     """回答を待機する。タイムアウトしたらNoneを返す。"""
-    answers_file = Path("docs/qa/answers.jsonl")
+    answers_file = QAConfig.load().get_qa_dir() / "answers.jsonl"
     start = time.time()
 
     while time.time() - start < timeout:
@@ -109,7 +120,7 @@ def notify_decision(question: Question) -> None:
     client = WebClient(token=os.environ['SLACK_BOT_TOKEN'])
 
     # questions.jsonl から message_id を取得
-    store = QAStore(Path("docs/qa"))
+    store = QAStore(QAConfig.load().get_qa_dir())
     q = store.get_question_by_id(question.id)
 
     if q and q.message_id and question.decision:

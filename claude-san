@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Code + autoclaude セットアップスクリプト
 # rate limit 後に自動再開するための環境を起動
 

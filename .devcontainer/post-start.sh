@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ============================================================
 # Post-start setup (runs every container start)
 # [Template] research-project-template 由来

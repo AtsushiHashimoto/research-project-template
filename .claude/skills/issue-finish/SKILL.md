@@ -41,12 +41,30 @@ description: Finish task with quality review by invoking commit-merge workflow (
 
 `/qa-ask` で投稿した質問に未回答がないか確認します。
 
+**QA を導入していないプロジェクトでも動くこと。** ディレクトリの解決は
+`scripts/qa/qa-dir.sh`（依存ゼロの shell）で行う。兄弟スキル
+（`/commit-merge` `/commit-push` `/task-run`）と同じ形にすること。
+`qa.config` を import すると pydantic への依存が生まれ、QA 未導入のプロジェクトで
+`ModuleNotFoundError` になる。
+
+```bash
+# QA ディレクトリの解決は scripts/qa/qa-dir.sh が単一情報源。
+# 旧パス（docs/qa）にデータが残っていれば、ここで移行の案内が出る
+QA_DIR=$(bash scripts/qa/qa-dir.sh)
+if [ ! -f "$QA_DIR/questions.jsonl" ]; then
+  echo "QA の質問はありません（続行）"
+fi
+```
+
+質問がある場合は、未回答のものを洗い出す。
+
 ```python
 from pathlib import Path
 import json
 
-questions_file = Path("docs/qa/questions.jsonl")
-answers_file = Path("docs/qa/answers.jsonl")
+qa_dir = Path("QA_DIR の値")   # 上の qa-dir.sh の出力
+questions_file = qa_dir / "questions.jsonl"
+answers_file = qa_dir / "answers.jsonl"
 
 # 質問がなければスキップ
 if not questions_file.exists():
@@ -81,7 +99,13 @@ else:
 ```python
 def create_qa_followup_issue(question_id: str) -> None:
     """未回答の質問に対するフォローアップIssueを作成"""
-    store = QAStore(Path("docs/qa"))
+    # QAStore は QA 導入済みプロジェクトでのみ使える（pydantic 依存）。
+    # ここに到達するのは questions.jsonl が実在する＝QA 導入済みのときだけ
+    import sys
+    sys.path.insert(0, str(Path.cwd() / "scripts"))
+    from qa.store import QAStore
+
+    store = QAStore(Path("QA_DIR の値"))
     question = store.get_question_by_id(question_id)
 
     if not question:
