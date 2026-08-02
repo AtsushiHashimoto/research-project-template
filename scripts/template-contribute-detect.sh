@@ -66,7 +66,8 @@ Exit codes:
 
 Example:
   TMP_DIR=$(mktemp -d)
-  git clone --depth 1 "$TEMPLATE_REPO" "$TMP_DIR/template" || exit 1
+  # テンプレートの URL は scripts/template-source.sh が単一情報源（ハードコードしない）
+  git clone --depth 1 "$(bash scripts/template-source.sh)" "$TMP_DIR/template" || exit 1
   bash scripts/template-contribute-detect.sh --source "$TMP_DIR/template"
   bash scripts/template-contribute-detect.sh --source "$TMP_DIR/template" \
       --diff .claude/rules/template/labels.md

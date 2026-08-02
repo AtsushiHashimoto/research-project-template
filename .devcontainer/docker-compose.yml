@@ -2,6 +2,10 @@
 # Base service definition (shared between CPU and GPU)
 # [Template] research-project-template 由来
 # ============================================================
+#
+# ★ このファイルでは `${localWorkspaceFolderBasename}` は使えない。
+#   あれは devcontainer.json 専用の変数で、compose の補間はホストの環境変数
+#   （と .env ファイル）しか見ないため、書いても空文字に展開される（#122 D7）。
 services:
   devcontainer:
     build:
@@ -10,16 +14,36 @@ services:
       args:
         USER_UID: ${UID:-1000}
         USER_GID: ${GID:-1000}
-    hostname: devcontainer
+    # hostname は**指定しない**。固定値（旧: devcontainer）だと複数プロジェクトの
+    # コンテナが同じホスト名になり、シェルのプロンプトやログで区別できなかった。
+    # 未指定なら Docker がコンテナ名（= compose プロジェクト名にワークスペース名が入る）
+    # を hostname に使うため、プロジェクトごとに自然に変わる。
+    # 固定したい場合はホスト側で DEVCONTAINER_HOSTNAME を定義して次を有効にする:
+    #   hostname: ${DEVCONTAINER_HOSTNAME:-}
+
+    # shm_size: PyTorch DataLoader の worker はプロセス間のテンソル受け渡しに
+    # /dev/shm を使う。Docker 既定の 64MB では num_workers>0 で
+    # "Bus error / DataLoader worker killed" が出る。
+    # 8gb は「CPU 環境で num_workers=8・バッチ数百MB」を想定した実務上の下限。
+    # GPU 版は docker-compose.override.yml で 64gb に引き上げる。
+    # 目安: (1 バッチのバイト数) × num_workers × prefetch_factor に余裕を持たせる
     shm_size: "8gb"
     ulimits:
+      # memlock -1（無制限）: NCCL / GPU Direct や pinned memory が
+      # ページロックメモリを確保する。既定の 64KB では固定メモリの確保に失敗する
       memlock: -1
+      # stack 67108864 = 64MiB。NVIDIA の PyTorch イメージ推奨値。
+      # 深い再帰や大きなスタック変数を使う CUDA ライブラリ向け
       stack: 67108864
     # Note: NVIDIA entrypoint sets CMD=null, so keep-alive is required.
     # See: https://github.com/devcontainers/features/issues/954
     command: ["sleep", "infinity"]
     volumes:
       - ..:/workspace:cached
+      # ホスト側の存在は scripts/ensure-host-mounts.sh が initializeCommand で保証する。
+      # 存在しないパスを bind mount すると Docker が**ディレクトリとして自動作成**し、
+      # ホストの ~/.gitconfig がディレクトリ化して git が壊れる（#122 M）。
+      # 認証情報を渡したくない場合は下2行を削除し、コンテナ内で gh auth login すること
       - ${HOME}/.gitconfig:/home/vscode/.gitconfig:cached
       - ${HOME}/.config/gh:/home/vscode/.config/gh:cached
       - /etc/localtime:/etc/localtime:ro

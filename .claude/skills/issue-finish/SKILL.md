@@ -45,8 +45,13 @@ description: Finish task with quality review by invoking commit-merge workflow (
 from pathlib import Path
 import json
 
-questions_file = Path("docs/qa/questions.jsonl")
-answers_file = Path("docs/qa/answers.jsonl")
+from qa.config import QAConfig
+
+# QA ディレクトリの解決は QAConfig が単一情報源。
+# 旧パス（docs/qa）にデータが残っていれば警告が出る（黙って無視しない）
+qa_dir = QAConfig.load().get_qa_dir()
+questions_file = qa_dir / "questions.jsonl"
+answers_file = qa_dir / "answers.jsonl"
 
 # 質問がなければスキップ
 if not questions_file.exists():
@@ -81,7 +86,7 @@ else:
 ```python
 def create_qa_followup_issue(question_id: str) -> None:
     """未回答の質問に対するフォローアップIssueを作成"""
-    store = QAStore(Path("docs/qa"))
+    store = QAStore(QAConfig.load().get_qa_dir())
     question = store.get_question_by_id(question_id)
 
     if not question:

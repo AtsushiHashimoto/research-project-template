@@ -9,6 +9,11 @@ services:
       args:
         BASE_IMAGE: "nvcr.io/nvidia/pytorch:24.12-py3"
         INSTALL_TORCH_CPU: "false"
+    # 共通設定の 8gb を GPU 学習向けに引き上げる。
+    # 多 GPU / num_workers を増やすほど /dev/shm を使うため、
+    # 不足すると DataLoader worker が Bus error で落ちる（原因が分かりにくい）。
+    # 64gb は「ホストの RAM に対して十分大きく、実質上限を気にしなくてよい」値。
+    # ホストの物理メモリがこれより小さい環境では、その範囲に下げること
     shm_size: "64gb"
     deploy:
       resources:

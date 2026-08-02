@@ -73,8 +73,20 @@ fi
 log_info "PRのマージが完了しました"
 
 # mainブランチを更新
+#
+# ★ 失敗を握り潰さない（#122 D4）。
+#   以前は `git checkout main 2>/dev/null || true` だったため、checkout が失敗しても
+#   **feature ブランチに居たまま `git pull` と後続のブランチ削除が走っていた**。
+#   本テンプレートは既定ブランチ main 固定（.claude/rules/template/git-workflow.md）。
 log_info "mainブランチを更新中..."
-git checkout main 2>/dev/null || true
+if ! git checkout main; then
+    log_error "main ブランチへの切り替えに失敗しました"
+    log_error "  本テンプレートは既定ブランチを main に固定しています"
+    log_error "  （.claude/rules/template/git-workflow.md「既定ブランチ」を参照）"
+    log_error "  master 等を使っている場合は、main に切り替えるか手動で後処理してください"
+    log_error "  PR #${PR_NUMBER} のマージは完了しています（worktree / ブランチは未削除）"
+    exit 1
+fi
 git pull
 
 # worktreeの削除（パスが指定された場合）

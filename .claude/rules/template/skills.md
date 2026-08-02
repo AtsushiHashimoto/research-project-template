@@ -59,8 +59,8 @@
 | スキル | 用途 |
 |-------|------|
 | `/qa-setup` | QAシステム（Slack/Discord連携）のセットアップ |
-| `/qa-ask` | 質問を `docs/qa/questions.jsonl` に追記 |
-| `/qa-check` | `docs/qa/answers.jsonl` の未処理回答を確認 |
+| `/qa-ask` | 質問を `.dev/qa/questions.jsonl` に追記 |
+| `/qa-check` | `.dev/qa/answers.jsonl` の未処理回答を確認 |
 
 ### テンプレート管理
 

@@ -1,5 +1,7 @@
 {
-  "name": "Research-Project-Dev-Env (GPU)",
+  // ${localWorkspaceFolderBasename} でワークスペース名が入る（devcontainer.json 専用の変数）。
+  // 固定名だと複数プロジェクトを開いたときにウィンドウを区別できない（#122 H）
+  "name": "${localWorkspaceFolderBasename} (GPU)",
   "shutdownAction": "none",
 
   // --- [Template] docker-compose で共通設定 + GPU override ---
@@ -24,7 +26,9 @@
   },
 
   // --- [Template] GPU 固有のライフサイクル ---
-  "initializeCommand": "bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
+  // bind mount 元の用意（#122 M）→ NVIDIA symlink 確認、の順で実行する。
+  // 前者は失敗しても起動を止めない設計（スクリプト側が常に exit 0）
+  "initializeCommand": "bash scripts/ensure-host-mounts.sh; bash .devcontainer/../scripts/check-nvidia-symlinks.sh 2>/dev/null || true",
   "postStartCommand": "bash .devcontainer/post-start.sh; nvidia-smi > /dev/null 2>&1 && echo '[GPU] Access OK' || echo '[GPU] WARNING: GPU access lost. Container restart required.' >&2",
 
   // --- [Project] プロジェクト固有の追加セットアップをここに追記 ---

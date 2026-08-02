@@ -1,0 +1,5 @@
+{
+  "repo": "https://github.com/AtsushiHashimoto/research-project-template",
+  "branch": "main",
+  "_comment": "テンプレートの所在の単一情報源。install.sh が配布時に書き出す。fork して運用する場合はここだけ書き換える（読み取りは scripts/template-source.sh 経由）"
+}

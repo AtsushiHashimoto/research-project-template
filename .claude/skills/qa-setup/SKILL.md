@@ -1,3 +1,7 @@
+---
+description: QAシステム（Slack/Discord連携）のセットアップを対話的にガイドする
+---
+
 # QA System Setup
 
 QAシステム（Slack/Discord連携）のセットアップを対話的にガイドします。
@@ -17,11 +21,12 @@ QAシステム（Slack/Discord連携）のセットアップを対話的にガ�
 
 ## Documentation
 
-詳細なセットアップ手順とトラブルシューティングは `docs/qa/SETUP.md` を参照。
+**手順とトラブルシューティングはこのファイルに集約されています（単一情報源）。**
+別ファイルの `SETUP.md` は作りません（同じ手順が2箇所に分かれると必ず食い違うため）。
 
-セットアップ中に問題が発生した場合:
-1. `docs/qa/SETUP.md` の「トラブルシューティング」セクションを確認
-2. 特に `missing_scope` エラーの場合、パブリック/プライベートチャンネルで必要なスコープが異なる
+セットアップ中に問題が発生した場合は、下の「Error Handling」節を参照してください。
+特に `missing_scope` エラーの場合、パブリックチャンネル（`channels:history`）と
+プライベートチャンネル（`groups:history`）で必要なスコープが異なります。
 
 ## Workflow
 
@@ -160,44 +165,72 @@ echo "DISCORD_CHANNEL_ID=..." >> .env
 
 `.claude/qa-config.yaml` を作成:
 
+**キー名は `scripts/qa/config.py` の `QAConfig` と一致させること。**
+知らないキーを書いても黙って無視される（設定したつもりが効かない）ので、
+下のキー以外は追加しないでください。
+
 ```yaml
-# QA System Configuration
-platform: slack  # or discord
+# QA System Configuration（キーの定義: scripts/qa/config.py の QAConfig）
+notifier: slack        # slack | discord
 
-# File paths
-questions_file: docs/qa/questions.jsonl
-answers_file: docs/qa/answers.jsonl
+# 質問・回答ファイルの置き場所。
+# 既定は .dev/qa（省略可）。内部開発メモは .dev/ に置く規約に従う
+qa_dir: .dev/qa
 
-# Watcher settings
-watcher:
-  use_inotify: true
-  poll_interval: 5  # seconds (fallback)
+# Issue へのリンクを通知に含めるためのリポジトリ URL（任意）
+github_repo: https://github.com/<owner>/<repo>
 
-# Notification settings
-notification:
-  mention_on_question: true
-  thread_replies: true
+slack:
+  channel: C0123456789   # チャンネル ID
+# discord:
+#   channel_id: 123456789012345678
 ```
 
 ### Step 5: ディレクトリ構造作成
 
 ```bash
-mkdir -p docs/qa
-touch docs/qa/questions.jsonl
-touch docs/qa/answers.jsonl
+# 参照先は scripts/qa/qa-dir.sh が解決する（qa-config.yaml の qa_dir → 既定 .dev/qa）
+QA_DIR=$(bash scripts/qa/qa-dir.sh)
+mkdir -p "$QA_DIR"
+touch "$QA_DIR/questions.jsonl"
+touch "$QA_DIR/answers.jsonl"
+echo "QA データ: $QA_DIR"
+```
+
+**旧バージョンから移行する場合**: QA データは以前 `docs/qa/` に置かれていました。
+`docs/qa/*.jsonl` が残っていると `qa-dir.sh` が移行を案内します（自動では移動しません）。
+
+```bash
+git mv docs/qa/questions.jsonl docs/qa/answers.jsonl "$QA_DIR"/
 ```
 
 ### Step 6: 依存関係インストール
 
+QA モジュールは追加パッケージを必要とします（テンプレート本体は依存を持たないため、
+requirements ファイルは置かず、使うときに入れる方式です）。
+
 ```bash
-pip install -r scripts/qa/requirements.txt
+# 共通
+pip install pydantic pyyaml python-dotenv
+
+# Slack を使う場合
+pip install slack-bolt slack-sdk
+
+# Discord を使う場合
+pip install discord.py
+
+# 任意: ファイル監視を inotify にする（未導入ならポーリングで動作）
+pip install inotify
 ```
+
+`pyproject.toml` を持つプロジェクトでは、上記を依存に追加して `uv sync` でも構いません。
 
 ### Step 7: 接続テスト
 
 ```bash
 # テストメッセージを送信
-python -c "
+# フィールド名は scripts/qa/models.py の Question と一致させること
+PYTHONPATH=scripts python -c "
 import asyncio
 from qa.notifiers.slack import SlackNotifier  # or discord
 from qa.models import Question, QuestionType
@@ -209,11 +242,10 @@ async def test():
         # テスト質問を送信
         q = Question(
             id='test-001',
-            issue_id=0,
-            question_type=QuestionType.PROVISIONAL,
+            issue=0,
+            type=QuestionType.PROVISIONAL,
             question='セットアップテスト - このメッセージが見えれば成功です',
-            context='QA System Setup Test',
-            provisional_answer='テスト完了'
+            decision='テスト完了'
         )
         await notifier.post_question(q)
         print('✅ テストメッセージ送信完了')
@@ -236,15 +268,15 @@ asyncio.run(test())
 │   - .claude/qa-config.yaml (設定)                           │
 │                                                             │
 │ データファイル:                                             │
-│   - docs/qa/questions.jsonl                                 │
-│   - docs/qa/answers.jsonl                                   │
+│   - .dev/qa/questions.jsonl                                 │
+│   - .dev/qa/answers.jsonl                                   │
 │                                                             │
 │ 使い方:                                                     │
 │   /qa-ask "質問内容"  - 質問を投稿                          │
 │   /qa-check           - 回答を確認                          │
 │                                                             │
-│ Bot起動:                                                    │
-│   python scripts/qa_bot.py                                  │
+│ Bot起動（起動経路はこれ1つ）:                               │
+│   bash scripts/qa/start-bot.sh                              │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -285,9 +317,23 @@ asyncio.run(test())
 | ファイル | 用途 |
 |---------|------|
 | `.env` | トークン（gitignore対象） |
-| `.claude/qa-config.yaml` | QA設定 |
-| `docs/qa/questions.jsonl` | 質問データ |
-| `docs/qa/answers.jsonl` | 回答データ |
+| `.claude/qa-config.yaml` | QA設定（キーの定義は `scripts/qa/config.py`） |
+| `.dev/qa/questions.jsonl` | 質問データ（既定パス。`qa_dir` で変更可） |
+| `.dev/qa/answers.jsonl` | 回答データ（既定パス。`qa_dir` で変更可） |
+
+## Bot の起動
+
+**起動経路は `scripts/qa/start-bot.sh` に一本化されています。**
+`.env` とトークンが揃っていればバックグラウンドで起動し、
+揃っていなければ理由を表示して何もせず終了します。
+
+```bash
+bash scripts/qa/start-bot.sh          # 起動（ログ: data/local/qa-bot.log）
+pgrep -fa "python.*qa"                # 起動確認
+```
+
+直接起動したい場合は `PYTHONPATH=scripts python -m qa` ですが、
+二重起動の検出やログ出力が無いため、通常は上のスクリプトを使ってください。
 
 ## Related Skills
 

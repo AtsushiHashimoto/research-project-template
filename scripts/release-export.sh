@@ -18,6 +18,12 @@
 # ★ 除外・保持は必ず一覧表示する（無言の切り捨て禁止）。
 #   プロジェクト固有のファイルが scripts/ 等にある場合は --keep で保持すること。
 #
+# `docs/surveys/` を除外しない理由（#114 の指摘に対する判断。#122 で記録）:
+#   survey は**研究成果物**であり、doc-principles.md でも `docs/` 側（公開ドキュメント）に
+#   置くと定めている。開発ハーネス（作業の道具）ではないので成果物に含める。
+#   内部開発メモ（ADR・バックログ・設計ノート）は `.dev/` にあり、そちらは除外済み。
+#   公開したくない survey がある場合のみ `--exclude docs/surveys` を明示すること。
+#
 # Usage:
 #   bash scripts/release-export.sh --ref v1.0.0 [options]
 #

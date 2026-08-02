@@ -451,8 +451,8 @@ out-of-date ラベルを手動で外せば再度対象になります。
 
 | エージェント | ファイル | 用途 |
 |-------------|---------|------|
-| issue-scanner | `agents/issue-scanner.md` | Phase 1 スキャン |
-| issue-diff-analyzer | `agents/issue-diff-analyzer.md` | Phase 2 分析 |
+| issue-scanner | `.claude/agents/issue-scanner.md` | Phase 1 スキャン |
+| issue-diff-analyzer | `.claude/agents/issue-diff-analyzer.md` | Phase 2 分析 |
 
 ## Related Skills
 

@@ -106,6 +106,6 @@ fallback は多段です。`fable → opus → sonnet` の順に降り、全て�
 
   ```
   Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh abstract-review)", prompt="
-  agents/auto-reviewer.md の定義に従って ...
+  .claude/agents/auto-reviewer.md の定義に従って ...
   ")
   ```
