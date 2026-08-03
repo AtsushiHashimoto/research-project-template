@@ -41,13 +41,31 @@ DevContainer は以下を自動的にセットアップします：
 ### ベースイメージ
 
 ```dockerfile
-ARG BASE_IMAGE=python:3.11
+ARG BASE_IMAGE      # 既定値なし（#140）
 FROM ${BASE_IMAGE}
 ```
 
-`BASE_IMAGE` は docker-compose の override で切り替えます：
-- **CPU**: `python:3.11`
-- **GPU**: `nvcr.io/nvidia/pytorch:24.12-py3`
+`BASE_IMAGE` は docker-compose の override で切り替えます。
+**版の単一情報源は override 側**で、CPU / GPU で値が異なる以上そちらが正しい所有者です。
+
+| | 固定の方針 | **版が書いてある場所（唯一）** |
+|---|---|---|
+| **CPU** | パッチまで固定（`python:3.11.x`）。digest まではやらない | `cpu/docker-compose.override.yml` の `BASE_IMAGE` |
+| **GPU** | 日付タグ（`YY.MM-py3`）＝実質固定のため現状維持 | `gpu/docker-compose.override.yml` の `BASE_IMAGE` |
+
+**★ このドキュメントに具体的な版を書きません。** 書くと版が2箇所になり、
+上げたときにドキュメントだけ古くなります（実際の値は上の定義場所を見てください）。
+これは「派生プロジェクトが版を変える」ことを前提にした文書なので、
+**値を焼き込むと従った瞬間に嘘になります。**
+
+`ARG BASE_IMAGE` に既定値を置いていないのは、置くと**同じ版が2箇所に出て**、
+版を上げるときに片方だけ直る事故が起きるためです（単一情報源の原則）。
+未指定でビルドすると `FROM ${BASE_IMAGE}` が空になり**即座に落ちます**（fail-fast）。
+compose を経ない直接ビルドでは `--build-arg BASE_IMAGE=...` を必ず渡してください。
+
+digest（sha256）までは固定しません。同じパッチ版に対する Debian 側の
+セキュリティ再ビルドまで止まってしまい、CI の無い研究環境では
+sha256 を手で貼り替える運用コストに見合わないためです。
 
 ### インストールされるツール
 
@@ -88,12 +106,59 @@ RUN curl -LsSf https://astral.sh/uv/install.sh \
 
 ```dockerfile
 ARG INSTALL_TORCH_CPU=false
+ARG TORCH_VERSION=<版は Dockerfile 側で定義。ここには書かない>
 RUN if [ "$INSTALL_TORCH_CPU" = "true" ]; then \
-    pip install torch --index-url https://download.pytorch.org/whl/cpu; \
+    pip install "torch==${TORCH_VERSION}" --index-url https://download.pytorch.org/whl/cpu; \
 fi
 ```
 
+**版が書いてある場所（唯一）**: `.devcontainer/Dockerfile` の `ARG TORCH_VERSION`。
+ベースイメージと所有者が違うのは、**torch は CPU / GPU で値が分岐しない**ためです
+（GPU は同梱版を使うので、そもそもこの行を通りません）。
+
 GPU ベースイメージには PyTorch が含まれていますが、CPU イメージには含まれないため、`INSTALL_TORCH_CPU=true` で CPU 版 PyTorch をインストールします。
+
+**版は `TORCH_VERSION` で固定します（#140）。** torch は版が変わると
+**数値が変わりうる**ため、本テンプレートで唯一「実験の数値再現性のために固定する」対象です。
+既定値はテンプレートの初期値にすぎないので、**プロジェクトごとに版を決めて書き換えてください**。
+
+`+cpu` ローカル版指定子は付けません。`--index-url .../whl/cpu` の下では
+`torch==X.Y.Z` が `X.Y.Z+cpu` に解決されます。`==X.Y.Z+cpu` と書くと
+GPU 用インデックスへ切り替えたときに解決不能になり、
+インデックス URL と版指定の2箇所を同時に直す必要が出ます。
+
+存在しない版を指定した場合、ビルドは**落ちます**（Fallback は置いていません）。
+「取れなければ最新で続行」は固定の目的そのものを無効化するためです。
+
+### 何を固定し、何を固定しないか（#140）
+
+**一律には固定しません。** 固定にはコスト（セキュリティ更新が自動で入らない、
+更新が手作業になる）があり、CI が無いため自動更新の仕組みも作れないためです。
+判別基準は「**実験の数値再現性に効くか**」と「**既に実質固定されているか**」です。
+
+### 版を変えたいとき、どこを編集するか
+
+**所有者が2種類あります。** 基準は「**CPU / GPU で値が分岐するか**」です。
+
+| 変えたいもの | 編集する場所 |
+|---|---|
+| ベースイメージ（CPU / GPU で**値が違う**） | `*/docker-compose.override.yml` の `BASE_IMAGE`。Dockerfile には既定値を置かない |
+| `torch`（CPU のみ。GPU は同梱版） | `.devcontainer/Dockerfile` の `ARG TORCH_VERSION` |
+
+### 一覧
+
+| 対象 | 扱い | 理由 |
+|---|---|---|
+| `torch` | **固定**（`ARG TORCH_VERSION`） | 版で数値が変わる。再現性に直結 |
+| ベースイメージ（CPU） | **固定**（パッチまで） | rebuild で upstream の破壊的変更を踏まないため |
+| ベースイメージ（GPU） | 現状維持 | NGC の `YY.MM-py3` は日付タグで実質固定済み |
+| `@anthropic-ai/claude-code` | **固定しない** | 更新が頻繁で、固定すると実運用に直結する更新を逃す。数値再現性に無関係 |
+| Node.js | 現状維持（`setup_20.x`） | 既にメジャー固定。claude-code の実行環境で数値再現性に無関係 |
+| `uv` | **固定しない** | 開発ツール。数値再現性に無関係 |
+| devcontainer feature | **固定しない**（`devcontainer-lock.json` は gitignore） | 開発ハーネス。CPU/GPU で非対称になり、自動再生成で `git status` が汚れる |
+| `apt-get` のパッケージ | 固定しない | ベースイメージのパッチ固定で足りる |
+
+判断根拠は Dockerfile / override / `.gitignore` の各コメントにも残しています。
 
 ### 非 root ユーザー（Dockerfile 末尾の `USER`）
 
@@ -147,7 +212,7 @@ services:
   devcontainer:
     build:
       args:
-        BASE_IMAGE: "nvcr.io/nvidia/pytorch:24.12-py3"
+        BASE_IMAGE: "nvcr.io/nvidia/pytorch:<YY.MM>-py3"   # 実際の版はファイルを参照
         INSTALL_TORCH_CPU: "false"
     shm_size: "64gb"
     deploy:

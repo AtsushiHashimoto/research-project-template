@@ -2,7 +2,15 @@
 # [Template] research-project-template 共通 Dockerfile
 # CPU/GPU 両対応: BASE_IMAGE で切り替え
 # ============================================================
-ARG BASE_IMAGE=python:3.11
+# ★ BASE_IMAGE に既定値を置かない（#140 D2a）。
+#   版は CPU / GPU で異なるため、正しい所有者は各 `*/docker-compose.override.yml` 側であり、
+#   ここに既定値を書くと**同じ版が2箇所に出て**、上げるときに片方だけ直る事故が起きる
+#   （単一情報源の原則）。
+#   未指定でビルドすると `FROM ${BASE_IMAGE}` が空になり **即座に落ちる**（fail-fast）。
+#   #141 の空 ARG 問題（`getent` を素通りして壊れたイメージが完成してしまう）とは異なり、
+#   ここは黙って壊れないため既定値なしで安全。
+#   compose を経ない直接ビルドでは `--build-arg BASE_IMAGE=...` を必ず渡すこと。
+ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
 # 開発に必要なツールをインストール
@@ -61,10 +69,18 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
 #   uv 更新時に片方だけ変わりうるため採らない（単一情報源の原則）
 # INSTALLER_NO_MODIFY_PATH=1: システムパスに入れる以上インストーラによる ~/.bashrc への
 #   PATH 追記は不要。root のホームに副作用を残さない
+#
+# ★ 版は固定しない（#140「変更しないもの（スコープ外）」表）。
+#   uv は**開発ツールであり実験の数値に影響しない**。
+#   固定すると全派生プロジェクトが同時に古くなり、CI が無いため自動更新の仕組みも作れない。
+#   固定するのは数値再現性に効くもの（torch）とビルドの土台（ベースイメージ）だけに絞る。
 RUN curl -LsSf https://astral.sh/uv/install.sh \
     | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh
 
 # Node.js 20をインストール（Claude Code用）
+# ★ マイナー/パッチは固定しない（#140 D4）。`setup_20.x` は**メジャー固定**であり
+#   「無指定」ではない。claude-code の実行環境であって実験の数値に影響せず、
+#   マイナー/パッチ差で壊れる性質のものでもない。メジャーを跨ぐ更新だけ手で判断すれば足りる。
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -73,6 +89,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
 ENV PATH="/usr/bin:${PATH}"
 
 # Claude Codeをグローバルインストール
+# ★ 版は固定しない（#140 D3）。**積極的にそう決めている**（付け忘れではない）:
+#   - 更新が頻繁で、固定するとレート制限対応やモデル追加といった
+#     **実運用に直結する更新を逃す**
+#   - 開発ツールであり、実験の数値再現性に寄与しない
+#   - テンプレートが版を決め打つと全派生プロジェクトが**同時に古くなる**
 RUN npm install -g @anthropic-ai/claude-code
 
 # tmux設定（マウススクロール有効化）
@@ -83,8 +104,23 @@ RUN echo 'set -g mouse on' >> /etc/tmux.conf
 
 # CPU-only PyTorch をインストール（GPUベースイメージ以外の場合）
 ARG INSTALL_TORCH_CPU=false
+# ★ torch は固定する（#140 D1）。版が変わると**数値が変わりうる**ため、
+#   本テンプレートで唯一「数値再現性のために固定する」対象。
+#   既定値はテンプレートの初期値にすぎない（#141 の実測で実際に入った版）。
+# ★ `+cpu` ローカル版指定子は付けないこと。`--index-url .../whl/cpu` の下では
+#   `torch==X.Y.Z` が `X.Y.Z+cpu` に解決される。`==X.Y.Z+cpu` と書くと
+#   GPU 用インデックスへ切り替えたときに解決不能になり、
+#   **インデックス URL と版指定の2箇所を同時に直す**必要が出る（単一情報源に反する）。
+# ★ Fallback は置かない。存在しない版を指定したらビルドは落ちるべきで、
+#   「取れなければ最新で続行」は固定の目的そのものを無効化する。
+# ★ 版が書いてあるのは**次の1行だけ**。ドキュメントには版を再掲しないこと
+#   （再掲すると、版を上げたときにドキュメントだけ古くなる）。
+#
+# --- [Project] 次の1行がプロジェクト所有。実験の再現性に直結するため版を決めて固定すること ---
+ARG TORCH_VERSION=2.13.0
+# --- [Project] ここまで ---
 RUN if [ "$INSTALL_TORCH_CPU" = "true" ]; then \
-    pip install torch --index-url https://download.pytorch.org/whl/cpu; \
+    pip install "torch==${TORCH_VERSION}" --index-url https://download.pytorch.org/whl/cpu; \
 fi
 
 # ============================================================

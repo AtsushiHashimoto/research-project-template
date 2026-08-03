@@ -41,6 +41,10 @@ REQUIRED_ENTRIES=(
   ".claude/rules/template.bak-*/"
   # resolve-model.sh --disable/--enable の書き込み先（個人・一時的な設定）
   ".claude/model-policy.local.json"
+  # `devcontainer up` が自動生成する feature のロックファイル（#140 D5）。
+  # feature の版は固定しない方針なのでコミットしない。無視しないと毎回 git status が
+  # 汚れ、/template-contribute の偽の還流候補になる（#122 と同種）
+  "devcontainer-lock.json"
 )
 
 ROOT=""

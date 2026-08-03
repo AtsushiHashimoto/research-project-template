@@ -6,6 +6,12 @@
 services:
   devcontainer:
     build:
+      # ★ GPU ベースイメージの版の**単一情報源**（#140 D2 / D2a）。
+      #   Dockerfile 側の `ARG BASE_IMAGE` は既定値を持たない。ここだけを書き換える。
+      # ★ 追加の固定はしない。NGC の `YY.MM-py3` は日付タグで**実質固定済み**であり、
+      #   `latest` 相当の浮動タグではないため（版はすぐ下の1行だけに書く）。
+      # ★ INSTALL_TORCH_CPU=false: GPU イメージには PyTorch が同梱されている。
+      #   true にすると CPU 版で上書きされて GPU が使えなくなる。
       args:
         BASE_IMAGE: "nvcr.io/nvidia/pytorch:24.12-py3"
         INSTALL_TORCH_CPU: "false"
