@@ -82,8 +82,12 @@ DevContainer を使用している場合、`claude-san` と `autoclaude` は Doc
 | | `claude` | `claude-san` |
 |---|---------|-------------|
 | tmux | なし | あり |
-| rate limit 自動再開 | なし | あり（autoclaude） |
+| rate limit 自動再開 | あり（`claude-auto-retry`） | あり（`claude-auto-retry`） |
 | セッション永続化 | ターミナル閉じで終了 | tmux でバックグラウンド継続 |
-| 権限確認 | alias で skip | skip |
+| 権限確認 | シェル関数で skip | skip |
 
-> **Note**: Dockerfile の alias 設定により、`claude` も `--dangerously-skip-permissions` 付きで起動します。権限確認の動作は同じです。
+> **Note**: `claude` も `--dangerously-skip-permissions` 付きで起動するため、権限確認の動作は同じです。
+> 付与しているのは **`post-start.sh` が `.bashrc` に注入する `claude()` シェル関数**です
+> （`# claude-skip-permissions` マーカー付きブロック）。
+> かつては Dockerfile の alias で付与していましたが、`claude-auto-retry` の `claude()` 関数と
+> 競合するため廃止済みです。詳細は [docs/devcontainer-internals.md](devcontainer-internals.md) を参照。
