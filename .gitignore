@@ -85,6 +85,16 @@ credentials.json
 # model-policy の一時的な無効化（resolve-model.sh --disable/--enable の書き込み先）
 .claude/model-policy.local.json
 
+# devcontainer feature のロックファイル（`devcontainer up` が自動生成する）
+# ★ **コミットしない＝feature の版は固定しない**（#140 D5）。理由:
+#   - feature（docker-outside-of-docker）は開発ハーネスであり、
+#     **実験の数値再現性に無関係**
+#   - CPU 側だけに置くと GPU 側と非対称。両方に置くと同じ digest が2箇所に出て
+#     単一情報源の原則に反する（feature は共通なのに設定ファイルが分かれているため）
+#   - `devcontainer up` が**勝手に再生成する**ため、無視しないと毎回 `git status` が
+#     汚れ、`/template-contribute` の**偽の還流候補**になる（#122 で同種の問題を経験）
+devcontainer-lock.json
+
 # /template-sync がローカル改変を退避したディレクトリ（一時的な作業用）
 # コミットはしないが、/template-contribute の**検出対象**なので削除しないこと。
 # 還流（またはテンプレートへの反映不要と判断）が済んでから手で削除する。

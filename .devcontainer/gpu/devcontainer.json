@@ -16,6 +16,10 @@
   "mounts": [
     "source=claude-code-config-${localWorkspaceFolderBasename},target=/home/vscode/.claude,type=volume"
   ],
+  // ★ feature の版は固定しない（#140 D5）。`:1` はメジャー固定であって無指定ではない。
+  //   docker CLI を入れる開発ハーネスであり、実験の数値再現性に無関係。
+  //   `devcontainer up` が生成する devcontainer-lock.json は **gitignore 対象**
+  //   （コミットすると CPU/GPU で digest が2箇所に分かれ、毎回 git が汚れる）。
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },

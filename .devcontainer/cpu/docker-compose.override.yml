@@ -5,6 +5,12 @@
 services:
   devcontainer:
     build:
+      # ★ CPU ベースイメージの版の**単一情報源**（#140 D2 / D2a）。
+      #   Dockerfile 側の `ARG BASE_IMAGE` は既定値を持たない。ここだけを書き換える。
+      # ★ パッチまで固定する。マイナーどまりのタグのままだと rebuild で
+      #   upstream の破壊的変更を踏む。digest（sha256）までは固定しない —
+      #   同じパッチ版に対する Debian 側のセキュリティ再ビルドも止まってしまい、
+      #   CI の無い研究環境で sha256 を手で貼り替える運用コストに見合わないため。
       args:
-        BASE_IMAGE: "python:3.11"
+        BASE_IMAGE: "python:3.11.15"
         INSTALL_TORCH_CPU: "true"
