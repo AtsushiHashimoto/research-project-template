@@ -38,6 +38,28 @@ services:
     # Note: NVIDIA entrypoint sets CMD=null, so keep-alive is required.
     # See: https://github.com/devcontainers/features/issues/954
     command: ["sleep", "infinity"]
+    # PID 1 を tini（docker-init）にする。
+    #
+    # 上の keep-alive はそのままだと PID 1 が `sleep` になる。`sleep` は
+    # 孤児プロセスを reap しないため、親を失ったプロセスが <defunct> のまま
+    # 残り続ける。devcontainer.json は shutdownAction: none でコンテナを
+    # 停止しないので、稼働日数に比例してゾンビが際限なく溜まる。
+    #
+    # 実際に派生プロジェクト（delta-clip-dev #165）で、連続稼働 5 日のコンテナが
+    # 246 プロセス中 217 ゾンビ（cgroup 上は 628 PID）になり、
+    # VS Code が既に消えた PID を読みに行って接続不能になった。
+    #
+    # 副作用: `docker stop` の猶予が実質なくなる（実測 10.4 秒 → 0.4 秒）。
+    #   PID 1 はカーネル仕様で既定処理のシグナルを無視するため、従来 `sleep` は
+    #   SIGTERM を捨てて 10 秒後に SIGKILL されていた。tini は SIGTERM を受けて
+    #   即座に終了するので、コンテナ内の他プロセスはより早く SIGKILL される。
+    #   なお SIGTERM が孫プロセスまで届かない点は変更前後で同じ（tini は既定で
+    #   直接の子にしか送らない）。停止時に猶予が要るジョブは自前で対処すること。
+    #
+    # 前提: daemon 側が /sbin/docker-init を提供していること。提供していない環境
+    #   （一部の rootless / podman-docker 構成）ではコンテナが起動しなくなるため、
+    #   その場合のみ init: false に落とす。詳細は docs/devcontainer-internals.md。
+    init: true
     volumes:
       - ..:/workspace:cached
       # ホスト側の存在は scripts/ensure-host-mounts.sh が initializeCommand で保証する。
