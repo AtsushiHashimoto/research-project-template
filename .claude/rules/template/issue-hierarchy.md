@@ -116,9 +116,11 @@ task とは「**現在地から目的地までの距離**」です。どちら�
 並行タスクでブランチがコンタミネーション（混入）しないよう、**必ず worktree を作成**して作業します。
 
 ```bash
-git worktree add --relative-paths worktrees/issue5 feature/5-add-dataset-loader
+git worktree add worktrees/issue5 feature/5-add-dataset-loader
 cd worktrees/issue5
 ```
 
 - **`worktrees/`（ドット無し）** に作る（`.gitignore` の対象）
-- **`--relative-paths` は必須**（理由は `.claude/rules/template/git-workflow.md` 参照）
+- **`--relative-paths` フラグは書かない。** 相対パス化の可否は
+  `scripts/configure-worktree-paths.sh` が設定する `worktree.useRelativePaths` が決める
+  （理由は `.claude/rules/template/git-workflow.md` 参照）

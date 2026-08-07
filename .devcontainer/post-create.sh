@@ -41,7 +41,8 @@ if [ -f "$(pwd)/claude-san" ]; then
   sudo ln -sf "$(pwd)/claude-san" /usr/local/bin/claude-san
 fi
 
-# worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
+# worktree の .git 参照の相対パス設定（ホスト/コンテナ間でパスが異なるため）
+# 実際に相対パス化するのは要件（両環境の git 2.48 以降 + opt-in）を満たす場合だけ
 if [ -x ./scripts/configure-worktree-paths.sh ]; then
   ./scripts/configure-worktree-paths.sh || true
 fi

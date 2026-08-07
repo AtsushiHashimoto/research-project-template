@@ -446,6 +446,19 @@ else
   run_check "devcontainer init: true" bash tests/test_devcontainer_init.sh
 fi
 
+# worktree の相対パス設定ゲートの回帰テスト（由来: delta-clip-dev #167）
+#   ゲートが緩むと、片側だけ git 2.48 以降の環境で worktree の登録が消える／
+#   古い側の git が全コマンド fatal になる。どちらも通常運用では気づけない。
+if [ "$SCOPE" = "docs" ]; then
+  skip "worktree 相対パス設定の回帰テスト（QUALITY_SCOPE=docs）"
+elif [ ! -f scripts/configure-worktree-paths.sh ]; then
+  skip "worktree 相対パス設定の回帰テスト（scripts/configure-worktree-paths.sh が無い）"
+elif [ ! -f tests/test_configure_worktree_paths.sh ]; then
+  warn_missing "worktree 相対パス設定の回帰テスト（tests/test_configure_worktree_paths.sh が無い）"
+else
+  run_check "worktree 相対パス設定のゲート" bash tests/test_configure_worktree_paths.sh
+fi
+
 # ---------------------------------------------------------------------------
 # 結果
 #   実行/失敗/未実行を必ず列挙する。無言の切り捨てはしない（#121 D4）
