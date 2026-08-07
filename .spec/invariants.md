@@ -45,12 +45,21 @@
 **理由**: 並行タスクでブランチがコンタミネーションするのを防ぐ
 **変更する場合**: 並行作業を行わないと確約できる場合のみ
 
-### INV-D02: worktree は相対パスで作成する
+### INV-D02: worktree の相対パス化は設定で決め、フラグは書かない
 
-**決定**: `git worktree add --relative-paths` を使う（`worktree.useRelativePaths=true`）
+**決定**: `git worktree add` に `--relative-paths` を書かず、
+`scripts/configure-worktree-paths.sh` が設定する `worktree.useRelativePaths` に委ねる。
+有効化には **両環境の git 2.48 以降**と `worktree.relativePathsOptIn=true` を要求する
 **理由**: ホストと devcontainer でマウントパスが異なるため、絶対パスだと
-worktree を作成した側の環境でしか git / gh が動かない
-**変更する場合**: devcontainer を使わず、単一環境でのみ作業すると確約できる場合のみ
+worktree を作成した側の環境でしか git / gh が動かない。一方でフラグを直接書くと
+git 2.48 未満の環境では worktree の作成そのものが失敗する。また `.git/config` は両環境で
+同一実体なので、片側だけ 2.48 以降になると `extensions.relativeWorktrees` が書かれ、
+古い側は当該リポジトリの全 git コマンドが fatal になる（詳細は
+`.claude/rules/template/git-workflow.md`）
+**変更する場合**: 相対パス化を諦める場合は、worktree に対する git 操作を単一環境に限定すること
+**改訂**: 2026-08-07 — 旧版は「`git worktree add --relative-paths` を使う」だった。
+派生プロジェクト delta-clip-dev #167 で、フラグ直書きが git < 2.48 で作成を失敗させること、
+および無条件の `git worktree repair` が両環境で参照を壊し合うことが判明したため改訂
 
 ### INV-D03: 重要データは `data/shared/` に置く
 

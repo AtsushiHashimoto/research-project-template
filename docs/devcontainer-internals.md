@@ -198,12 +198,43 @@ services:
     ulimits:
       memlock: -1
       stack: 67108864
+    command: ["sleep", "infinity"]   # NVIDIA entrypoint が CMD=null にするため必須
+    init: true                       # ★ 外さないこと。PID 1 が sleep だとゾンビが溜まる
     volumes:
       - ..:/workspace:cached          # ワークスペースマウント
       - ${HOME}/.gitconfig:...        # Git 認証引き継ぎ
       - ${HOME}/.config/gh:...        # GitHub CLI 認証引き継ぎ
       - /etc/localtime:...            # タイムゾーン
 ```
+
+### ★ `init: true` を外さないこと
+
+`command: ["sleep", "infinity"]` は NVIDIA の entrypoint が `CMD=null` にするための
+keep-alive ですが、これがそのまま **PID 1** になります。`sleep` は孤児プロセスを
+reap しないため、親を失ったプロセスが `<defunct>` のまま残り続けます。
+`devcontainer.json` は `shutdownAction: none` でコンテナを止めないので、
+**稼働日数に比例してゾンビが際限なく溜まります。**
+
+派生プロジェクト（delta-clip-dev #165）の実測では、連続稼働 5 日のコンテナが
+246 プロセス中 217 ゾンビ（cgroup 上は 628 PID）になり、VS Code が既に消えた PID の
+`/proc/<pid>/environ` を読みに行って**接続不能**になりました。
+
+`init: true` は PID 1 を tini（`/sbin/docker-init`）にしてこれを防ぎます。
+
+**副作用（把握しておくこと）:**
+
+- `docker stop` の猶予が実質なくなる（実測 10.4 秒 → 0.4 秒）。PID 1 はカーネル仕様で
+  既定処理のシグナルを無視するため、従来 `sleep` は SIGTERM を捨てて 10 秒後に
+  SIGKILL されていた。tini は SIGTERM で即座に終了するので、コンテナ内の他プロセスは
+  より早く SIGKILL される。**停止時に猶予が要る学習ジョブは自前で対処すること**
+  （SIGTERM が孫プロセスまで届かない点は変更前後で同じ）
+- daemon 側が `/sbin/docker-init` を提供している必要がある。提供していない環境
+  （一部の rootless / podman-docker 構成）ではコンテナが起動しなくなるので、
+  その場合のみ `init: false` に落とすこと
+
+`/template-sync` は `.devcontainer/` を「差分表示→選択適用」で扱うため、この行は
+巻き戻りうる。`tests/test_devcontainer_init.sh` が `scripts/quality-check.sh` から
+呼ばれて静的に pin している。
 
 ### GPU override（gpu/docker-compose.override.yml）
 
@@ -268,7 +299,8 @@ if [ -f "$(pwd)/claude-san" ]; then
   sudo ln -sf "$(pwd)/claude-san" /usr/local/bin/claude-san
 fi
 
-# 7. worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
+# 7. worktree の .git 参照の相対パス設定（実際に相対パス化するのは
+#    両環境の git 2.48 以降 + opt-in を満たす場合だけ）
 #    スクリプトが無い派生プロジェクトでも止まらないようガードしている
 if [ -x ./scripts/configure-worktree-paths.sh ]; then
   ./scripts/configure-worktree-paths.sh || true
