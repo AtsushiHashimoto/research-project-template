@@ -424,6 +424,28 @@ else
   run_check "検査範囲の回帰テスト" bash tests/test_quality_check_scope.sh --quiet
 fi
 
+# devcontainer の PID 1 が init（tini）であること（由来: delta-clip-dev #165）
+#   PID 1 が sleep のままだと孤児プロセスを reap できず、shutdownAction: none と
+#   相まってゾンビが際限なく溜まる（実測: 連続稼働 5 日で 246 プロセス中 217 ゾンビ、
+#   VS Code が接続不能）。/template-sync は .devcontainer/ を「差分表示→選択適用」で
+#   扱うため init: true が巻き戻る経路が実在する。静的に pin して守る。
+#   docker compose config はローカル解析のみで daemon を必要としない。
+#
+#   ★ docker compose が無い場合は skip ではなく warn_missing。巻き戻しを起こす
+#     /template-sync は人がホストで回すことがあり、そこで黙って pin が外れると
+#     この検査の意味が無くなる（skip と warn_missing の使い分けは上の定義を参照）。
+if [ "$SCOPE" = "docs" ]; then
+  skip "devcontainer init チェック（QUALITY_SCOPE=docs）"
+elif [ ! -f .devcontainer/docker-compose.yml ]; then
+  skip "devcontainer init チェック（.devcontainer/docker-compose.yml が無い）"
+elif [ ! -f tests/test_devcontainer_init.sh ]; then
+  warn_missing "devcontainer init チェック（tests/test_devcontainer_init.sh が無い）"
+elif ! docker compose version >/dev/null 2>&1; then
+  warn_missing "devcontainer init チェック（docker compose が使えない）"
+else
+  run_check "devcontainer init: true" bash tests/test_devcontainer_init.sh
+fi
+
 # ---------------------------------------------------------------------------
 # 結果
 #   実行/失敗/未実行を必ず列挙する。無言の切り捨てはしない（#121 D4）
