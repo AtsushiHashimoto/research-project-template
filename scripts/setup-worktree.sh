@@ -193,9 +193,28 @@ else
     PATH_TYPE=$(grep '"path_type"' "$CONFIG_FILE" | cut -d'"' -f4 || echo "absolute")
 fi
 
-# Resolve relative path
+# The store is always addressed absolutely for the checks below; the *link target*
+# may be relative.  Overwriting SHARED_DATA_PATH with the absolute form is what
+# silently defeated path_type=relative: the config asked for a relative link and got
+# an absolute one, which breaks when the repository is mounted at another path.
+STORE_ABS="$MAIN_REPO/$SHARED_DATA_PATH"
+SHARED_DATA_PATH="$STORE_ABS"
+
+if [[ ! -d "$STORE_ABS" ]]; then
+    error "shared store does not exist: $STORE_ABS
+Run ./scripts/init-data.sh in the main repository first."
+fi
+
+# Link target: relative when the config asks for it.  Computed with realpath, never
+# hardcoded -- a wrong depth points the link at a directory that does not exist and
+# data silently stops reaching the store.
 if [[ "$PATH_TYPE" == "relative" ]]; then
-    SHARED_DATA_PATH="$MAIN_REPO/$SHARED_DATA_PATH"
+    if ! LINK_TARGET=$(realpath --relative-to="$(pwd -P)/data" "$STORE_ABS" 2>/dev/null); then
+        warn "cannot compute a relative path to $STORE_ABS; falling back to absolute"
+        LINK_TARGET="$STORE_ABS"
+    fi
+else
+    LINK_TARGET="$STORE_ABS"
 fi
 
 echo -e "${GREEN}$(msg config):${NC}"
@@ -203,7 +222,12 @@ cat "$CONFIG_FILE"
 echo ""
 
 # Check existing symlink
-if [[ -L "data/shared" ]]; then
+# A link that does not reach the store is broken, not a user choice: skip the prompt
+# and let the repair below replace it.  Asking (or bailing out non-interactively)
+# would leave the worktree writing into a directory that is not the shared store.
+if [[ -L "data/shared" ]] && [[ "$(readlink -f "data/shared" || true)" != "$(readlink -f "$STORE_ABS")" ]]; then
+    warn "data/shared does not reach the shared store; it will be recreated"
+elif [[ -L "data/shared" ]]; then
     warn "$(msg symlink_exists):"
     ls -la data/shared
     echo ""
@@ -341,11 +365,47 @@ if [ -e "data/shared" ] && [ ! -L "data/shared" ]; then
     info "$(msg dir_replaced)"
 fi
 
+# A symlink that does not reach the store (wrong depth, or dangling) is replaced.
+# A link holds no data of its own, so this is always safe -- and ln -sfn would keep
+# a dangling link pointing at nothing.
+if [[ -L "data/shared" ]]; then
+    _cur=$(readlink -f "data/shared" || true)
+    if [[ "$_cur" != "$(readlink -f "$STORE_ABS")" ]]; then
+        warn "data/shared points somewhere other than the shared store; recreating
+  points to -> ${_cur:-<dangling>}
+  expected  -> $STORE_ABS"
+        rm -f "data/shared"
+    fi
+fi
+
 # Create symlink
 info "$(msg creating_symlink)"
-ln -sfn "$SHARED_DATA_PATH" data/shared
+ln -sfn "$LINK_TARGET" data/shared
 
-success "$(msg created): data/shared -> $SHARED_DATA_PATH"
+success "$(msg created): data/shared -> $LINK_TARGET"
+
+# ------------------------------------------------------------ reachability check
+# "ln exited 0" is not evidence.  The bug this guards against shipped a link that
+# looked right in `ls` while resolving inside the worktree, and nothing noticed
+# until data written through it disappeared with the worktree.
+_verify=$(readlink -f "data/shared" || true)
+if [[ "$_verify" != "$(readlink -f "$STORE_ABS")" ]]; then
+    error "verification failed: data/shared does not reach the shared store.
+  resolves to -> ${_verify:-<unresolvable>}
+  expected    -> $STORE_ABS"
+fi
+
+_probe="data/shared/.write-probe.$$"
+if ! touch "$_probe" 2>/dev/null; then
+    error "verification failed: cannot write through data/shared -> $STORE_ABS"
+fi
+if [[ ! -e "$STORE_ABS/$(basename "$_probe")" ]]; then
+    rm -f "$_probe"
+    error "verification failed: a write through data/shared did not appear in the store."
+fi
+rm -f "$_probe"
+
+success "verified: data/shared -> $STORE_ABS (resolves and is writable)"
 echo ""
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
