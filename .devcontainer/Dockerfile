@@ -77,24 +77,40 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
 RUN curl -LsSf https://astral.sh/uv/install.sh \
     | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh
 
-# Node.js 20をインストール（Claude Code用）
-# ★ マイナー/パッチは固定しない（#140 D4）。`setup_20.x` は**メジャー固定**であり
-#   「無指定」ではない。claude-code の実行環境であって実験の数値に影響せず、
+# Node.js 22をインストール（claude-auto-retry 用）
+# ★ Node が要るのは claude-auto-retry（`#!/usr/bin/env node`、post-create.sh で `npm i -g`）だけ。
+#   Claude Code 本体は Node に依存しない native build を post-create で入れる（#151）。
+# ★ マイナー/パッチは固定しない（#140 D4）。`setup_22.x` は**メジャー固定**であり
+#   「無指定」ではない。claude-auto-retry の実行環境であって実験の数値に影響せず、
 #   マイナー/パッチ差で壊れる性質のものでもない。メジャーを跨ぐ更新だけ手で判断すれば足りる。
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
+# ★ NodeSource の取得失敗で**黙ってディストリ版 nodejs に降格させない**（#151）。
+#   RUN は /bin/sh で pipefail が無いため `curl | bash -` だと取得失敗が素通りし、
+#   続く apt-get がディストリ版（古いメジャー）を入れて成功してしまう。
+#   セットアップスクリプトをファイルに落としてから実行し、入った Node のメジャー版を確かめる。
+#   NodeSource を使うのは npm の置き場所（/usr/lib/node_modules）を変えないため
+#   （post-start.sh が注入する claude() ラッパーは launcher をこの絶対パスで参照する）。
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x -o /tmp/nodesource_setup.sh && \
+    bash /tmp/nodesource_setup.sh && \
+    rm -f /tmp/nodesource_setup.sh && \
+    apt-get install -y --no-install-recommends nodejs && \
+    node -e 'process.exit(+process.versions.node.split(".")[0]>=22?0:1)' && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 新しいNode.jsを確実に優先させる
-ENV PATH="/usr/bin:${PATH}"
-
-# Claude Codeをグローバルインストール
+# Claude Code の native build（~/.local/bin/claude）を PATH で解決させる
+# ★ Claude Code を npm（root 所有の global prefix /usr）で入れない（#151）。
+#   自己更新するツールを root が入れると、非 root の auto-update が
+#   `no write permission to npm prefix` で失敗し続ける。native build は post-create.sh から
+#   .devcontainer/install-claude-native.sh で vscode ユーザーの ~/.local に入れる
+#   （~/.local は永続化されないため rebuild ごとに入れ直す）。
 # ★ 版は固定しない（#140 D3）。**積極的にそう決めている**（付け忘れではない）:
 #   - 更新が頻繁で、固定するとレート制限対応やモデル追加といった
 #     **実運用に直結する更新を逃す**
 #   - 開発ツールであり、実験の数値再現性に寄与しない
 #   - テンプレートが版を決め打つと全派生プロジェクトが**同時に古くなる**
-RUN npm install -g @anthropic-ai/claude-code
+#   下限（モデル利用に必要な版）だけを install-claude-native.sh で確かめる。
+# ★ 以前あった「/usr/bin を PATH の先頭に置く ENV」は削除した。npm 版の /usr/bin/claude を
+#   先に解決させる原因になるため。ディレクトリが無い段階で PATH に入っていても無害。
+ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
 # tmux設定（マウススクロール有効化）
 RUN echo 'set -g mouse on' >> /etc/tmux.conf
@@ -133,15 +149,15 @@ fi
 # macOS の Docker Desktop は UID を写像するため症状が出にくいが、
 # Linux ホストや共同研究者の環境では以後の git 操作・ファイル削除が権限エラーで止まる。
 #
-# 上流の apt-get / npm install -g / pip install は root が必要なため、
+# 上流の apt-get / pip install は root が必要なため（npm i -g は post-create.sh が sudo で行う）、
 # ビルド段階は root のままにし、**末尾でだけ**切り替える。
 # ユーザー名は上で定義した ARG USERNAME を再利用する（2箇所に書かない）。
 # sudo NOPASSWD は維持しており（#64 で見送りと判断済み）、
-# post-create.sh が依存する sudo 6箇所と docker-outside-of-docker feature の
+# post-create.sh が依存する sudo（npm i -g・chown 等）と docker-outside-of-docker feature の
 # socket 権限調整はそのまま動く。
 #
 # ★ 追加の RUN / COPY はこのブロックより**上**に置くこと。
-#   ここより下に書くと非 root で実行され、apt-get / npm -g / pip が権限エラーで落ちる。
+#   ここより下に書くと非 root で実行され、apt-get / pip が権限エラーで落ちる。
 #   --- [Project] プロジェクト固有の追加インストールは、この行より上に追記 ---
 WORKDIR /workspace
 USER $USERNAME
