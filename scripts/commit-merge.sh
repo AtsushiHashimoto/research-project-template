@@ -48,14 +48,25 @@ WORKTREE_PATH="$2"  # オプション: 削除するworktreeのパス
 
 # worktreeからブランチ名を取得（指定された場合）
 BRANCH_TO_DELETE=""
-if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+UNPUSHED=""
+if [ -n "$WORKTREE_PATH" ]; then
+    if [ ! -d "$WORKTREE_PATH" ]; then
+        log_error "指定された worktree がありません: $WORKTREE_PATH（マージしません。削除済みなら第2引数を省いて再実行）"
+        exit 1
+    fi
     WORKTREE_PATH=$(cd "$WORKTREE_PATH" && pwd)  # 後で cd するので絶対パスに固定する
     BRANCH_TO_DELETE=$(git -C "$WORKTREE_PATH" branch --show-current 2>/dev/null || true)
+    if [ -z "$BRANCH_TO_DELETE" ]; then
+        log_error "Worktree がブランチ上にありません（detached HEAD）: $WORKTREE_PATH（マージしません）"
+        exit 1
+    fi
     log_info "Worktree指定: $WORKTREE_PATH (branch: $BRANCH_TO_DELETE)"
 
     # ★ merge の前に、worktree の中身が全て PR に入っているかを確かめる。
-    #   未コミット（未追跡を含む。ignore 対象は除く）・未 push の commit があると、
-    #   後段の worktree remove --force / branch -D で黙って失われる。確認できないときも止める。
+    #   未コミット（未追跡を含む）・未 push の commit があると、後段の worktree remove --force /
+    #   branch -D で黙って失われる。確認できないときも止める。
+    #   ignore 対象（data/local/ 等の一時データ）は確認しない＝削除される（data-protection.md）。
+    #   止まっても git add -A や --force で押し通さず、中身を確認して commit / 退避すること。
     if ! WT_STATUS=$(git -C "$WORKTREE_PATH" status --porcelain); then
         log_error "Worktree の状態を確認できません: $WORKTREE_PATH（マージしません）"
         exit 1
@@ -65,19 +76,24 @@ if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
         echo "$WT_STATUS" >&2
         exit 1
     fi
-    if [ -n "$BRANCH_TO_DELETE" ] \
-       && ! UNPUSHED=$(git -C "$WORKTREE_PATH" rev-list "origin/$BRANCH_TO_DELETE..$BRANCH_TO_DELETE" 2>/dev/null); then
-        log_error "origin/$BRANCH_TO_DELETE と比較できません（未 push の可能性。マージしません）"
+    if ! UNPUSHED=$(git -C "$WORKTREE_PATH" rev-list "origin/$BRANCH_TO_DELETE..$BRANCH_TO_DELETE" 2>/dev/null); then
+        log_error "origin/$BRANCH_TO_DELETE と比較できません（マージしません）。"
+        log_error "  未 push なら git push、別環境で push 済みなら git fetch origin $BRANCH_TO_DELETE の後に再実行"
         exit 1
     fi
-    if [ -n "${UNPUSHED:-}" ]; then
+    if [ -n "$UNPUSHED" ]; then
         log_error "未 push の commit があります（マージしません）。git push してから再実行してください"
         exit 1
     fi
 fi
 
 # メインリポジトリのパスを取得
-MAIN_REPO=$(git worktree list | head -1 | awk '{print $1}')
+# main worktree は --porcelain の1行目（表示形式を空白で切るとパスの空白で壊れる）
+MAIN_REPO=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+if [ -z "$MAIN_REPO" ] || [ ! -d "$MAIN_REPO" ]; then
+    log_error "メインリポジトリを特定できません（マージしません）"
+    exit 1
+fi
 
 # メインリポジトリにいることを確認
 CURRENT_DIR=$(pwd)

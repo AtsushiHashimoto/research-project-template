@@ -38,7 +38,9 @@ echo "Worktree to remove: $WORKTREE_PATH"
 echo ""
 
 # Find main repository
-MAIN_REPO=$(git worktree list | head -1 | awk '{print $1}')
+# main worktree は --porcelain の1行目（表示形式を空白で切るとパスの空白で壊れる）
+MAIN_REPO=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+if [ -z "$MAIN_REPO" ] || [ ! -d "$MAIN_REPO" ]; then echo "Error: main repository not found" >&2; exit 1; fi
 CONFIG_FILE="$MAIN_REPO/.claude/worktree-config.json"
 
 # Read shared data path

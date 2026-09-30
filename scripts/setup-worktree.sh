@@ -164,7 +164,7 @@ fi
 cd "$CURRENT_DIR"
 
 # Check if in a worktree
-if ! git worktree list 2>/dev/null | grep -q "$CURRENT_DIR"; then
+if ! git worktree list --porcelain 2>/dev/null | grep -qxF "worktree $CURRENT_DIR"; then
     error "$(msg not_worktree): $CURRENT_DIR
 $(msg run_in_worktree)"
 fi
@@ -172,7 +172,9 @@ fi
 info "$(msg worktree): $CURRENT_DIR"
 
 # Find main repository
-MAIN_REPO=$(git worktree list | head -1 | awk '{print $1}')
+# main worktree は --porcelain の1行目（表示形式を空白で切るとパスの空白で壊れる）
+MAIN_REPO=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+if [ -z "$MAIN_REPO" ] || [ ! -d "$MAIN_REPO" ]; then error "main repository not found"; fi
 CONFIG_FILE="$MAIN_REPO/.claude/worktree-config.json"
 
 info "$(msg main_repo): $MAIN_REPO"
