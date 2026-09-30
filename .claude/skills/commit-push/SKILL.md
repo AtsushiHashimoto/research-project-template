@@ -65,9 +65,9 @@ fi
 
 ### Phase 1: Commit & Push
 
-4. **すべての変更をステージング**
+4. **変更をステージング**
    ```bash
-   git add .
+   git add <変更したファイル>   # 名指しで stage（git add . は使わない。git-workflow.md）
    ```
 
 5. **コミット**
@@ -104,7 +104,7 @@ fi
 
 変更をステージング＆コミット：
 ```bash
-git add .
+git add <変更したファイル>   # 名指しで stage（git add . は使わない。git-workflow.md）
 git commit -m "適切なコミットメッセージ
 
 Refs #${ISSUE_ID}

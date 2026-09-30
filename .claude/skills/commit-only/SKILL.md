@@ -24,9 +24,9 @@ description: Commit changes only (no push)
 
 ### Phase 1: Commit
 
-3. **すべての変更をステージング**
+3. **変更をステージング**
    ```bash
-   git add .
+   git add <変更したファイル>   # 名指しで stage（git add . は使わない。git-workflow.md）
    ```
 
 4. **コミット**
@@ -51,7 +51,7 @@ fi
 
 変更をステージング：
 ```bash
-git add .
+git add <変更したファイル>   # 名指しで stage（git add . は使わない。git-workflow.md）
 ```
 
 コミット（適切なメッセージで）：

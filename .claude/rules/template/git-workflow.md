@@ -18,6 +18,9 @@ worktree 運用・PR マージ後のブランチ削除・`/commit-merge` の後�
 ## コミットのルール
 
 - コミットメッセージには必ず Issue を参照: `Fixes #ISSUE_ID` または `Refs #ISSUE_ID`
+- **`git add .` / `git add -A` を使わず、意図したファイルを名指しで stage する。** 作業ツリーには未追跡の
+  clone・scratch・生成物が混ざりやすく、一括 add で main に混入する（実際に数十ファイル・他リポジトリの
+  gitlink まで混入し revert した事例がある）。commit 前に `git diff --cached --stat` で確認する
 - Conventional Commits 形式を推奨:
   - `feat(scope): description` - 新機能
   - `fix(scope): description` - バグ修正
