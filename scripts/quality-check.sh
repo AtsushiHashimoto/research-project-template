@@ -412,6 +412,15 @@ else
   run_check "スキルのラベル定義" bash scripts/check-skill-labels.sh
 fi
 
+# 前提（ユーザー確定事項）の抽出の回帰テスト
+#   read-premises.sh は全サブエージェントに渡す前提の単一の取得口。見出しの誤一致・CRLF・雛形の素通しは
+#   黙って前提を落とす／偽の前提を渡すため pin する。gh を呼ばず 1 秒未満なので docs スコープでも走らせる。
+if [ ! -f tests/test_read_premises.sh ]; then
+  skip "前提抽出の回帰テスト（tests/test_read_premises.sh が無い）"
+else
+  run_check "前提抽出の回帰テスト" bash tests/test_read_premises.sh --quiet
+fi
+
 # quality-check 自身の検査範囲の回帰テスト（#135 D6）
 #   「限定が壊れて全件走査に戻る」「限定しすぎて検出漏れになる」のどちらも
 #   通常運用では気づけず、下流でしか顕在化しない。ゲート自身で pin する

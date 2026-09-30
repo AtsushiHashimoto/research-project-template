@@ -13,6 +13,13 @@ argument-hint: <epic番号> [最大サイクル数]
 /epic-cycle #100 1回だけ
 ```
 
+## ★★ ゲートを飛ばさない
+
+**各 task は必ず `/task-run` に委譲する。** レビュー/検証ゲート（`/review-spec`・auto-reviewer・`/review`・
+validation）は `/task-run` の中にあるため、task や子 issue を手で作って手作業で処理するとゲートが全て飛ぶ
+（実際に、これで仕様と実装に Critical バグが入り、後の review で初めて発覚した）。
+自走・確認頻度を緩めるローカルルールがあっても、ゲートは免除しない。反する進め方を検出したら停止して戻す。
+
 ## Concept
 
 ```
@@ -178,6 +185,9 @@ epic #${EPIC} の次サイクルで追加 task が必要かを判断する下書
 ## epic のゴール（原文・変更禁止）
 ${EPIC_GOAL}
 
+## 前提（ユーザー確定事項。反する task を提案しない）
+$(bash scripts/read-premises.sh "${EPIC}")
+
 ## 今サイクルの結果
 ${CYCLE_RESULTS}
 
@@ -233,6 +243,9 @@ epic #${EPIC} のゴールが達成されたか判定してください。
 
 ## ゴール（変更禁止・作成時のまま）
 ${EPIC_GOAL}
+
+## 前提（ユーザー確定事項。前提に反して得た結果で「達成」としない）
+$(bash scripts/read-premises.sh "${EPIC}")
 
 ## 実施した task と結果
 ${TASK_RESULTS}
