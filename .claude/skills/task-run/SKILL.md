@@ -77,6 +77,16 @@ exit 1
 
 **推測で埋めて続行しないこと。**
 
+**★ 前提（ユーザー確定事項）を取得する**（`.claude/rules/template/premises.md`）。
+プロジェクト大前提と epic 前提を原文で取り、以降の**全サブエージェント prompt にそのまま貼る**。
+取得口は `scripts/read-premises.sh` だけ（自前で抽出しない）。
+
+```bash
+PREMISES=$(bash scripts/read-premises.sh "$TASK") || { echo "前提を取得できないため停止"; exit 1; }
+```
+
+stderr の `WARN`（大前提節なし・epic 前提が未記入 等）は Step 0-5 の確認画面に必ず表示する。
+
 #### Step 0-3: 子 issue の解決と順序決定
 
 ```bash
@@ -156,6 +166,9 @@ Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh abs
 ## 親 task の goal（変更禁止）
 ${TASK_GOAL}
 
+## 前提（ユーザー確定事項。違反は「禁止」で停止）
+${PREMISES}
+
 ## 判断対象
 ${REVIEW_SPEC_RESULT}
 
@@ -180,6 +193,9 @@ Issue #${ISSUE_ID} の実装を行ってください。
 
 ## 親 task の goal（この範囲を超えないこと）
 ${TASK_GOAL}
+
+## 前提（ユーザー確定事項。反する実装をしないこと）
+${PREMISES}
 
 ## Issue内容
 ${ISSUE_BODY}
@@ -232,12 +248,15 @@ Task(subagent_type="general-purpose", model="$(bash scripts/resolve-model.sh ver
 2. 状態遷移
 3. Fallback ホワイトリスト
 4. ファイル構成
-5. .spec/invariants.md に反していないか
+5. .spec/invariants.md と、下記の前提（ユーザー確定事項）に反していないか
 6. **実験の規律（experiment / validation ラベルの場合）**
    - negative な結論を出しているなら positive/sanity control が PASS しているか
    - baseline を強化しているなら同じ工夫が提案手法にも適用されているか（matched-engineering）
    - 結論に unverified-negative / verified-negative / implementation-bug の格付けがあるか
 7. **親 task の goal が書き換えられていないか**
+
+## 前提（ユーザー確定事項）
+${PREMISES}
 
 ## 出力
 各項目を ✅ / ❌ で判定。❌ が1つでもあれば「不合格」と明示。

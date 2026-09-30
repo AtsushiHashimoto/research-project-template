@@ -12,8 +12,8 @@
 #   Task(subagent_type=..., model="$MODEL", prompt=...)
 #
 #   bash scripts/resolve-model.sh --list       # 全 role の解決結果を表示
-#   bash scripts/resolve-model.sh --disable fable   # 枠上限時に一時的に無効化
-#   bash scripts/resolve-model.sh --enable fable
+#   bash scripts/resolve-model.sh --disable opus    # 枠上限時に一時的に無効化
+#   bash scripts/resolve-model.sh --enable opus
 #
 # 利用枠の上限に当たった場合:
 #   disabled に追加すると、その モデル を primary に持つ role は fallback に降りる。

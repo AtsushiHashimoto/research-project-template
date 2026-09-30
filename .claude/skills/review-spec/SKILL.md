@@ -27,6 +27,12 @@ ISSUE_ID=$(echo "$BRANCH" | grep -oE '[0-9]+' | head -1)
 gh issue view "$ISSUE_ID" --json title,body,comments
 ```
 
+**前提（ユーザー確定事項）を取得する**（`.claude/rules/template/premises.md`）:
+
+```bash
+PREMISES=$(bash scripts/read-premises.sh "$ISSUE_ID") || { echo "前提を取得できないため停止"; exit 1; }
+```
+
 ### Step 2: 既存の仕様ファイル確認
 
 ```bash
@@ -80,7 +86,8 @@ ls $SPEC_FILE 2>/dev/null
 
 **Task tool でサブエージェントを並列起動**し、それぞれ異なる観点でレビューを行います。
 
-各サブエージェントには以下を渡します：
+各サブエージェントには以下を渡します（**前提は原文で貼る。前提に反する仕様は問題リストの Critical に挙げる**）：
+- **前提（ユーザー確定事項）**: Step 1 の `$PREMISES`
 - Issue のタイトルと本文（目的・仕様）
 - これまでの対話で決まった仕様内容
 - 既存の仕様ファイル（あれば）

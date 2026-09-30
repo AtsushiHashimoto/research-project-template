@@ -6,7 +6,7 @@
 
 DevContainer は以下を自動的にセットアップします：
 
-- Claude Code + claude-auto-retry のインストール
+- Claude Code（native build、post-create で導入）+ claude-auto-retry のインストール
 - CPU / GPU の自動切り替え（docker-compose による構成分離）
 - Git / GitHub CLI の認証引き継ぎ
 - Claude Code の認証永続化（コンテナ再ビルド後もログイン不要）
@@ -19,6 +19,7 @@ DevContainer は以下を自動的にセットアップします：
 ├── docker-compose.yml                # [Template] 共通サービス定義
 ├── post-create.sh                    # [Template] 共通ライフサイクル処理（コンテナ作成後に1回）
 ├── post-start.sh                     # [Template] 共通ライフサイクル処理（コンテナ起動ごと）
+├── install-claude-native.sh          # [Template] Claude Code native build の導入（post-create から呼ぶ）
 ├── cpu/
 │   ├── devcontainer.json             # CPU固有設定
 │   └── docker-compose.override.yml   # CPU override（BASE_IMAGE等）
@@ -73,8 +74,8 @@ sha256 を手で貼り替える運用コストに見合わないためです。
 |--------|------|
 | git, git-lfs | バージョン管理 |
 | gh (GitHub CLI) | Issue/PR 操作 |
-| Node.js 20 | Claude Code の実行環境 |
-| Claude Code | AI コーディングアシスタント |
+| Node.js 22 | claude-auto-retry の実行環境（NodeSource の `setup_22.x`） |
+| Claude Code | AI コーディングアシスタント。native build（`~/.local/bin/claude`）を `post-create.sh` で導入（イメージには入れない） |
 | uv | 高速 Python パッケージマネージャー |
 | claude-auto-retry | Rate limit 自動再開（`post-create.sh` で npm から導入） |
 | tmux | セッション管理（claude-san用） |
@@ -152,8 +153,8 @@ GPU 用インデックスへ切り替えたときに解決不能になり、
 | `torch` | **固定**（`ARG TORCH_VERSION`） | 版で数値が変わる。再現性に直結 |
 | ベースイメージ（CPU） | **固定**（パッチまで） | rebuild で upstream の破壊的変更を踏まないため |
 | ベースイメージ（GPU） | 現状維持 | NGC の `YY.MM-py3` は日付タグで実質固定済み |
-| `@anthropic-ai/claude-code` | **固定しない** | 更新が頻繁で、固定すると実運用に直結する更新を逃す。数値再現性に無関係 |
-| Node.js | 現状維持（`setup_20.x`） | 既にメジャー固定。claude-code の実行環境で数値再現性に無関係 |
+| Claude Code（native build） | **固定しない**（下限 2.1.280 だけを `install-claude-native.sh` で確かめる） | 更新が頻繁で、固定すると実運用に直結する更新を逃す。数値再現性に無関係 |
+| Node.js | メジャーのみ固定（`setup_22.x`） | claude-auto-retry の実行環境で数値再現性に無関係 |
 | `uv` | **固定しない** | 開発ツール。数値再現性に無関係 |
 | devcontainer feature | **固定しない**（`devcontainer-lock.json` は gitignore） | 開発ハーネス。CPU/GPU で非対称になり、自動再生成で `git status` が汚れる |
 | `apt-get` のパッケージ | 固定しない | ベースイメージのパッチ固定で足りる |
@@ -176,7 +177,7 @@ root になり、bind mount した `/workspace`（＝ホストのリポジトリ
 `git` 操作やファイル削除が権限エラーで止まります（macOS の Docker Desktop は
 UID を写像するため症状が出にくく、気づかれにくい失敗モードです）。
 
-`apt-get` / `npm install -g` / `pip install` は root が必要なので、
+`apt-get` / `pip install` は root が必要なので（`npm i -g` は `post-create.sh` が `sudo` で行う）、
 **ビルド段階は root のまま**にし、切り替えは Dockerfile の末尾でだけ行います。
 devcontainer features は devcontainer CLI が後段で `USER root` を挟んで導入するため、
 この変更の影響を受けません。
@@ -273,7 +274,27 @@ fi
 if [ -x ./scripts/configure-worktree-paths.sh ]; then
   ./scripts/configure-worktree-paths.sh || true
 fi
+
+# 8. Claude Code native build の導入（~/.claude の chown・~/.claude.json の symlink の後）
+#    失敗は claude_fail に記録して後続を続け、最後に非ゼロで終了する（握りつぶさない）
+if ! bash .devcontainer/install-claude-native.sh; then
+  claude_fail=1
+fi
+
+# --- [Project] プロジェクト固有の処理はここ（claude_fail 判定より上）に追記 ---
+
+if [ "$claude_fail" = 1 ]; then
+  exit 1
+fi
 ```
+
+**Claude Code の導入（手順 8）**: `install-claude-native.sh` は `~/.local/bin/claude` が実行可能で
+下限（2.1.280）以上なら何もせず、無い・壊れている・下限未満なら公式インストーラで `latest` チャネルの
+native build を入れる。`~/.local/` は永続化されないため rebuild のたびに入れ直す。
+Dockerfile の `ENV PATH` で `~/.local/bin` を `/usr/bin` より前に置いている。
+導入に失敗した場合、post-create は `[post-create:claude] FAIL ...` を出し、スクリプト冒頭の EXIT trap が
+手動の再実行方法（`bash .devcontainer/install-claude-native.sh`）を案内したうえで**非ゼロで終了**する。
+詳細と移行手順は `.claude/rules/template/env-node-and-claude-install.md` を参照。
 
 `sudo` を使う処理があるのは、`postCreateCommand` が**以前から** `vscode`（非 root）として
 実行されるためです（`devcontainer.json` の `remoteUser`）。
