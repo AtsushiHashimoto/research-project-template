@@ -58,9 +58,7 @@ gh issue list --label epic --state open --json number,title -q '.[]|"#\(.number)
 ここが曖昧なまま進むと silent-wrong の切り分けができない
 （`.spec/known-issues.md` KI-D01〜D04 参照）。
 
-**現状は毎回確認し直すこと。** 前の task の記述を引き継がない。
-前 task で「動くようになった」はずのものが実は silent-wrong だった場合、
-誤った現状認識がそのまま次の前提になり負債が累積する。
+**現状は毎回確認し直すこと**（前の task の記述を引き継がない。理由は `.spec/known-issues.md` KI-D15）。
 
 ### Step 3: 目標の状態を聞く
 
