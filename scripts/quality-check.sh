@@ -433,6 +433,17 @@ else
   run_check "検査範囲の回帰テスト" bash tests/test_quality_check_scope.sh --quiet
 fi
 
+# Claude Code native build 導入スクリプトの回帰テスト（#151）
+#   post-create でしか実行されず、失敗は rebuild 時まで顕在化しない。スタブ curl と
+#   一時 HOME で決定的に動く（ネットワーク不要・実 HOME に触れない）。1〜2秒で終わる。
+if [ "$SCOPE" = "docs" ]; then
+  skip "claude native 導入の回帰テスト（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_install_claude_native.sh ]; then
+  skip "claude native 導入の回帰テスト（tests/test_install_claude_native.sh が無い）"
+else
+  run_check "claude native 導入の回帰テスト" bash tests/test_install_claude_native.sh --quiet
+fi
+
 # ---------------------------------------------------------------------------
 # 結果
 #   実行/失敗/未実行を必ず列挙する。無言の切り捨てはしない（#121 D4）

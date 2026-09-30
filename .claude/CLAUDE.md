@@ -40,6 +40,7 @@
 | `template/optional-features.md` | Ollama、Claude Code 認証 |
 | `template/premises.md` | ユーザー確定の前提の記録場所（大前提=`.spec/invariants.md` / epic 前提）と必読・即時追記 |
 | `template/doc-principles.md` | README と CLAUDE.md の書き分け、アカウント層（`~/.claude/`）の使い分け |
+| `template/env-node-and-claude-install.md` | Claude Code（native build）の導入要件・Node 要件・移行手順 |
 
 ### このファイルに書くもの / rules に書くもの
 

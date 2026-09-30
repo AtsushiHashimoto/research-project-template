@@ -8,17 +8,15 @@
   "roles": {
     "planning": {
       "description": "実装計画の策定、タスク分解、設計の骨子",
-      "primary": "fable",
+      "primary": "opus",
       "fallback": [
-        "opus",
         "sonnet"
       ]
     },
     "abstract-review": {
       "description": "仕様レビュー、設計レビュー、代理判断など抽象度の高い判断",
-      "primary": "fable",
+      "primary": "opus",
       "fallback": [
-        "opus",
         "sonnet"
       ]
     },

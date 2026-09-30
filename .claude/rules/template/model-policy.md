@@ -20,13 +20,15 @@ MODEL=$(bash scripts/resolve-model.sh abstract-review)
 
 | role | 内容 | 既定 |
 |---|---|---|
-| `planning` | 実装計画の策定、タスク分解、設計の骨子 | fable |
-| `abstract-review` | 仕様レビュー、設計レビュー、代理判断 | fable |
+| `planning` | 実装計画の策定、タスク分解、設計の骨子 | opus |
+| `abstract-review` | 仕様レビュー、設計レビュー、代理判断 | opus |
 | `implementation` | コードの実装・修正 | opus |
 | `verification` | 実装と仕様の突き合わせ、コードレビュー、整合性チェック | opus |
 | `mechanical` | 集計・分類・フォーマット確認 | haiku |
 
 未定義の role は `inherit`（セッションのモデルを継承）になります。
+
+抽象系 role（`planning` / `abstract-review`）の既定は以前 fable だったが、Opus 5 系が利用可能になったため opus に統一した。alias `opus` の解決先はクライアント版に依存する（Claude Code ≥ 2.1.280 で Opus 5 系。古いクライアントでは旧 Opus）。
 
 ### call-site の割当
 
@@ -59,8 +61,8 @@ MODEL=$(bash scripts/resolve-model.sh abstract-review)
 `disabled` に追加すると、そのモデルを primary に持つ role は **fallback に降ります**。
 
 ```bash
-bash scripts/resolve-model.sh --disable fable   # 枠を使い切ったとき
-bash scripts/resolve-model.sh --enable  fable   # 復帰したとき
+bash scripts/resolve-model.sh --disable opus    # 枠を使い切ったとき
+bash scripts/resolve-model.sh --enable  opus    # 復帰したとき
 bash scripts/resolve-model.sh --list            # 現在の解決結果を確認
 ```
 
@@ -77,10 +79,10 @@ bash scripts/resolve-model.sh --list            # 現在の解決結果を確認
 一時的に切り替えるだけなら環境変数でも指定できます（設定ファイルより優先）。
 
 ```bash
-MODEL_POLICY_DISABLE=fable,opus /task-run #101
+MODEL_POLICY_DISABLE=opus /task-run #101
 ```
 
-fallback は多段です。`fable → opus → sonnet` の順に降り、全て無効なら `inherit` になります。
+fallback は配列の順に降ります（既定は `opus → sonnet`）。全て無効なら `inherit` になります。
 
 ### プロジェクト固有の上書き
 
@@ -95,7 +97,7 @@ fallback は多段です。`fable → opus → sonnet` の順に降り、全て�
 ### 注意
 
 - **メインのモデルを切り替えても、role が定義されていない呼び出しは追従します。**
-  planning を fable にしたい場合でも、実装の call-site が `implementation` role で
+  planning を別のモデル（例: fable）にしたい場合でも、実装の call-site が `implementation` role で
   呼ばれていれば opus のままになります
 - エージェント定義（`.claude/agents/*.md`）の frontmatter には `role` を書きます。
   `model:` は `inherit` のままにし、実際の割当は本ポリシーで決めます
