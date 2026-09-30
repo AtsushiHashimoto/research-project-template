@@ -65,9 +65,10 @@ fi
 
 ### Phase 1: Commit & Push
 
-4. **すべての変更をステージング**
+4. **変更をステージング**
    ```bash
-   git add .
+   git add -- path/to/changed_file1 path/to/changed_file2   # 実際に変更したファイルに置き換える（git add . は使わない。git-workflow.md）
+   git diff --cached --stat   # 意図したものだけか確認
    ```
 
 5. **コミット**
@@ -104,7 +105,8 @@ fi
 
 変更をステージング＆コミット：
 ```bash
-git add .
+git add -- path/to/changed_file1 path/to/changed_file2   # 実際に変更したファイルに置き換える（git add . は使わない。git-workflow.md）
+git diff --cached --stat   # 意図したものだけか確認
 git commit -m "適切なコミットメッセージ
 
 Refs #${ISSUE_ID}

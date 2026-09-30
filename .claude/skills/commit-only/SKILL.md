@@ -24,9 +24,10 @@ description: Commit changes only (no push)
 
 ### Phase 1: Commit
 
-3. **すべての変更をステージング**
+3. **変更をステージング**
    ```bash
-   git add .
+   git add -- path/to/changed_file1 path/to/changed_file2   # 実際に変更したファイルに置き換える（git add . は使わない。git-workflow.md）
+   git diff --cached --stat   # 意図したものだけか確認
    ```
 
 4. **コミット**
@@ -51,7 +52,8 @@ fi
 
 変更をステージング：
 ```bash
-git add .
+git add -- path/to/changed_file1 path/to/changed_file2   # 実際に変更したファイルに置き換える（git add . は使わない。git-workflow.md）
+git diff --cached --stat   # 意図したものだけか確認
 ```
 
 コミット（適切なメッセージで）：

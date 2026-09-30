@@ -243,7 +243,7 @@ SRC_TITLE=$(gh issue view "$SRC_ISSUE" --json title -q '.title' 2>/dev/null || e
 ```
 
 ```bash
-git add -A
+git add -A   # 使い捨ての clone で、反映したファイル以外の変更は無い（git-workflow.md の名指し stage の例外）
 git commit -m "feat: contribute improvements from downstream project"
 git push -u origin "$BRANCH_NAME"
 

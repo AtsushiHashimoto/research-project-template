@@ -79,7 +79,7 @@ fi
    ```bash
    # プロジェクト固有の品質チェックスクリプトを実行
    if [ -x "./scripts/quality-check.sh" ]; then
-     ./scripts/quality-check.sh
+     ./scripts/quality-check.sh || { echo "品質チェック失敗: Phase 1 以降（commit / merge / 後始末）に進まない"; exit 1; }
    else
      echo "Warning: scripts/quality-check.sh not found or not executable"
      echo "Skipping automated quality checks"
@@ -87,6 +87,8 @@ fi
    ```
 
    スクリプトが失敗した場合は修正を提案し、再実行する。
+   **合否は終了コードで判定する。** 出力文言を grep して判定しない（文言が一致せず「失敗」と誤判定し、
+   merge を飛ばしたのに後始末だけ走った事例がある）。後続の merge と同じコマンド列に無条件で連結しない。
 
 3. **`/review` による多角的レビューを実施**
 
@@ -141,7 +143,8 @@ fi
 
 6. **ステージング＆コミット**
    ```bash
-   git add .
+   git add -- path/to/changed_file1 path/to/changed_file2   # 実際に変更したファイルに置き換える（git add . は使わない。git-workflow.md）
+   git diff --cached --stat   # 意図したものだけか確認
    git commit -m "適切なコミットメッセージ
 
    Closes #${ISSUE_ID}
