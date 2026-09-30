@@ -49,8 +49,31 @@ WORKTREE_PATH="$2"  # オプション: 削除するworktreeのパス
 # worktreeからブランチ名を取得（指定された場合）
 BRANCH_TO_DELETE=""
 if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+    WORKTREE_PATH=$(cd "$WORKTREE_PATH" && pwd)  # 後で cd するので絶対パスに固定する
     BRANCH_TO_DELETE=$(git -C "$WORKTREE_PATH" branch --show-current 2>/dev/null || true)
     log_info "Worktree指定: $WORKTREE_PATH (branch: $BRANCH_TO_DELETE)"
+
+    # ★ merge の前に、worktree の中身が全て PR に入っているかを確かめる。
+    #   未コミット（未追跡を含む。ignore 対象は除く）・未 push の commit があると、
+    #   後段の worktree remove --force / branch -D で黙って失われる。確認できないときも止める。
+    if ! WT_STATUS=$(git -C "$WORKTREE_PATH" status --porcelain); then
+        log_error "Worktree の状態を確認できません: $WORKTREE_PATH（マージしません）"
+        exit 1
+    fi
+    if [ -n "$WT_STATUS" ]; then
+        log_error "Worktree に未コミットの変更があります（マージしません）:"
+        echo "$WT_STATUS" >&2
+        exit 1
+    fi
+    if [ -n "$BRANCH_TO_DELETE" ] \
+       && ! UNPUSHED=$(git -C "$WORKTREE_PATH" rev-list "origin/$BRANCH_TO_DELETE..$BRANCH_TO_DELETE" 2>/dev/null); then
+        log_error "origin/$BRANCH_TO_DELETE と比較できません（未 push の可能性。マージしません）"
+        exit 1
+    fi
+    if [ -n "${UNPUSHED:-}" ]; then
+        log_error "未 push の commit があります（マージしません）。git push してから再実行してください"
+        exit 1
+    fi
 fi
 
 # メインリポジトリのパスを取得
@@ -98,18 +121,6 @@ git pull
 
 # worktreeの削除（パスが指定された場合）
 # ブランチ削除より先に行う必要がある
-# ★ 未コミットの変更（未追跡を含む。ignore 対象は除く）があれば削除しない。
-#   --force で消すと、commit し損ねた成果物が worktree ごと失われる。
-#   ブランチも残す（worktree が残っている間は削除できない）。
-if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ] \
-   && [ -n "$(git -C "$WORKTREE_PATH" status --porcelain 2>/dev/null)" ]; then
-    log_warn "Worktree に未コミットの変更があるため、worktree とブランチを残します: $WORKTREE_PATH"
-    git -C "$WORKTREE_PATH" status --short
-    log_warn "内容を確認して退避したら、手動で削除してください:"
-    log_warn "  git worktree remove $WORKTREE_PATH --force && git branch -D $BRANCH_TO_DELETE"
-    BRANCH_TO_DELETE=""
-    WORKTREE_PATH=""
-fi
 if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
     log_info "Worktreeを削除中: $WORKTREE_PATH"
     git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || {
