@@ -8,8 +8,11 @@
 
 - **ネガティブ（null/negative）は、まず実装バグ・実験設定ミスを疑う。** 検出力(power)が担保されていない null は「本物の科学的 null」ではなく「テスト/実装が壊れていて何も検出できないだけ」のアーティファクトでありうる。
 - **positive/sanity control を必須化**: 「効くはずの状況（planted 効果・手法が効くべき合成タスク）で手法/テストが実際に検出・改善する」ことを先に示す。control が PASS して初めて実タスクの null を信頼する。
+  時間反転・左右反転・入力順の入れ替えなど、**理論上同じ結果になるはずの条件**も追加データ不要の control になる（差が出たら測る側を疑う）。
 - **実装正当性を独立オラクルの test で pin**: matched-compute は params/epochs だけでなく *effective-fit*（train fit が同等か）も確認。loss が実際に適用されているか、masking/sampler 等が正しいかを test で固定し、null が「損失が実は効いていない」等のバグでないことを確認。
 - **harness に positive control が無ければ issue 化**して検出力を確認する。
+- **重い実走の前に少数でスモークする。** 試行錯誤中は小さな部分集合で上の control と入力の正しさを確かめてから全量に進む。
+  harness には少数実行の口（対象の絞り込み・件数上限）を最初から用意する。
 
 ### 2. 比較の公平性を保つ（matched-engineering）
 
