@@ -43,6 +43,12 @@ gh issue list --label epic --state open --json number,title -q '.[]|"#\(.number)
 
 **epic の goal を読み上げ、この task がそこに貢献することを確認する。**
 
+**前提も読む（`.claude/rules/template/premises.md`）。** `bash scripts/read-premises.sh <epic番号>` で
+プロジェクト大前提と epic 前提を読み上げ、質問（Step 2・3）が前提と矛盾しないようにする。
+task 本文には**原文を写さない**（写すと epic 側の更新で古くなる）。この task に特に効く前提の番号
+（`P-xx`）と「epic #N の前提節」への参照だけを書く。実行時は `/task-run` が原文を取り直して渡す。
+対話中にユーザーが新しい前提を述べたら、task ではなく該当する置き場所（大前提 / epic 前提）へ追記する。
+
 ### Step 2: 現在の状態を聞く
 
 ```
@@ -73,6 +79,10 @@ gh issue list --label epic --state open --json number,title -q '.[]|"#\(.number)
 
 **最後から2番目が negative の意味の事前登録にあたる。**
 結果を見る前に宣言しておけば、後から baseline を強化して意味を書き換える余地が減る。
+
+**★ 成功条件を「数値超え」にしない。** 「正しく測って判定を出す」形で書く。ユーザーが「◯◯を超えたら成功」と
+言ったら「正しく測って超えるか判定する」に言い換えて記録し、negative も正しく測れていれば達成であることを確認する
+（理由は `issue-hierarchy.md`「goal は『正しい情報の獲得』にする」）。
 
 ### Step 4: task 本文の作成
 

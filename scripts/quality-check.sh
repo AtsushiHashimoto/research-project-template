@@ -412,6 +412,15 @@ else
   run_check "スキルのラベル定義" bash scripts/check-skill-labels.sh
 fi
 
+# 前提（ユーザー確定事項）の抽出の回帰テスト
+#   read-premises.sh は全サブエージェントに渡す前提の単一の取得口。見出しの誤一致・CRLF・雛形の素通しは
+#   黙って前提を落とす／偽の前提を渡すため pin する。gh を呼ばず 1 秒未満なので docs スコープでも走らせる。
+if [ ! -f tests/test_read_premises.sh ]; then
+  skip "前提抽出の回帰テスト（tests/test_read_premises.sh が無い）"
+else
+  run_check "前提抽出の回帰テスト" bash tests/test_read_premises.sh --quiet
+fi
+
 # quality-check 自身の検査範囲の回帰テスト（#135 D6）
 #   「限定が壊れて全件走査に戻る」「限定しすぎて検出漏れになる」のどちらも
 #   通常運用では気づけず、下流でしか顕在化しない。ゲート自身で pin する
@@ -422,6 +431,17 @@ elif [ ! -f tests/test_quality_check_scope.sh ]; then
   skip "検査範囲の回帰テスト（tests/test_quality_check_scope.sh が無い）"
 else
   run_check "検査範囲の回帰テスト" bash tests/test_quality_check_scope.sh --quiet
+fi
+
+# Claude Code native build 導入スクリプトの回帰テスト（#151）
+#   post-create でしか実行されず、失敗は rebuild 時まで顕在化しない。スタブ curl と
+#   一時 HOME で決定的に動く（ネットワーク不要・実 HOME に触れない）。1〜2秒で終わる。
+if [ "$SCOPE" = "docs" ]; then
+  skip "claude native 導入の回帰テスト（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_install_claude_native.sh ]; then
+  skip "claude native 導入の回帰テスト（tests/test_install_claude_native.sh が無い）"
+else
+  run_check "claude native 導入の回帰テスト" bash tests/test_install_claude_native.sh --quiet
 fi
 
 # ---------------------------------------------------------------------------

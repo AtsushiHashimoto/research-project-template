@@ -38,7 +38,9 @@
 | `template/deliverables.md` | 成果物の保存場所、進捗報告 |
 | `template/data-protection.md` | Worktree データ保護、モデル保存 |
 | `template/optional-features.md` | Ollama、Claude Code 認証 |
+| `template/premises.md` | ユーザー確定の前提の記録場所（大前提=`.spec/invariants.md` / epic 前提）と必読・即時追記 |
 | `template/doc-principles.md` | README と CLAUDE.md の書き分け、アカウント層（`~/.claude/`）の使い分け |
+| `template/env-node-and-claude-install.md` | Claude Code（native build）の導入要件・Node 要件・移行手順 |
 
 ### このファイルに書くもの / rules に書くもの
 
@@ -80,5 +82,10 @@
 ## プロジェクト固有のルール
 
 <!-- ここにこのプロジェクト特有のルール・制約・ドメイン知識を書く -->
+
+**プロジェクト大前提（ユーザー確定事項）は `.spec/invariants.md` の固有節が単一情報源。**
+下の import で毎セッション読み込まれる（運用は `.claude/rules/template/premises.md`）。
+
+@../.spec/invariants.md
 
 （未記入）
