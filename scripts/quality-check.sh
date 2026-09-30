@@ -421,6 +421,15 @@ else
   run_check "前提抽出の回帰テスト" bash tests/test_read_premises.sh --quiet
 fi
 
+# commit-merge.sh の merge 前チェックの回帰テスト
+#   未コミット・未 push・detached HEAD・存在しない worktree で gh pr merge を呼ばずに止まること、
+#   クリーンなら後始末まで完走すること（パスに空白を含む）を pin する。偽 gh とローカル remote で数秒。
+if [ ! -f tests/test_commit_merge.sh ]; then
+  skip "commit-merge の回帰テスト（tests/test_commit_merge.sh が無い）"
+else
+  run_check "commit-merge の回帰テスト" bash tests/test_commit_merge.sh --quiet
+fi
+
 # quality-check 自身の検査範囲の回帰テスト（#135 D6）
 #   「限定が壊れて全件走査に戻る」「限定しすぎて検出漏れになる」のどちらも
 #   通常運用では気づけず、下流でしか顕在化しない。ゲート自身で pin する
