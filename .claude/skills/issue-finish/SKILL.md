@@ -18,7 +18,7 @@ description: Finish task with quality review by invoking commit-merge workflow (
 5. PR作成 & マージ
 6. **Issueクローズ**
 7. Worktree削除
-8. コンテキスト整理（/compact）
+8. 区切りの引き継ぎ（`/commit-merge` Phase 5。issue に書き、/clear をユーザーに促す）
 
 ## Usage
 

@@ -399,6 +399,14 @@ else
     success "$(msg installed): .gitignore"
 fi
 
+# Claude Code のフック（SessionStart → scripts/session-context.sh）
+# .claude/settings.json はプロジェクトの設定も持つので配布せず、追記だけする（単一情報源は scripts/ensure-claude-hooks.sh）
+ENSURE_HOOKS="$TMP_DIR/template/scripts/ensure-claude-hooks.sh"
+if [[ -f "$ENSURE_HOOKS" ]]; then
+    bash "$ENSURE_HOOKS" --root "$PROJECT_ROOT" \
+        || warn "Claude Code のフックを登録できませんでした（原因は上の [claude-hooks] の行。直してから bash scripts/ensure-claude-hooks.sh）"
+fi
+
 # Create data directory
 if [[ ! -d "data/shared" ]]; then
     mkdir -p data/shared

@@ -37,6 +37,7 @@ MODEL=$(bash scripts/resolve-model.sh abstract-review)
 | `/review-spec` の各サブエージェント | `abstract-review` |
 | `/review-spec` 3-4b（epic goal 整合チェッカー） | `abstract-review` |
 | `auto-reviewer` の代理判断 | `abstract-review` |
+| `/task-run` の issue ごとのワーカー（Step 1〜5 を実行し短く報告） | なし（セッションのモデルを継承） |
 | `/task-run` Step 2（実装） | `implementation` |
 | `/task-run` Step 4-2（仕様整合性チェック） | `verification` |
 | `/review` の設計観点（アーキテクチャレビュー） | `abstract-review` |
@@ -47,6 +48,7 @@ MODEL=$(bash scripts/resolve-model.sh abstract-review)
 | `/issue-gaps` Phase 2（乖離分析） | `verification` |
 | `/review-integrity` Phase 1（6 エージェントの探索） | `verification` |
 | `/review-integrity` Phase 3（前回との差分分析） | `verification` |
+| `/epic-cycle` Step 2・3（`/issue-gaps`・`/review-integrity` を実行して件数だけ返す） | なし（セッションのモデルを継承。中の役は各スキルの表のとおり） |
 | `/epic-cycle` Step 4（次 task の要否判断の下書き） | `planning` |
 | `/epic-cycle` Phase Final（ゴール達成判定） | `abstract-review` |
 | `/issue-backlog` Phase 2（着手可能項目の特定） | `mechanical` |

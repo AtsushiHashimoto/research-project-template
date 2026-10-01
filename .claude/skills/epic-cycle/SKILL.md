@@ -20,6 +20,21 @@ validation）は `/task-run` の中にあるため、task や子 issue を手で
 （実際に、これで仕様と実装に Critical バグが入り、後の review で初めて発覚した）。
 自走・確認頻度を緩めるローカルルールがあっても、ゲートは免除しない。反する進め方を検出したら停止して戻す。
 
+## ★ メインは指揮役に徹する
+
+**epic-cycle を回すメインの文脈には、短い報告だけを入れる。** 1 つの epic を回すと issue が数十件になり、
+各 issue のスキル本文・レビュー結果・PR 本文をメインに溜めると、呼び出しのたびにそれを読み直して費用が膨らむ。
+
+- 各 task は `/task-run` の手順をメインが指揮役として実行し、**issue ごとのワーカー（サブエージェント）**に処理させる
+  （`/task-run`「実行形態」。ワーカーは 10 行以内の決まった形式で報告する）。
+- `/issue-gaps`・`/review-integrity` もサブエージェントで実行し、作成した issue の番号と件数だけを受け取る。
+- 次 task の下書き（Step 4）と達成判定（Phase Final）のサブエージェントには報告と引き継ぎの URL を渡し、
+  詳細はサブエージェントが issue から読む。
+- ユーザーに聞くことができたら、ワーカーは issue に書いて止まり、メインが聞いて `SendMessage` で続けさせる。
+  無人運転（`--unattended`）では `user-action` を付けて次の task へ進む。
+- サイクルの終わりに epic へ引き継ぎを書く（`bash scripts/handoff.sh write ${EPIC} …`）。
+  ユーザーが途中で /clear しても、次のセッションがそこから再開できる。
+
 ## Concept
 
 ```
@@ -101,19 +116,22 @@ REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 gh api "repos/$REPO/issues/$EPIC/sub_issues" --jq '.[]|select(.state=="open")|.number'
 ```
 
-各 task に対して:
-
-```
-Skill(skill="task-run", args="#${TASK}")
-```
+各 task に対して、`.claude/skills/task-run/SKILL.md` の「実行形態」「Phase 0」「Phase 1-N」「Phase Final」を
+メインが指揮役として実行する（`/task-run` を通すことに変わりはなく、ゲートはワーカーの手順の中にある。
+Step 0-5 の確認は Phase 1 の確認で済んでいるので聞かない。issue ごとにワーカーを起動し、報告だけを受け取る）。
+`user-action` の付いた子を持つ task はユーザーの対応待ちなので、このサイクルでは選ばずに引き継ぎに挙げる
+（選ぶと毎サイクル同じ所で止まる）。
+`--unattended` は task-run にそのまま渡す。報告は `CYCLE_RESULTS` に貯める（Step 4 で使う）。
 
 #### Step 2: `/issue-gaps`
 
 仕様と実装の乖離を検出。新規 issue は**該当 task 配下**に作る（`/issue-create --parent`）。
+**サブエージェントで `Skill(skill="issue-gaps")` を実行させ**、作成した issue の番号と件数だけを 5 行以内で返させる。
 
 #### Step 3: `/review-integrity`
 
-バグパターン・デッドコード・配線不備を検出。
+バグパターン・デッドコード・配線不備を検出。Step 2 と同じく**サブエージェントで実行させ**、
+報告 issue と修正 issue の番号・深刻度ごとの件数だけを返させる。
 
 **検出された問題は深刻度に関わらず全て issue 化する。**
 
@@ -233,6 +251,9 @@ else:
 git branch "epic-${EPIC}-cycle-${N}/$(date +%Y%m%d-%H%M%S)" HEAD
 ```
 
+サイクルの結果（完了した task、次 task の判断、`user-action` を付けた issue）を epic への引き継ぎとして書く
+（`bash scripts/handoff.sh write ${EPIC} …`）。
+
 ### Phase Final: epic のゴール達成判定
 
 **全 task 完了後、epic の goal に照らして達成判定を行う。**
@@ -295,6 +316,7 @@ ${TASK_RESULTS}
 | `--max N` | 最大サイクル数 |
 | `--dry-run` | 計画のみ表示 |
 | `--skip-backlog` | バックログ処理をスキップ |
+| `--unattended` | 無人運転（一晩など）。ユーザーへの質問が要る issue は `user-action` を付けて飛ばし、次の task へ |
 
 ## Related Skills
 
