@@ -28,6 +28,7 @@ description: Sync updates from research-project-template (テンプレート更�
 | `.spec/*.md` の**既定節** | **マーカー間を自動差し替え**（`scripts/sync-spec-defaults.sh`。**プロジェクト固有節は触らない**） |
 | `.spec/decisions/` `.spec/subsystems/` | **ディレクトリの存在だけ**を揃える（中身はプロジェクト固有なので比較しない） |
 | `.gitignore` | **必須エントリの追記のみ**（`scripts/ensure-gitignore.sh`。既存行は消さない） |
+| `.claude/settings.json` | **必須フックの追記のみ**（`scripts/ensure-claude-hooks.sh`。既存の設定・フックは消さない） |
 | `.claude/CLAUDE.md` | **差分表示のみ**（自動上書きしない） |
 | `.dev/` | **同期しない**（`backlog.md` はユーザーデータ。理由は Step 5 参照） |
 | `.claude/template-source.json` | **同期しない**（fork 先の URL を保持するため。install.sh が書き出す） |
@@ -270,6 +271,21 @@ fi
 
 一覧の実体は `scripts/ensure-gitignore.sh`（install.sh と共用の単一情報源）。
 **追記のみ**で、プロジェクトが足したエントリは消さない。
+
+#### `.claude/settings.json` の必須フック
+
+```bash
+# .gitignore と同じく、ダウンロードしたテンプレート側のスクリプトを使う
+ENSURE_HOOKS="$TMP_DIR/template/scripts/ensure-claude-hooks.sh"
+if [ -f "$ENSURE_HOOKS" ]; then
+    bash "$ENSURE_HOOKS" --root "$(git rev-parse --show-toplevel)" \
+        || echo "⚠️ フックを登録できませんでした（上のメッセージを参照）" >&2
+fi
+```
+
+登録するのは SessionStart → `scripts/session-context.sh`（/clear・/compact・再開のたびに
+issue の引き継ぎと epic 前提を文脈に戻す）。**フックが効くのは `scripts/` の同期を適用した後**なので、
+`scripts/session-context.sh` `scripts/handoff.sh` を Step 7 で取り込むこと。
 
 #### `.spec/` のサブディレクトリ
 

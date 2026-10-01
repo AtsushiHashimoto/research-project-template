@@ -3,6 +3,7 @@
 #
 #   bash scripts/read-premises.sh <issue番号>      # issue / task / epic のどれでも。親を辿って epic を探す
 #   bash scripts/read-premises.sh --no-epic        # プロジェクト大前提のみ
+#   bash scripts/read-premises.sh --epic-only <issue番号>  # epic 前提のみ（大前提が import 済みのセッション向け。session-context.sh が使う）
 #   bash scripts/read-premises.sh --epic-body-file F  # epic 本文をファイルから（テスト用。gh を呼ばない）
 #
 # 出力: 「## プロジェクト大前提」＋「## epic #N の前提」を原文で。サブエージェント prompt にそのまま貼る。
@@ -71,20 +72,26 @@ find_epic() {  # <issue番号> → epic 番号（無ければ空）。最大3段
   done
 }
 
+emit_epic() {  # <issue番号> : 祖先の epic を探して前提を出す
+  local epic body
+  epic=$(find_epic "${1#\#}") || { echo "ERROR: gh で issue を辿れない（認証・ネットワークを確認）" >&2; exit 1; }
+  if [ -z "$epic" ]; then
+    echo "WARN: #${1#\#} の祖先に epic が無い" >&2
+    printf '\n## epic の前提\n\n（親 epic なし）\n'
+  else
+    body=$(gh issue view "$epic" --json body -q .body) || { echo "ERROR: epic #$epic の本文を取得できない" >&2; exit 1; }
+    emit_epic_body "#$epic" "$body"
+  fi
+}
+
 case "${1:-}" in
   --no-epic) emit_project ;;
   --epic-body-file)
     [ -f "${2:-}" ] || { echo "ERROR: --epic-body-file にファイルを指定" >&2; exit 1; }
     emit_project; emit_epic_body "(file)" "$(cat "$2")" ;;
-  ''|-*) echo "usage: $0 <issue番号> | --no-epic | --epic-body-file F" >&2; exit 1 ;;
-  *)
-    emit_project
-    EPIC=$(find_epic "${1#\#}") || { echo "ERROR: gh で issue を辿れない（認証・ネットワークを確認）" >&2; exit 1; }
-    if [ -z "$EPIC" ]; then
-      echo "WARN: #${1#\#} の祖先に epic が無い" >&2
-      printf '\n## epic の前提\n\n（親 epic なし）\n'
-    else
-      BODY=$(gh issue view "$EPIC" --json body -q .body) || { echo "ERROR: epic #$EPIC の本文を取得できない" >&2; exit 1; }
-      emit_epic_body "#$EPIC" "$BODY"
-    fi ;;
+  --epic-only)
+    case "${2:-}" in ''|-*) echo "ERROR: --epic-only に issue 番号を指定" >&2; exit 1 ;; esac
+    emit_epic "$2" ;;
+  ''|-*) echo "usage: $0 <issue番号> | --no-epic | --epic-only <issue番号> | --epic-body-file F" >&2; exit 1 ;;
+  *) emit_project; emit_epic "$1" ;;
 esac

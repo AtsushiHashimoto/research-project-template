@@ -257,12 +257,19 @@ fi
     gh issue close ${ISSUE_ID}
     ```
 
-### Phase 5: コンテキスト整理
+### Phase 5: 区切りの引き継ぎ
 
-13. **コンテキスト整理**
+マージはセッションの区切り（`.claude/rules/template/deliverables.md`「セッションの区切りと引き継ぎ」）。
+エージェントは /clear・/compact を実行できないので、文脈は issue に書いて渡す。
+
+13. **引き継ぎを書く**。書き先は続きの作業がある issue＝**親 task**（親が無ければこの issue）。
+    本文（4 つの見出し）は一時ファイル `$HANDOFF_FILE` に書いてから渡す
+    ```bash
+    PARENT=$(gh issue view "$ISSUE_ID" --json parent -q '.parent.number // empty')
+    bash scripts/handoff.sh write "${PARENT:-$ISSUE_ID}" "$HANDOFF_FILE"   # 4 つの見出しが無いと投稿しない
     ```
-    /compact
-    ```
+14. **ユーザーに 1 行で伝える**（通常モードのみ）: 「区切りです。/clear をどうぞ（同じ流れの続きなら /compact）。」
+    Auto-Approval モード（`/task-run` のワーカー）では伝えず、引き継ぎの URL を報告に含める。
 
 ## Implementation
 

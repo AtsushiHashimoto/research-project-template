@@ -421,6 +421,17 @@ else
   run_check "前提抽出の回帰テスト" bash tests/test_read_premises.sh --quiet
 fi
 
+# セッションの引き継ぎ（handoff.sh / session-context.sh / ensure-claude-hooks.sh）の回帰テスト
+#   見出しの欠けた引き継ぎを投稿しない・最新の引き継ぎだけを読む・gh 失敗でもセッション開始を止めない・
+#   settings.json の既存設定を壊さず冪等に登録する、を pin する。偽 gh と一時リポジトリで数秒。
+if [ "$SCOPE" = "docs" ]; then
+  skip "引き継ぎの回帰テスト（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_handoff.sh ]; then
+  skip "引き継ぎの回帰テスト（tests/test_handoff.sh が無い）"
+else
+  run_check "引き継ぎの回帰テスト" bash tests/test_handoff.sh --quiet
+fi
+
 # commit-merge.sh の merge 前チェックの回帰テスト
 #   未コミット・未 push・detached HEAD・存在しない worktree で gh pr merge を呼ばずに止まること、
 #   クリーンなら後始末まで完走すること（パスに空白を含む）を pin する。偽 gh とローカル remote で数秒。
