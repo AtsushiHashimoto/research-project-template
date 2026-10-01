@@ -5,7 +5,7 @@
 # ============================================================
 #
 # 登録するもの: SessionStart → scripts/session-context.sh
-#   （/clear・/compact・再開のたびに、issue の最新の引き継ぎと epic 前提を文脈に戻す。
+#   （起動・/clear・/compact のたびに、issue の最新の引き継ぎと epic 前提を文脈に戻す。
 #    .claude/rules/template/deliverables.md「セッションの区切り」）
 #
 # .claude/settings.json はプロジェクトの設定（権限など）も持つので、ファイルごと配布せず、
@@ -44,17 +44,21 @@ command -v jq >/dev/null 2>&1 || { echo "$P ERROR: jq が無いため .claude/se
 if [ -f "$SETTINGS" ]; then
   jq empty "$SETTINGS" 2>/dev/null || { echo "$P ERROR: $SETTINGS が JSON として読めない（手で直してから再実行）" >&2; exit 1; }
   CUR=$(cat "$SETTINGS")
+  # 空ファイル（jq empty は通る）は {} とみなす
+  [ -n "$(tr -d '[:space:]' <<<"$CUR")" ] || CUR='{}'
 else
   CUR='{}'
 fi
 
-# 登録済みの判定は、同じコマンドが同じ matcher で入っているか（完全一致）。形の崩れた設定は jq エラー＝異常として止める
-FOUND=$(jq --arg c "$COMMAND" --arg m "$MATCHER" '
+# 登録済みの判定は、同じコマンドが入っているか（完全一致。matcher は問わない＝プロジェクトが変えた matcher を尊重し、
+# 二重登録で 2 回走らせない）。形の崩れた設定は jq エラー＝異常として止める
+FOUND=$(jq --arg c "$COMMAND" '
   [ (.hooks.SessionStart // [])[]
-    | select(type == "object" and (.matcher // "") == $m)
+    | select(type == "object")
     | (.hooks // [])[]
     | select(type == "object" and .command == $c) ] | length' <<<"$CUR") \
   || { echo "$P ERROR: $SETTINGS の hooks.SessionStart の形が想定と違う（手で確認）" >&2; exit 1; }
+[[ "$FOUND" =~ ^[0-9]+$ ]] || { echo "$P ERROR: $SETTINGS の hooks.SessionStart の形が想定と違う（手で確認）" >&2; exit 1; }
 
 if [ "$FOUND" -gt 0 ]; then
   echo "$P フック登録済み: SessionStart（$MATCHER）→ $SCRIPT_REL"

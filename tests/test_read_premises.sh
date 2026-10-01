@@ -21,6 +21,7 @@ cat > "$TMP/inv.md" <<'X'
 - 大前提ではない
 X
 export PREMISES_INVARIANTS="$TMP/inv.md"
+mkdir -p "$TMP/nogh"; printf '#!/bin/sh\nexit 1\n' > "$TMP/nogh/gh"; chmod +x "$TMP/nogh/gh"
 
 # 1: 前提節の後に別の ## 見出し
 printf '## ゴール\ng\n## 前提（ユーザー確定事項）\n- E1\n### 小見出し\n- E2\n## 完了条件\n- c\n' > "$TMP/b1"
@@ -52,6 +53,10 @@ has "$out" "E7" "コードブロック内の見出しで切らない"
 printf '# プロジェクト固有\n（未記入）\n' > "$TMP/inv2.md"
 out=$(PREMISES_INVARIANTS="$TMP/inv2.md" bash "$S" --no-epic 2>"$TMP/err")
 has "$out" "（節なし）" "大前提節なしを明示"; has "$(cat "$TMP/err")" "移行手順" "移行手順へ誘導"
+# 8b: --epic-only は大前提を出さない／番号なしは exit 1（gh を呼ぶ経路は tests/test_handoff.sh で確認）
+bash "$S" --epic-only 2>/dev/null; [ $? = 1 ] && ok "--epic-only 番号なしは exit 1" || ng "--epic-only 番号なしは exit 1"
+out=$(PATH="$TMP/nogh:$PATH" bash "$S" --epic-only 5 2>/dev/null)
+hasnt "$out" "P-01" "--epic-only は大前提を出さない"
 # 8: 引数不正は exit 1
 bash "$S" 2>/dev/null; [ $? = 1 ] && ok "引数なしは exit 1" || ng "引数なしは exit 1"
 
