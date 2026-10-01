@@ -37,6 +37,7 @@ MODEL=$(bash scripts/resolve-model.sh abstract-review)
 | `/review-spec` の各サブエージェント | `abstract-review` |
 | `/review-spec` 3-4b（epic goal 整合チェッカー） | `abstract-review` |
 | `auto-reviewer` の代理判断 | `abstract-review` |
+| `/task-run` の issue ごとのワーカー（Step 1〜5 を実行し短く報告） | なし（セッションのモデルを継承） |
 | `/task-run` Step 2（実装） | `implementation` |
 | `/task-run` Step 4-2（仕様整合性チェック） | `verification` |
 | `/review` の設計観点（アーキテクチャレビュー） | `abstract-review` |

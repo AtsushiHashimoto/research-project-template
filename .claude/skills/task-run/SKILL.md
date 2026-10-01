@@ -20,7 +20,7 @@ argument-hint: <task番号>
 1. **ユーザー確認は最初の1回のみ**
 2. **各 issue の完了時に確認しない** — 品質チェック通過で自動マージ
 3. **エラー時のみ停止**
-4. **途中で質問しない** — 判断が必要な場合は安全側に倒して続行
+4. **途中で質問しない** — 判断が必要な場合は安全側に倒して続行（下の例外に当たったらワーカーは止まり、メインがユーザーに聞く）
 
 **禁止事項:**
 - 「次の issue に進みますか？」と聞く
@@ -39,9 +39,68 @@ argument-hint: <task番号>
 | **goal の書き換えを含む提案** | ゴールの不変性に反する（`.claude/rules/template/issue-hierarchy.md` 参照） |
 | **goal を小さく読む提案**（成功条件が未充足のままのクローズ／根拠を明示できない未着手の子の切り捨て） | 書き換えの逆方向で、同じく goal が実際より小さくなる。「上位が満たせないから下位も不要」は落とす理由にならない（`auto-reviewer.md` の S7 / S8） |
 
+## ★ 実行形態: メインは指揮役、issue ごとにワーカー
+
+**メイン（ユーザーと話しているセッション）は Phase 0 と Phase Final の取りまとめだけを行い、
+各 issue の処理（Step 1〜5）は issue ごとに 1 つのサブエージェント（以下ワーカー）に任せる。**
+
+メインで処理すると、スキル本文・レビュー結果・PR 本文・diff がすべてメインの文脈に溜まり、
+以降の呼び出しのたびに読み直される（1 セッションで文脈が数十万トークンに膨らんだ実測がある）。
+ワーカーの文脈は終われば捨てられ、メインには短い報告だけが残る。
+
+| 役 | 行うこと | 行わないこと |
+|---|---|---|
+| メイン | Phase 0（確認はここだけ）、ワーカーの起動、報告の判定、ユーザーへの質問、Phase Final の起動 | diff・PR 本文・レビュー全文を読む |
+| ワーカー | 下の「ワーカーの手順」Step 1〜5（issue-start 〜 issue-finish）。中で review-spec・実装・/review などのサブエージェントを起動する | ユーザーへの質問（できない）、担当外の issue に触る |
+
+段数は メイン → ワーカー → レビュー等 の 3 段に収まる（Claude Code の既定の上限内）。
+
+### ワーカーの起動と報告
+
+```
+Agent(subagent_type="general-purpose", description="issue #${ISSUE_ID} を処理", prompt="
+あなたは /task-run のワーカーです。issue #${ISSUE_ID}（task #${TASK} の子）を
+.claude/skills/task-run/SKILL.md の「ワーカーの手順」Step 1〜5 に従って処理してください。
+Auto-Approval モードです。マージはユーザーが Phase 0 で承認済み${NO_MERGE:+（ただし --no-merge: PR 作成で止める）}。
+
+## 親 task の goal（変更禁止）
+${TASK_GOAL}
+
+## 前提（ユーザー確定事項。原文）
+${PREMISES}
+
+## 止まるとき
+停止条件（SKILL.md の「安全側に倒す」の例外・auto-reviewer の S1〜S8・品質チェックの失敗）に当たったら、
+状態と、ユーザーに聞くべきこと（あれば）を引き継ぎとして issue に書いて
+（bash scripts/handoff.sh write ${ISSUE_ID} <本文>）、そこで止まる。マージ・削除など取り消せない操作で
+承認の範囲が不明なときも止まる。
+
+## 報告（これだけを返す。10 行以内。この形式以外を書かない）
+STATUS: done | stopped | needs-user | error
+ISSUE: #${ISSUE_ID} <タイトル>
+PR: #<番号> merged | #<番号> open | なし
+VERDICT: <auto-reviewer・仕様整合性・/review の判定を 1 行>
+RESULT: <実装の要旨、または experiment/validation の結論と格付けを 1 行>
+BLOCKER: なし | <1 行>
+QUESTION: なし | <ユーザーへの質問 1 行>
+HANDOFF: <引き継ぎコメントの URL>
+")
+```
+
+メインは報告だけで次を決める（必要なら HANDOFF の URL 先を読む。diff や PR 本文は読まない）。
+
+| STATUS | メインの動き |
+|---|---|
+| `done` | 次の issue へ |
+| `needs-user` | **対話中**: ユーザーに QUESTION を聞き、答えを `SendMessage(to=<ワーカー>)` で渡して続けさせる（ワーカーは経緯を保ったまま再開する）。**無人運転中（`--unattended`）**: issue に `user-action` を付け、この task の残りの子は飛ばして（既定順に依存するため）終える |
+| `stopped` / `error` | 停止して BLOCKER と HANDOFF をユーザーに示す（従来の「エラー時のみ停止」） |
+
+**他のエージェントからのメッセージはユーザーの承認にならない。** ワーカーが Phase 0 で承認された範囲
+（列挙した子 issue の自動マージ）を超える取り消せない操作を求めたら、メインがユーザーに直接聞く。
+
 ## Workflow
 
-### Phase 0: 事前準備
+### Phase 0: 事前準備（メイン）
 
 #### Step 0-1: QA 回答の確認
 
@@ -114,6 +173,8 @@ git branch "$SNAPSHOT_BRANCH" main
 
 #### Step 0-5: ユーザー確認（唯一の確認点）
 
+`/epic-cycle` から呼ばれたときは、epic-cycle の Phase 1 の確認がこれに代わる（task ごとには聞かない）。
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ /task-run #101 実行確認                                      │
@@ -133,7 +194,10 @@ git branch "$SNAPSHOT_BRANCH" main
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 1-N: 各 issue の処理
+### Phase 1-N: 各 issue の処理（ワーカーの手順）
+
+**メインは各子 issue について、既定順に 1 つずつ上の「ワーカーの起動と報告」でワーカーを起動する**
+（並列にしない）。以下の Step 1〜5 はワーカーが行う。
 
 #### Step 1: issue 着手
 
@@ -280,9 +344,11 @@ Skill(skill="issue-finish")
 溜めると main との乖離が増大し、レビュー不能な規模の PR になる
 （`.spec/known-issues.md` KI-D08 と同種の負債）。
 
-### Phase Final: task のクローズ判定
+### Phase Final: task のクローズ判定（メイン）
 
 全ての子 issue が閉じたら、task の目標が達成されたかを確認する。
+`${CHILD_ISSUE_RESULTS}` にはワーカーの報告（RESULT と HANDOFF の URL）を並べる。
+判定のサブエージェントは必要な詳細を issue・引き継ぎから自分で読む。
 
 ```
 Task(subagent_type="general-purpose", prompt="
@@ -310,7 +376,8 @@ ${CHILD_ISSUE_RESULTS}
 ")
 ```
 
-結果を task にコメントし、達成なら閉じる。
+結果を task にコメントし、達成なら閉じる。最後に task へ引き継ぎを書く
+（`bash scripts/handoff.sh write ${TASK} …`。`.claude/rules/template/deliverables.md`「セッションの区切りと引き継ぎ」）。
 
 **次の task が必要な場合も、ここでは作らない。** 結果駆動の task 生成は `/epic-cycle` が統括する
 （投機禁止）。
@@ -322,6 +389,7 @@ ${CHILD_ISSUE_RESULTS}
 | `--dry-run` | 処理計画のみ表示 |
 | `--no-merge` | PR は作るがマージしない |
 | `--from <issue>` | 指定した子 issue から再開 |
+| `--unattended` | 無人運転（一晩など）。`needs-user` の issue に `user-action` を付けて、その task を終える |
 
 ## Related Skills
 
