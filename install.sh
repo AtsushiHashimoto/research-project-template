@@ -404,7 +404,7 @@ fi
 ENSURE_HOOKS="$TMP_DIR/template/scripts/ensure-claude-hooks.sh"
 if [[ -f "$ENSURE_HOOKS" ]]; then
     bash "$ENSURE_HOOKS" --root "$PROJECT_ROOT" \
-        || warn "Claude Code のフックを登録できませんでした（jq を入れて bash scripts/ensure-claude-hooks.sh を実行）"
+        || warn "Claude Code のフックを登録できませんでした（原因は上の [claude-hooks] の行。直してから bash scripts/ensure-claude-hooks.sh）"
 fi
 
 # Create data directory

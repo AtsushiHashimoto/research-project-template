@@ -45,6 +45,11 @@ out=$(printf '### 済んだこと\n- x\n' | bash scripts/handoff.sh write 7 - 2>
 has "$out" "### 次の一手" "足りない見出しを示す"
 [ -f "$FIX/7.posted" ] && ng "見出し不足では投稿しない" || ok "見出し不足では投稿しない"
 
+# 1b: CRLF の本文も見出しを認める（投稿は CR を除く）
+printf '### 済んだこと\r\nx\r\n### 決まったこと\r\nx\r\n### 次の一手\r\nx\r\n### 未解決の問い\r\nなし\r\n' \
+  | bash scripts/handoff.sh write 9 - >/dev/null 2>&1 && ok "CRLF の本文を受け付ける" || ng "CRLF の本文を受け付ける"
+grep -q $'\r' "$FIX/9.posted" 2>/dev/null && ng "投稿から CR を除く" || ok "投稿から CR を除く"
+
 # 2: 正しい引き継ぎは投稿され、先頭に印が付き、最後の引き継ぎ先が記録される
 url=$(bash scripts/handoff.sh write 7 - <<<"$GOOD" 2>/dev/null); rc=$?
 [ $rc = 0 ] && ok "投稿は exit 0" || ng "投稿は exit 0 (rc=$rc)"
@@ -57,13 +62,17 @@ has "$(cat "$(git rev-parse --path-format=absolute --git-common-dir)/claude-hand
 
 # 3: read は印の付いた最新のコメントだけを返す
 jq -n '{title:"T7", state:"OPEN", labels:[], parent:null, comments:[
-  {body:"## 引き継ぎ（古い）\n### 次の一手\n- OLD"},
-  {body:"ふつうのコメント"},
-  {body:"## 引き継ぎ（新しい）\r\n### 次の一手\r\n- NEW"},
-  {body:"後の雑談"}]}' > "$FIX/7.json"
+  {authorAssociation:"MEMBER", body:"## 引き継ぎ（古い）\n### 次の一手\n- OLD"},
+  {authorAssociation:"MEMBER", body:"ふつうのコメント"},
+  {authorAssociation:"OWNER", body:"## 引き継ぎ（新しい）\r\n### 次の一手\r\n- NEW"},
+  {authorAssociation:"NONE", body:"## 引き継ぎ（外部）\n- STRANGER"},
+  {authorAssociation:"MEMBER", body:"## 引き継ぎ先について\n- NOTHANDOFF"},
+  {authorAssociation:"MEMBER", body:"後の雑談"}]}' > "$FIX/7.json"
 out=$(bash scripts/handoff.sh read 7)
 has "$out" "NEW" "最新の引き継ぎを返す"; hasnt "$out" "OLD" "古い引き継ぎを返さない"
 hasnt "$out" "雑談" "印の無いコメントを返さない"
+hasnt "$out" "STRANGER" "関係者以外のコメントを返さない"
+hasnt "$out" "NOTHANDOFF" "「## 引き継ぎ」で始まるだけの見出しを拾わない"
 grep -q $'\r' <<<"$out" && ng "CR を除去" || ok "CR を除去"
 out=$(bash scripts/handoff.sh read)
 has "$out" "NEW" "番号省略時は最後の引き継ぎ先を読む"
@@ -85,10 +94,23 @@ out=$(cd "$TMP/wt8" && bash "$R/scripts/session-context.sh" </dev/null)
 has "$out" "#8 T8" "ブランチの番号を使う"; has "$out" "ブランチ feature/8-x" "決め方を示す"
 has "$out" "(feature/8-x)" "worktree 一覧"
 
+# 6b: ブランチ名の日付などを issue 番号と取り違えない（<種類>/<番号>- の形だけ）
+git branch -q contribute/20261001-x && git worktree add -q "$TMP/wtd" contribute/20261001-x 2>/dev/null
+out=$(cd "$TMP/wtd" && bash "$R/scripts/session-context.sh" </dev/null)
+hasnt "$out" "#20261001" "日付をブランチの番号と取り違えない"; has "$out" "最後の引き継ぎ先" "番号が無ければ最後の引き継ぎ先"
+
+# 6c: epic 前提は issue → task → epic を辿って出す（大前提は出さない）
+jq -n '{title:"E", state:"OPEN", labels:[{name:"epic"}], parent:null, body:"## 前提（ユーザー確定事項）\n- EPICPREM\n## 完了条件\n- x", comments:[]}' > "$FIX/1.json"
+jq -n '{title:"T", state:"OPEN", labels:[{name:"task"}], parent:{number:1}, comments:[]}' > "$FIX/2.json"
+jq -n '{title:"I3", state:"OPEN", labels:[{name:"feature"}], parent:{number:2}, comments:[]}' > "$FIX/3.json"
+printf '# プロジェクト固有\n## ★ プロジェクト大前提（ユーザー確定事項）\n- BIGPREM\n' > .spec/invariants.md
+out=$(bash scripts/session-context.sh 3 </dev/null)
+has "$out" "EPICPREM" "epic 前提を辿って出す"; hasnt "$out" "BIGPREM" "大前提は出さない（import 済み）"
+
 # 7: gh が失敗しても exit 0 でセッションを止めない
 out=$(GH_FAIL=1 bash scripts/session-context.sh </dev/null); rc=$?
 [ $rc = 0 ] && ok "gh 失敗でも exit 0" || ng "gh 失敗でも exit 0 (rc=$rc)"
-has "$out" "取得できない" "gh 失敗を注記"
+has "$out" "取得できなかった" "gh 失敗を注記"
 
 # 8: フック入力（JSON）が stdin に来ても動く
 out=$(echo '{"source":"clear"}' | bash scripts/session-context.sh 8); rc=$?
@@ -107,6 +129,17 @@ n=$(jq '[.hooks.SessionStart[].hooks[].command | select(contains("session-contex
 [ "$(jq '[.hooks.SessionStart[].hooks[].command | select(. == "echo other")] | length' .claude/settings.json)" = 1 ] \
   && ok "既存のフックを保つ" || ng "既存のフックを保つ"
 bash scripts/ensure-claude-hooks.sh --check >/dev/null && ok "--check で登録済みは exit 0" || ng "--check で登録済みは exit 0"
+[ "$(jq -r '.hooks.SessionStart[-1].matcher' .claude/settings.json)" = "startup|clear|compact" ] \
+  && ok "resume では出さない matcher" || ng "resume では出さない matcher"
+# 登録したコマンドは、スクリプトが無いときも exit 0（sync 前でもセッション開始を壊さない）
+cmd=$(jq -r '.hooks.SessionStart[-1].hooks[0].command' .claude/settings.json)
+CLAUDE_PROJECT_DIR="$TMP/nowhere" bash -c "$cmd" && ok "スクリプト不在でも exit 0" || ng "スクリプト不在でも exit 0"
+has "$(CLAUDE_PROJECT_DIR="$R" bash -c "$cmd" </dev/null)" "セッションの文脈" "登録したコマンドで実行できる"
+chmod 644 .claude/settings.json; echo '{}' > .claude/settings.json; bash scripts/ensure-claude-hooks.sh >/dev/null
+[ "$(stat -c %a .claude/settings.json 2>/dev/null || stat -f %Lp .claude/settings.json)" = 644 ] \
+  && ok "権限を変えない" || ng "権限を変えない"
+echo '{"hooks":{"SessionStart":"oops"}}' > .claude/settings.json
+bash scripts/ensure-claude-hooks.sh >/dev/null 2>&1; [ $? = 1 ] && ok "形の崩れた設定は exit 1" || ng "形の崩れた設定は exit 1"
 echo '{broken' > .claude/settings.json
 bash scripts/ensure-claude-hooks.sh >/dev/null 2>&1; [ $? = 1 ] && ok "壊れた JSON は exit 1" || ng "壊れた JSON は exit 1"
 [ "$(cat .claude/settings.json)" = '{broken' ] && ok "壊れた JSON を上書きしない" || ng "壊れた JSON を上書きしない"

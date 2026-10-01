@@ -116,8 +116,11 @@ REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 gh api "repos/$REPO/issues/$EPIC/sub_issues" --jq '.[]|select(.state=="open")|.number'
 ```
 
-各 task に対して、`/task-run #${TASK}` の手順をメインが指揮役として実行する
-（Step 0-5 の確認は Phase 1 の確認で済んでいるので聞かない。issue ごとにワーカーを起動し、報告だけを受け取る）。
+各 task に対して、`.claude/skills/task-run/SKILL.md` の「実行形態」「Phase 0」「Phase 1-N」「Phase Final」を
+メインが指揮役として実行する（`/task-run` を通すことに変わりはなく、ゲートはワーカーの手順の中にある。
+Step 0-5 の確認は Phase 1 の確認で済んでいるので聞かない。issue ごとにワーカーを起動し、報告だけを受け取る）。
+`user-action` の付いた子を持つ task はユーザーの対応待ちなので、このサイクルでは選ばずに引き継ぎに挙げる
+（選ぶと毎サイクル同じ所で止まる）。
 `--unattended` は task-run にそのまま渡す。報告は `CYCLE_RESULTS` に貯める（Step 4 で使う）。
 
 #### Step 2: `/issue-gaps`

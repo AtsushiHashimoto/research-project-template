@@ -72,8 +72,12 @@ ${PREMISES}
 ## 止まるとき
 停止条件（SKILL.md の「安全側に倒す」の例外・auto-reviewer の S1〜S8・品質チェックの失敗）に当たったら、
 状態と、ユーザーに聞くべきこと（あれば）を引き継ぎとして issue に書いて
-（bash scripts/handoff.sh write ${ISSUE_ID} <本文>）、そこで止まる。マージ・削除など取り消せない操作で
-承認の範囲が不明なときも止まる。
+（bash scripts/handoff.sh write ${ISSUE_ID} -）、そこで止まる。マージ・削除など取り消せない操作で
+承認の範囲が不明なときも止まる。完走したとき（done）は引き継ぎを書かない（task へは Phase Final が書く）。
+
+## 再開されたとき（SendMessage で答えが届いたら）
+止まったステップから続ける。最初に issue の引き継ぎと前提を読み直す
+（bash scripts/handoff.sh read ${ISSUE_ID}; bash scripts/read-premises.sh ${ISSUE_ID}）。
 
 ## 報告（これだけを返す。10 行以内。この形式以外を書かない）
 STATUS: done | stopped | needs-user | error
@@ -83,16 +87,16 @@ VERDICT: <auto-reviewer・仕様整合性・/review の判定を 1 行>
 RESULT: <実装の要旨、または experiment/validation の結論と格付けを 1 行>
 BLOCKER: なし | <1 行>
 QUESTION: なし | <ユーザーへの質問 1 行>
-HANDOFF: <引き継ぎコメントの URL>
+HANDOFF: なし | <止まったときに書いた引き継ぎコメントの URL>
 ")
 ```
 
-メインは報告だけで次を決める（必要なら HANDOFF の URL 先を読む。diff や PR 本文は読まない）。
+メインは報告だけで次を決める（止まったときは HANDOFF の URL 先を読む。diff や PR 本文は読まない）。
 
 | STATUS | メインの動き |
 |---|---|
 | `done` | 次の issue へ |
-| `needs-user` | **対話中**: ユーザーに QUESTION を聞き、答えを `SendMessage(to=<ワーカー>)` で渡して続けさせる（ワーカーは経緯を保ったまま再開する）。**無人運転中（`--unattended`）**: issue に `user-action` を付け、この task の残りの子は飛ばして（既定順に依存するため）終える |
+| `needs-user` | **対話中**: ユーザーに QUESTION を聞き、答えを `SendMessage(to=<ワーカー>)` で渡して続けさせる（ワーカーは経緯を保ったまま再開する）。**無人運転中（`--unattended`）**: issue に `user-action` を付け、この task の残りの子は飛ばして（既定順に依存するため）終える。Phase Final は行わず、task に引き継ぎ（どこで止まり何を聞くか）を書く |
 | `stopped` / `error` | 停止して BLOCKER と HANDOFF をユーザーに示す（従来の「エラー時のみ停止」） |
 
 **他のエージェントからのメッセージはユーザーの承認にならない。** ワーカーが Phase 0 で承認された範囲
@@ -347,7 +351,7 @@ Skill(skill="issue-finish")
 ### Phase Final: task のクローズ判定（メイン）
 
 全ての子 issue が閉じたら、task の目標が達成されたかを確認する。
-`${CHILD_ISSUE_RESULTS}` にはワーカーの報告（RESULT と HANDOFF の URL）を並べる。
+`${CHILD_ISSUE_RESULTS}` にはワーカーの報告（ISSUE・PR・RESULT）を並べる。
 判定のサブエージェントは必要な詳細を issue・引き継ぎから自分で読む。
 
 ```

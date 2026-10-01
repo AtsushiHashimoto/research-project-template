@@ -48,6 +48,7 @@ MODEL=$(bash scripts/resolve-model.sh abstract-review)
 | `/issue-gaps` Phase 2（乖離分析） | `verification` |
 | `/review-integrity` Phase 1（6 エージェントの探索） | `verification` |
 | `/review-integrity` Phase 3（前回との差分分析） | `verification` |
+| `/epic-cycle` Step 2・3（`/issue-gaps`・`/review-integrity` を実行して件数だけ返す） | なし（セッションのモデルを継承。中の役は各スキルの表のとおり） |
 | `/epic-cycle` Step 4（次 task の要否判断の下書き） | `planning` |
 | `/epic-cycle` Phase Final（ゴール達成判定） | `abstract-review` |
 | `/issue-backlog` Phase 2（着手可能項目の特定） | `mechanical` |

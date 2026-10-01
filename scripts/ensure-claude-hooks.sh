@@ -32,39 +32,48 @@ done
 [ -n "$ROOT" ] || ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "ERROR: git リポジトリ外。--root を指定" >&2; exit 2; }
 
 SCRIPT_REL="scripts/session-context.sh"
-COMMAND="bash \"\$CLAUDE_PROJECT_DIR/$SCRIPT_REL\""
+# スクリプトがまだ無い（sync で scripts/ を取り込む前など）ときは何もしない。セッション開始をエラーにしない
+COMMAND="[ ! -f \"\$CLAUDE_PROJECT_DIR/$SCRIPT_REL\" ] || bash \"\$CLAUDE_PROJECT_DIR/$SCRIPT_REL\""
+# resume は会話がそのまま戻るので出さない（同じ内容を重ねない）
+MATCHER="startup|clear|compact"
 SETTINGS="$ROOT/.claude/settings.json"
+P="[claude-hooks]"
 
-command -v jq >/dev/null 2>&1 || { echo "ERROR: jq が無いため .claude/settings.json を更新できない" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || { echo "$P ERROR: jq が無いため .claude/settings.json を更新できない" >&2; exit 1; }
 
 if [ -f "$SETTINGS" ]; then
-  jq empty "$SETTINGS" 2>/dev/null || { echo "ERROR: $SETTINGS が JSON として読めない（手で直してから再実行）" >&2; exit 1; }
+  jq empty "$SETTINGS" 2>/dev/null || { echo "$P ERROR: $SETTINGS が JSON として読めない（手で直してから再実行）" >&2; exit 1; }
   CUR=$(cat "$SETTINGS")
 else
   CUR='{}'
 fi
 
-if jq -e --arg s "$SCRIPT_REL" \
-     '[.hooks.SessionStart[]?.hooks[]?.command // empty | select(contains($s))] | length > 0' \
-     <<<"$CUR" >/dev/null; then
-  echo "フック登録済み: SessionStart → $SCRIPT_REL"
+# 登録済みの判定は、同じコマンドが同じ matcher で入っているか（完全一致）。形の崩れた設定は jq エラー＝異常として止める
+FOUND=$(jq --arg c "$COMMAND" --arg m "$MATCHER" '
+  [ (.hooks.SessionStart // [])[]
+    | select(type == "object" and (.matcher // "") == $m)
+    | (.hooks // [])[]
+    | select(type == "object" and .command == $c) ] | length' <<<"$CUR") \
+  || { echo "$P ERROR: $SETTINGS の hooks.SessionStart の形が想定と違う（手で確認）" >&2; exit 1; }
+
+if [ "$FOUND" -gt 0 ]; then
+  echo "$P フック登録済み: SessionStart（$MATCHER）→ $SCRIPT_REL"
   exit 0
 fi
 
 if [ "$CHECK" = 1 ]; then
-  echo "未登録: SessionStart → $SCRIPT_REL（追記: bash scripts/ensure-claude-hooks.sh）"
+  echo "$P 未登録: SessionStart（$MATCHER）→ $SCRIPT_REL（追記: bash scripts/ensure-claude-hooks.sh）"
   exit 1
 fi
 
 mkdir -p "$ROOT/.claude"
-TMP=$(mktemp "$ROOT/.claude/settings.json.XXXXXX") || exit 1
-if jq --arg c "$COMMAND" \
-     '.hooks.SessionStart = ((.hooks.SessionStart // []) + [{hooks: [{type: "command", command: $c, timeout: 30}]}])' \
-     <<<"$CUR" > "$TMP"; then
-  mv "$TMP" "$SETTINGS"
-  echo "追記: SessionStart → $SCRIPT_REL（$SETTINGS）"
+NEW=$(jq --arg c "$COMMAND" --arg m "$MATCHER" \
+  '.hooks.SessionStart = ((.hooks.SessionStart // []) + [{matcher: $m, hooks: [{type: "command", command: $c, timeout: 60}]}])' \
+  <<<"$CUR") || { echo "$P ERROR: $SETTINGS の更新内容を作れない" >&2; exit 1; }
+# 書き込みは既存ファイルへの上書き（mv で置き換えると権限・symlink が変わる）
+if printf '%s\n' "$NEW" > "$SETTINGS"; then
+  echo "$P 追記: SessionStart（$MATCHER）→ $SCRIPT_REL（$SETTINGS）"
 else
-  rm -f "$TMP"
-  echo "ERROR: $SETTINGS を更新できない" >&2
+  echo "$P ERROR: $SETTINGS に書き込めない" >&2
   exit 1
 fi
