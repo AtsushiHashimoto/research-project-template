@@ -6,6 +6,8 @@ paths:
   - "scripts/resolve-model.sh"
 ---
 
+<!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
+
 ## モデル割当の詳細（call-site の対応表・fallback・overrides）
 
 規則の要約は `model-policy.md`（常に読み込まれる）。ここはスキル・エージェント・ポリシーを触るときの詳細。

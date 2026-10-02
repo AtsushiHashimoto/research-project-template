@@ -10,7 +10,7 @@
 | `skills.md` | スキル一覧（層ごと） | `.claude/skills/**`、README |
 | `model-policy-callsites.md` | call-site → role の対応表、fallback、overrides | スキル・エージェント・`model-policy*.json`・`resolve-model.sh` |
 | `env-node-and-claude-install.md` | Claude Code の導入と Node の要件・移行手順 | `.devcontainer/**` |
-| `optional-features.md` | Ollama、Shared Resource Manager（GPU・ポートの排他）、Claude Code 認証 | `.devcontainer/**`、`scripts/resource.sh` |
+| `optional-features.md` | Ollama、Shared Resource Manager（GPU・ポートの排他）、Claude Code 認証 | `.devcontainer/**`、`scripts/resource.sh`、`data/shared/resources/**` |
 | `premises-migration.md` | 前提の置き場所の移行手順 | `.spec/invariants.md`、`read-premises.sh` |
 
 常に効く要点:

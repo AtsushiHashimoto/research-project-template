@@ -18,9 +18,14 @@
 
 **取得口は `scripts/read-premises.sh <issue番号>` だけ**（親を辿って epic を見つけ、大前提＋epic 前提を原文で出す。自前で抽出しない）。
 
-- メインのセッション: 大前提は `.claude/CLAUDE.md` の import で自動読込。epic 前提は作業開始時に上のスクリプトで読む
-- `/task-start`・`/review-spec`・`/task-run`（auto-reviewer・実装・仕様整合性）・`/epic-cycle`（次 task 下書き・達成判定）は
-  `$PREMISES` を原文でサブエージェントに渡す。前提違反は Critical／「禁止」で停止
+| 呼び出し箇所 | 渡し方 |
+|---|---|
+| セッション（メイン） | `.claude/CLAUDE.md` の import で大前提が自動読込。epic 前提は作業開始時に上のスクリプトで読む |
+| `/task-start` | epic の前提を読み上げ、task 本文には番号と参照だけ書く |
+| `/review-spec` の各サブエージェント | `$PREMISES` を原文で渡す。前提違反は Critical |
+| `/task-run` の auto-reviewer・実装・仕様整合性チェック | `$PREMISES` を原文で渡す。auto-reviewer は違反を「禁止」で停止 |
+| `/epic-cycle` の次 task 下書き・ゴール達成判定 | 同上 |
+
 - **設計を示す前に、どの前提に依存し、どれにも反していないかを確認する。前提に反する設計は提示しない。**
 
 ### 書く（必須）

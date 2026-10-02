@@ -4,6 +4,8 @@ paths:
   - "scripts/read-premises.sh"
 ---
 
+<!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
+
 ## 前提の置き場所の移行手順（既存プロジェクト、一度だけ）
 
 規則本体は `premises.md`。`/template-sync` は `.claude/CLAUDE.md` と `.spec/invariants.md` の固有節を上書きしないため、

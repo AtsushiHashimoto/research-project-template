@@ -14,7 +14,7 @@
 
 ## プルリクエストのルール
 
-- PR タイトルに Issue 番号を含め、説明に `Closes #ISSUE_ID` を書く
+- ブランチでの作業が済んだら PR を作る。タイトルに Issue 番号を含め、説明に `Closes #ISSUE_ID` を書く
 
 ## Git Worktree
 

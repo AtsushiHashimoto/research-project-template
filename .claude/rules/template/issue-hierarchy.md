@@ -73,6 +73,7 @@ goal を守ろうとして範囲を勝手に狭めるのも同じ害がある（
 
 `/task-start`（task 作成・子 issue 生成・実行確認）→ `/task-run`（または `/issue-start` で個別に着手。ブランチと worktree を作る）
 → `/issue-finish`（issue ごとにマージ。溜めて一括マージしない）。
+**Issue の作成は `/issue-create` が単一情報源。** 他のスキル・手作業で `gh issue create` を直接呼ばない。
 
 ### ★ 現在の状態と目標の状態を必ず対話で確認する
 
