@@ -209,7 +209,7 @@ git branch "$SNAPSHOT_BRANCH" main
 Skill(skill="issue-start", args="#${ISSUE_ID}")
 ```
 
-worktree とブランチを作成する（`--relative-paths` を使用。理由は `.claude/rules/template/git-workflow.md` 参照）。
+worktree とブランチを作成する（`scripts/worktree-relative.sh add` で `.git` 参照を相対パスにする。理由は `.claude/rules/template/git-workflow.md` 参照）。
 
 #### Step 1.5: 仕様レビュー（`/review-spec`）
 

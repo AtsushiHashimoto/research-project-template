@@ -432,6 +432,15 @@ else
   run_check "引き継ぎの回帰テスト" bash tests/test_handoff.sh --quiet
 fi
 
+# worktree-relative.sh の回帰テスト
+#   作った worktree の .git が相対パスで、リポジトリを移しても git status が動き、
+#   git < 2.48 の経路で prunable にならないことを pin する。一時リポジトリで数秒。
+if [ ! -f tests/test_worktree_relative.sh ]; then
+  skip "worktree 相対化の回帰テスト（tests/test_worktree_relative.sh が無い）"
+else
+  run_check "worktree 相対化の回帰テスト" bash tests/test_worktree_relative.sh --quiet
+fi
+
 # commit-merge.sh の merge 前チェックの回帰テスト
 #   未コミット・未 push・detached HEAD・存在しない worktree で gh pr merge を呼ばずに止まること、
 #   クリーンなら後始末まで完走すること（パスに空白を含む）を pin する。偽 gh とローカル remote で数秒。
