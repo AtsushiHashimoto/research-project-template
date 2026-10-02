@@ -2,93 +2,27 @@
 
 ## ★ 既定ブランチは `main` 固定
 
-**本テンプレートは既定ブランチが `main` であることを前提にします。** `master` 等は想定しません。
-
-worktree 運用・PR マージ後のブランチ削除・`/commit-merge` の後処理はいずれも `main` を前提に
-書かれており、検出（`git symbolic-ref refs/remotes/origin/HEAD`）は `origin/HEAD` 未設定の
-リポジトリやローカル専用リポジトリで失敗して**新たな分岐と失敗モードを増やす**ためです。
-
-- `main` に切り替えられなかった場合、スクリプトは**握り潰さずに停止**します（#122 D4）。
-  以前は `git checkout main 2>/dev/null || true` としていたため、
-  **feature ブランチに居たまま pull と後続処理が走る**という壊れ方をしていました
-- `master` 運用のリポジトリで使う場合は、ブランチを `main` に改名してください
-
----
+**既定ブランチは `main` を前提にする**（`master` 等は想定しない。`origin/HEAD` からの検出は失敗モードを増やすため採らない）。
+`main` に切り替えられなければスクリプトは握り潰さずに停止する（#122 D4）。`master` 運用なら `main` に改名する。
 
 ## コミットのルール
 
 - コミットメッセージには必ず Issue を参照: `Fixes #ISSUE_ID` または `Refs #ISSUE_ID`
-- **`git add .` / `git add -A` を使わず、意図したファイルを名指しで stage する。** 作業ツリーには未追跡の
-  clone・scratch・生成物が混ざりやすく、一括 add で main に混入する（実際に数十ファイル・他リポジトリの
-  gitlink まで混入し revert した事例がある）。commit 前に `git diff --cached --stat` で確認する
-- Conventional Commits 形式を推奨:
-  - `feat(scope): description` - 新機能
-  - `fix(scope): description` - バグ修正
-  - `docs(scope): description` - ドキュメント
-  - `refactor(scope): description` - リファクタリング
-  - `test(scope): description` - テスト追加
-
----
+- **`git add .` / `git add -A` を使わず、意図したファイルを名指しで stage する**（未追跡の clone・生成物が混入した事例がある）。
+  commit 前に `git diff --cached --stat` で確認する
+- Conventional Commits 形式を推奨（`feat` / `fix` / `docs` / `refactor` / `test`、`type(scope): description`）
 
 ## プルリクエストのルール
 
-- ブランチでの作業完了後、PR を作成
-- PR タイトルに Issue 番号を含める
-- PR 説明に `Closes #ISSUE_ID` を記載してリンク
+- PR タイトルに Issue 番号を含め、説明に `Closes #ISSUE_ID` を書く
 
----
-
-## Git Worktree 管理
-
-### Worktree 作成の標準パターン
+## Git Worktree
 
 ```bash
-# 新しい Issue #N のブランチと worktree を作成
 git worktree add --relative-paths worktrees/issueN feature/N-description
-cd worktrees/issueN
 ```
 
-### ★ `--relative-paths` が必須な理由
-
-`git worktree add` は既定で `.git` 参照を**絶対パス**で2箇所に書き込む:
-
-```
-worktrees/issueN/.git        → gitdir: <絶対パス>/.git/worktrees/issueN
-.git/worktrees/issueN/gitdir → <絶対パス>/worktrees/issueN/.git
-```
-
-devcontainer はリポジトリを `/workspace` にマウントするため、**ホストとコンテナで絶対パスが一致しない**。
-結果として **worktree を作成した側の環境でしか git / gh が動かない**（双方向に壊れる）。
-
-| 作成場所 | 書き込まれるパス | 壊れる環境 |
-|---|---|---|
-| devcontainer 内 | `/workspace/...` | ホスト |
-| ホスト | `/Users/...` | devcontainer 内 |
-
-`--relative-paths` を付けると相対パスで書かれ、両環境から解決できる（git 2.48 以降）。
-
-`scripts/configure-worktree-paths.sh` が `worktree.useRelativePaths=true` を設定するため、
-通常は自動で有効になる（devcontainer 起動時と `/worktree-init` 実行時）。
-上記のコマンド例で明示しているのは、設定が無い環境でも安全にするため。
-
-### 既存の壊れた worktree を復旧する
-
-```bash
-# 現在の環境から見た正しいパスに書き換える
-git worktree repair
-```
-
-**実行した環境でのみ有効**なので、恒久対策は相対パス化のほう。
-
-### 並行作業の例
-
-```
-project-name/                    # メインリポジトリ
-├── worktrees/                   # Worktree用ディレクトリ（.gitignore対象）
-│   ├── issue5/                  # feature/5-description
-│   ├── issue7/                  # survey/7-description
-│   └── issue9/                  # fix/9-description
-├── data/
-│   └── shared/                  # 共有データ（全worktreeからアクセス可能）
-└── src/                         # メインブランチのソース
-```
+- **`--relative-paths` は必須。** ホストと devcontainer（`/workspace`）で絶対パスが違うため、絶対パスで作ると
+  作成した側の環境でしか git / gh が動かない。`scripts/configure-worktree-paths.sh` が
+  `worktree.useRelativePaths=true` を設定する。壊れた worktree は `git worktree repair`（実行した環境でのみ有効）
+- 重要データは worktree 内ではなく `data/shared/` に置く（`data-protection.md`）

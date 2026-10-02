@@ -25,22 +25,26 @@
 
 汎用的なワークフロールールは **`.claude/rules/template/`** に分割されています。
 これらは**セッション開始時に自動で読み込まれる**ため、明示的な参照は不要です。
+ただし「必要なときだけ」の行は frontmatter の `paths:` により、該当ファイルを Read したときだけ読み込まれます（一覧は `template/on-demand.md`）。
 
 | ファイル | 内容 |
 |---|---|
 | `template/issue-hierarchy.md` | epic / task / issue の3層構造、既定の task 構成、ゴールの不変性 |
 | `template/labels.md` | ラベル運用ルール、GitHub ネイティブ sub-issue |
-| `template/skills.md` | スキル一覧（層ごと） |
-| `template/model-policy.md` | サブエージェントのモデル割当（role → model）、枠上限時のフォールバック |
+| `template/skills.md` | スキル一覧（層ごと）（必要なときだけ） |
+| `template/model-policy.md` | サブエージェントのモデル割当（role → model）の規則 |
+| `template/model-policy-callsites.md` | call-site の対応表、fallback、overrides（必要なときだけ） |
 | `template/git-workflow.md` | コミット・PR・Git Worktree 管理 |
 | `template/experiment-discipline.md` | ネガティブ結論の扱い、matched-engineering |
 | `template/dev-guidelines.md` | コード品質、研究ノート、ブランチ命名 |
 | `template/deliverables.md` | 成果物の保存場所、進捗報告 |
 | `template/data-protection.md` | Worktree データ保護、モデル保存 |
-| `template/optional-features.md` | Ollama、Claude Code 認証 |
+| `template/optional-features.md` | Ollama、Shared Resource Manager、Claude Code 認証（必要なときだけ） |
 | `template/premises.md` | ユーザー確定の前提の記録場所（大前提=`.spec/invariants.md` / epic 前提）と必読・即時追記 |
+| `template/premises-migration.md` | 前提の置き場所の移行手順（必要なときだけ） |
 | `template/doc-principles.md` | README と CLAUDE.md の書き分け、アカウント層（`~/.claude/`）の使い分け |
-| `template/env-node-and-claude-install.md` | Claude Code（native build）の導入要件・Node 要件・移行手順 |
+| `template/env-node-and-claude-install.md` | Claude Code（native build）の導入要件・Node 要件・移行手順（必要なときだけ） |
+| `template/on-demand.md` | 必要なときだけ読み込まれるルールの一覧と、常に効く要点 |
 
 ### このファイルに書くもの / rules に書くもの
 
