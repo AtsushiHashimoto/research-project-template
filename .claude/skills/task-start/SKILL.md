@@ -136,7 +136,7 @@ Skill(skill="issue-create", args="--type spec --title ... --parent <task番号>"
 #### survey の扱い
 
 理由と「2周目以降も skip しない」規定は
-`.claude/rules/template/issue-hierarchy.md`「survey を先頭に置く理由」を参照。
+`.claude/rules/template/issue-hierarchy.md`「既定の task 構成」の survey の項を参照。
 
 **運用上の帰結**: 2周目以降の task でも survey issue を必ず作る。
 不要と判断した場合も skip せず、判断の記録を残して閉じる。

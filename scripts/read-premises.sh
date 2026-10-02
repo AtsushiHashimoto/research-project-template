@@ -44,7 +44,7 @@ emit_project() {
   fi
   local sec; sec=$(extract_section "$PROJECT_HEADING" < "$INVARIANTS")
   if [ -z "$sec" ]; then
-    echo "WARN: $INVARIANTS に「${PROJECT_HEADING#\#\# }」節が無い（移行手順: premises.md）" >&2
+    echo "WARN: $INVARIANTS に「${PROJECT_HEADING#\#\# }」節が無い（移行手順: premises-migration.md）" >&2
     printf '%s\n\n（節なし）\n' "$PROJECT_HEADING"; return
   fi
   printf '%s\n' "$sec" | is_blank_section && echo "WARN: プロジェクト大前提が未記入" >&2

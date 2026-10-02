@@ -1,3 +1,8 @@
+---
+paths:
+  - ".claude/skills/**"
+  - "README*.md"
+---
 <!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
 
 ## スキル一覧

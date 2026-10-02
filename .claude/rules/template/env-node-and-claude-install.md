@@ -1,3 +1,7 @@
+---
+paths:
+  - ".devcontainer/**"
+---
 ## 実行環境要件: Claude Code のインストールと Node
 
 ### 要件

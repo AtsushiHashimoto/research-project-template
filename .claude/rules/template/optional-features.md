@@ -1,3 +1,9 @@
+---
+paths:
+  - ".devcontainer/**"
+  - "scripts/resource.sh"
+  - "data/shared/resources/**"
+---
 <!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
 
 ## オプション機能の設定
