@@ -140,6 +140,13 @@ chmod 644 .claude/settings.json; echo '{}' > .claude/settings.json; bash scripts
   && ok "権限を変えない" || ng "権限を変えない"
 echo '{"hooks":{"SessionStart":"oops"}}' > .claude/settings.json
 bash scripts/ensure-claude-hooks.sh >/dev/null 2>&1; [ $? = 1 ] && ok "形の崩れた設定は exit 1" || ng "形の崩れた設定は exit 1"
+# 空ファイルは {} とみなして登録する（消さない・exit 0 で何もしないことはない）
+: > .claude/settings.json; bash scripts/ensure-claude-hooks.sh >/dev/null \
+  && [ "$(jq '.hooks.SessionStart | length' .claude/settings.json)" = 1 ] && ok "空の settings.json に登録" || ng "空の settings.json に登録"
+# 同じコマンドが別の matcher で入っていれば二重に登録しない
+jq '.hooks.SessionStart[0].matcher = "startup"' .claude/settings.json > "$TMP/s.json" && cat "$TMP/s.json" > .claude/settings.json
+bash scripts/ensure-claude-hooks.sh >/dev/null
+[ "$(jq '.hooks.SessionStart | length' .claude/settings.json)" = 1 ] && ok "matcher が違っても二重登録しない" || ng "matcher が違っても二重登録しない"
 echo '{broken' > .claude/settings.json
 bash scripts/ensure-claude-hooks.sh >/dev/null 2>&1; [ $? = 1 ] && ok "壊れた JSON は exit 1" || ng "壊れた JSON は exit 1"
 [ "$(cat .claude/settings.json)" = '{broken' ] && ok "壊れた JSON を上書きしない" || ng "壊れた JSON を上書きしない"

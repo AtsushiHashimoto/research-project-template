@@ -29,7 +29,7 @@ state_file() {
 usage() { sed -n '5,7p' "$0" | sed 's/^# //' >&2; exit 2; }
 
 cmd_write() {
-  local issue="${1:-}" src="${2:-}" body missing=() h url sf
+  local issue="${1:-}" src="${2:-}" body missing=() h url sf br
   issue="${issue#\#}"
   if ! [[ "$issue" =~ ^[0-9]+$ ]] || [ -z "$src" ]; then usage; fi
   if [ "$src" = "-" ]; then body=$(cat); else
@@ -46,7 +46,8 @@ cmd_write() {
   fi
   # 先頭の行が MARKER で始まるものだけを read が拾う。本文側に既にあれば重ねない
   if [[ "$(head -n1 <<<"$body")" != "$MARKER"* ]]; then
-    body="$MARKER$(date '+%Y-%m-%d %H:%M')・$(git branch --show-current 2>/dev/null || echo '?')）"$'\n\n'"$body"
+    br=$(git branch --show-current 2>/dev/null); [ -n "$br" ] || br='?'   # detached HEAD は空文字で成功する
+    body="$MARKER$(date '+%Y-%m-%d %H:%M')・$br）"$'\n\n'"$body"
   fi
   url=$(gh issue comment "$issue" --body-file - <<<"$body") || { echo "ERROR: #$issue にコメントできない" >&2; exit 1; }
   url=$(tail -n1 <<<"$url")

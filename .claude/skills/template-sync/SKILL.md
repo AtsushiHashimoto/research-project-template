@@ -283,7 +283,7 @@ if [ -f "$ENSURE_HOOKS" ]; then
 fi
 ```
 
-登録するのは SessionStart → `scripts/session-context.sh`（/clear・/compact・再開のたびに
+登録するのは SessionStart → `scripts/session-context.sh`（起動・/clear・/compact のたびに
 issue の引き継ぎと epic 前提を文脈に戻す）。**フックが効くのは `scripts/` の同期を適用した後**なので、
 `scripts/session-context.sh` `scripts/handoff.sh` を Step 7 で取り込むこと。
 
