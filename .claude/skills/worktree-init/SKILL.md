@@ -13,8 +13,8 @@ bash .claude/skills/worktree-init/init.sh
 以下を実行します。
 
 - 共有データ保存先の設定
-- `worktree.useRelativePaths=true` の設定（ホスト / devcontainer 間で worktree を共有するため）
-- 既存 worktree の `git worktree repair`
+- `worktree.useRelativePaths=true` の設定（git 2.48 以上。ホスト / devcontainer 間で worktree を共有するため）
+- 既存 worktree の相対化と修復（`scripts/worktree-relative.sh fix`。git 2.48 未満でも相対化する）
 
 ## Step 2: `.spec/` のプロジェクト固有内容を登録
 

@@ -90,7 +90,7 @@ BRANCH="${PREFIX}/${ISSUE_ID}-${SLUG}"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKTREE_PATH="${REPO_ROOT}/worktrees/issue${ISSUE_ID}"
 
-git worktree add --relative-paths "$WORKTREE_PATH" -b "$BRANCH"
+bash "${REPO_ROOT}/scripts/worktree-relative.sh" add "$WORKTREE_PATH" -b "$BRANCH"
 cd "$WORKTREE_PATH"
 ```
 
@@ -98,8 +98,9 @@ cd "$WORKTREE_PATH"
 
 1. **`worktrees/`（ドット無し）** に作る。`.gitignore` がこのパスを対象にしているため。
    ドット付きだと worktree 内の全ファイルが未追跡として `git status` を汚染する
-2. **`--relative-paths` を付ける。** 付けないと `.git` 参照が絶対パスになり、
-   ホストと devcontainer のどちらか一方でしか git / gh が動かなくなる（双方向に壊れる）
+2. **`git worktree add` を直接呼ばず `scripts/worktree-relative.sh add` を通す。** 素の `git worktree add` は
+   `.git` 参照を絶対パスで書き、ホストと devcontainer のどちらか一方でしか git / gh が動かなくなる
+   （双方向に壊れる）。スクリプトが git のバージョンに応じて相対化する（`git-workflow.md`）
 
 ### Step 5: 開始報告
 

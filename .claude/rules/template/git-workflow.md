@@ -19,10 +19,15 @@
 ## Git Worktree
 
 ```bash
-git worktree add --relative-paths worktrees/issueN feature/N-description
+bash scripts/worktree-relative.sh add worktrees/issueN -b feature/N-description
 ```
 
-- **`--relative-paths` は必須。** ホストと devcontainer（`/workspace`）で絶対パスが違うため、絶対パスで作ると
-  作成した側の環境でしか git / gh が動かない。`scripts/configure-worktree-paths.sh` が
-  `worktree.useRelativePaths=true` を設定する。壊れた worktree は `git worktree repair`（実行した環境でのみ有効）
+- **worktree の `.git` 参照は相対パスにする（必須）。** ホストと devcontainer（`/workspace`）で絶対パスが違うため、
+  絶対パスで作ると作成した側の環境でしか git / gh が動かない。
+- **`git worktree add` を直接呼ばず、`scripts/worktree-relative.sh add` を通す。** git 2.48 以上なら
+  `--relative-paths`、それ未満なら作成直後に worktree 側の `.git` を相対化する（バージョン分岐はこのスクリプトだけ）。
+  git < 2.48 ではメイン側 `.git/worktrees/<id>/gitdir` は絶対パスのまま残す（相対にすると旧 git が
+  カレントディレクトリ基準で解決し、`git worktree prune` が管理情報を消す）。
+- 別環境で worktree 一覧が prunable になったら、その環境で `bash scripts/worktree-relative.sh fix` を実行する
+  （`scripts/configure-worktree-paths.sh` が devcontainer 作成時・`/worktree-init` 時に自動で呼ぶ）。
 - 重要データは worktree 内ではなく `data/shared/` に置く（`data-protection.md`）

@@ -47,7 +47,8 @@
 
 ### INV-D02: worktree は相対パスで作成する
 
-**決定**: `git worktree add --relative-paths` を使う（`worktree.useRelativePaths=true`）
+**決定**: worktree の `.git` 参照を相対パスにする。手段は `scripts/worktree-relative.sh add` に一本化する
+（git ≥ 2.48 は `--relative-paths`、それ未満は作成直後に worktree 側の `.git` を相対化。分岐はスクリプトだけに置く）
 **理由**: ホストと devcontainer でマウントパスが異なるため、絶対パスだと
 worktree を作成した側の環境でしか git / gh が動かない
 **変更する場合**: devcontainer を使わず、単一環境でのみ作業すると確約できる場合のみ

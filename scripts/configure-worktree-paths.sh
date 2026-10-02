@@ -15,8 +15,10 @@
 #
 #   worktree.useRelativePaths=true にすると相対パスで書かれ、両環境から解決できる。
 #
-# 要件:
-#   git 2.48 以降（--relative-paths / worktree.useRelativePaths の対応バージョン）
+# git のバージョン:
+#   2.48 以降は worktree.useRelativePaths=true を設定する。
+#   2.48 未満は設定が無いので、新規作成は scripts/worktree-relative.sh add、
+#   既存 worktree の修復は scripts/worktree-relative.sh fix が相対化を担う（分岐の単一情報源）。
 #
 # 呼び出し元:
 #   - .devcontainer/post-create.sh （コンテナ側）
@@ -38,15 +40,17 @@ if [ "$GIT_MAJOR" -gt 2 ] || { [ "$GIT_MAJOR" -eq 2 ] && [ "$GIT_MINOR" -ge 48 ]
   git config worktree.useRelativePaths true
   echo "[worktree-paths] worktree.useRelativePaths=true を設定（git ${GIT_VERSION}）"
 else
-  echo "[worktree-paths] WARNING: git ${GIT_VERSION} は worktree.useRelativePaths 未対応（2.48 以降が必要）"
-  echo "[worktree-paths] ホストと devcontainer で worktree を共有すると git / gh が動きません。"
-  echo "[worktree-paths] 各環境で 'git worktree repair' を実行して回避してください。"
+  echo "[worktree-paths] git ${GIT_VERSION} は worktree.useRelativePaths 未対応（2.48 未満）。"
+  echo "[worktree-paths] worktree の作成は 'bash scripts/worktree-relative.sh add' で相対化します。"
 fi
 
-# 既存 worktree の絶対パスをこの環境向けに修復する。
+# 既存 worktree を相対化し、メイン側の参照をこの環境向けに修復する。
 # 相対パス化されていない過去の worktree を救済するため、設定の成否に関わらず実行する。
 if [ -d "$(git rev-parse --git-common-dir)/worktrees" ]; then
-  git worktree repair >/dev/null 2>&1 && echo "[worktree-paths] 既存 worktree の参照を修復しました"
+  SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+  bash "$SCRIPT_DIR/worktree-relative.sh" fix >/dev/null 2>&1 \
+    && echo "[worktree-paths] 既存 worktree の参照を相対化・修復しました" \
+    || echo "[worktree-paths] WARNING: 既存 worktree の修復に失敗（bash scripts/worktree-relative.sh fix で詳細を確認）"
 fi
 
 exit 0

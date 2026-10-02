@@ -92,4 +92,4 @@ task は「現在地から目的地までの距離」なので、両方を合意
 ### Git Worktree の使用（必須）
 
 並行タスクのブランチ混入を防ぐため、issue ごとに **`worktrees/`（ドット無し、`.gitignore` 対象）** に
-`--relative-paths` 付きで worktree を作る（`git-workflow.md`）。
+`scripts/worktree-relative.sh add` で worktree を作る（`.git` 参照を相対パスにする。`git-workflow.md`）。
