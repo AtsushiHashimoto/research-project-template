@@ -66,6 +66,9 @@ class DistributionTest(unittest.TestCase):
         outside = self.root / "outside"
         outside.write_text("PROTECTED")
         for rel in (
+            "install.sh",
+            "scripts",
+            ".claude/skills",
             "AGENTS.md.template",
             ".claude/CLAUDE.md.template",
             ".codex/instructions.md",

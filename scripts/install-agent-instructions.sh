@@ -5,7 +5,8 @@
 # shellcheck source=template-targets.sh
 source "$(dirname "${BASH_SOURCE[0]}")/template-targets.sh"
 agent_instruction_preflight() {
-  local root="$1" reference
+  local root="$1" source_root="${2:-$(dirname "${BASH_SOURCE[0]}")/..}" reference cursor component
+  local -a components
   for reference in .claude .codex .codex/instructions .agents; do
     if [ -L "$root/$reference" ] || { [ -e "$root/$reference" ] && [ ! -d "$root/$reference" ]; }; then
       echo "ERROR: agent directory must be repo-local: $reference" >&2
@@ -21,18 +22,27 @@ agent_instruction_preflight() {
     done
   done < <(template_targets reference)
   while IFS= read -r reference; do
-    case "$reference" in .codex/*)
-      if [ -L "$root/$reference" ] || { [ -e "$root/$reference" ] && [ ! -f "$root/$reference" ]; }; then
-        echo "ERROR: Codex instruction must be a regular file: $reference" >&2
+    cursor="$root"
+    IFS=/ read -r -a components <<< "$reference"
+    for component in "${components[@]}"; do
+      cursor="$cursor/$component"
+      if [ -L "$cursor" ] || { [ "$cursor" != "$root/$reference" ] && [ -e "$cursor" ] && [ ! -d "$cursor" ]; }; then
+        echo "ERROR: distribution path must be repo-local: $reference" >&2
         return 1
       fi
-      ;;
-    esac
+    done
+    if [ -e "$cursor" ]; then
+      if { [ -d "$source_root/$reference" ] && [ ! -d "$cursor" ]; } \
+        || { [ -f "$source_root/$reference" ] && [ ! -f "$cursor" ]; }; then
+        echo "ERROR: distribution path type mismatch: $reference" >&2
+        return 1
+      fi
+    fi
   done < <(template_targets install)
 }
 install_agent_instructions() {
   local source_root="$1" project_root="$2"
-  agent_instruction_preflight "$project_root" || return 1
+  agent_instruction_preflight "$project_root" "$source_root" || return 1
   AGENT_INSTRUCTIONS_INSTALLED=false
   AGENT_MIGRATION_REQUIRED=false
   mkdir -p "$project_root/.claude"
