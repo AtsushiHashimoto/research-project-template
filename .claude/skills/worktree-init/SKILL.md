@@ -1,6 +1,13 @@
 ---
+name: worktree-init
 description: Initialize worktree data protection configuration (run once in main repository)
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 Set up shared data storage location for worktree data protection. Run this once in the main repository before creating worktrees.
 

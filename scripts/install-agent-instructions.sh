@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# install.sh から source。既存指示は --force でも上書きしない。
+# shellcheck disable=SC2034  # 呼び出し元 installer が状態を読み取る。
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=template-targets.sh
+source "$(dirname "${BASH_SOURCE[0]}")/template-targets.sh"
+agent_instruction_preflight() {
+  local root="$1" reference
+  for reference in .claude .codex .codex/instructions .agents; do
+    if [ -L "$root/$reference" ] || { [ -e "$root/$reference" ] && [ ! -d "$root/$reference" ]; }; then
+      echo "ERROR: agent directory must be repo-local: $reference" >&2
+      return 1
+    fi
+  done
+  while IFS= read -r reference; do
+    for reference in "$reference" "$reference.template"; do
+      if [ -L "$root/$reference" ] || { [ -e "$root/$reference" ] && [ ! -f "$root/$reference" ]; }; then
+        echo "ERROR: instruction entry must be a regular file: $reference" >&2
+        return 1
+      fi
+    done
+  done < <(template_targets reference)
+  while IFS= read -r reference; do
+    case "$reference" in .codex/*)
+      if [ -L "$root/$reference" ] || { [ -e "$root/$reference" ] && [ ! -f "$root/$reference" ]; }; then
+        echo "ERROR: Codex instruction must be a regular file: $reference" >&2
+        return 1
+      fi
+      ;;
+    esac
+  done < <(template_targets install)
+}
+install_agent_instructions() {
+  local source_root="$1" project_root="$2"
+  agent_instruction_preflight "$project_root" || return 1
+  AGENT_INSTRUCTIONS_INSTALLED=false
+  AGENT_MIGRATION_REQUIRED=false
+  mkdir -p "$project_root/.claude"
+  if [ -f "$project_root/AGENTS.md" ]; then
+    cp "$source_root/AGENTS.md" "$project_root/AGENTS.md.template"
+  elif [ -f "$project_root/.claude/CLAUDE.md" ]; then
+    cp "$source_root/AGENTS.md" "$project_root/AGENTS.md.template"
+    AGENT_MIGRATION_REQUIRED=true
+  else
+    cp "$source_root/AGENTS.md" "$project_root/AGENTS.md"
+    AGENT_INSTRUCTIONS_INSTALLED=true
+  fi
+  if [ -f "$project_root/.claude/CLAUDE.md" ]; then
+    cp "$source_root/.claude/CLAUDE.md" "$project_root/.claude/CLAUDE.md.template"
+  elif [ -f "$project_root/AGENTS.md" ]; then
+    cp "$source_root/.claude/CLAUDE.md" "$project_root/.claude/CLAUDE.md"
+  fi
+  if [ ! -f "$project_root/AGENTS.md" ] || ! grep -qxF '@../AGENTS.md' "$project_root/.claude/CLAUDE.md" \
+    || ! grep -qF '.codex/instructions.md' "$project_root/AGENTS.md"; then
+    AGENT_MIGRATION_REQUIRED=true
+  fi
+  if [ "$AGENT_MIGRATION_REQUIRED" = true ]; then
+    echo "[agent-instructions] MIGRATION_REQUIRED: compare AGENTS.md.template and .claude/CLAUDE.md.template; preserve project facts, connect @../AGENTS.md, and tell Codex to read .codex/instructions.md; coexistence is not ready" >&2
+  else
+    echo "[agent-instructions] entries connected; existing project instructions preserved"
+  fi
+}

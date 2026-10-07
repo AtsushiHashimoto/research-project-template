@@ -1,7 +1,14 @@
 ---
+name: task-start
 description: 現状と目標を対話で確認して task を作成し、既定構成の子 issue を生成する
 argument-hint: [task の説明] [--epic N]
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Task Start
 

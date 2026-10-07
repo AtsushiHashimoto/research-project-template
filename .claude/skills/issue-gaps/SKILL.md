@@ -1,6 +1,13 @@
 ---
+name: issue-gaps
 description: Detect gaps, label outdated issues, and create missing issues (乖離検出・Issue作成)
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Issue Gap Filler
 

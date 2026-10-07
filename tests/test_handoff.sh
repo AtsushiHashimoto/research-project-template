@@ -97,7 +97,16 @@ has "$out" "(feature/8-x)" "worktree 一覧"
 # 6b: ブランチ名の日付などを issue 番号と取り違えない（<種類>/<番号>- の形だけ）
 git branch -q contribute/20261001-x && git worktree add -q "$TMP/wtd" contribute/20261001-x 2>/dev/null
 out=$(cd "$TMP/wtd" && bash "$R/scripts/session-context.sh" </dev/null)
-hasnt "$out" "#20261001" "日付をブランチの番号と取り違えない"; has "$out" "最後の引き継ぎ先" "番号が無ければ最後の引き継ぎ先"
+hasnt "$out" "#20261001" "日付をブランチの番号と取り違えない"
+hasnt "$out" "#7 T7" "未記録 worktree には main の記録を混入しない"
+
+# 6d: 日付ブランチでも各 worktree の最後の記録だけを復元する
+(cd "$TMP/wtd" && bash "$R/scripts/handoff.sh" write 8 - <<<"$GOOD" >/dev/null) || ng "worktree への記録"
+out=$(cd "$TMP/wtd" && bash "$R/scripts/session-context.sh" </dev/null)
+has "$out" "#8 T8" "worktree 固有の最後の引き継ぎ先"
+[ "$(bash scripts/handoff.sh last | cut -f1)" = 7 ] && ok "main の記録を保持" || ng "main の記録を保持"
+out=$(cd "$TMP/wt8" && bash "$R/scripts/handoff.sh" last)
+[ -z "$out" ] && ok "別 worktree には記録が混入しない" || ng "別 worktree には記録が混入しない"
 
 # 6c: epic 前提は issue → task → epic を辿って出す（大前提は出さない）
 jq -n '{title:"E", state:"OPEN", labels:[{name:"epic"}], parent:null, body:"## 前提（ユーザー確定事項）\n- EPICPREM\n## 完了条件\n- x", comments:[]}' > "$FIX/1.json"

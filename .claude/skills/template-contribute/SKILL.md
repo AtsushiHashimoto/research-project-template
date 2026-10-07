@@ -1,6 +1,13 @@
 ---
+name: template-contribute
 description: Contribute improvements back to research-project-template (テンプレートへの改善PR)
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Template Contribute（テンプレートへの改善PR）
 
@@ -22,7 +29,7 @@ description: Contribute improvements back to research-project-template (テン�
 | 還流候補（テンプレート由来） | 対象外（プロジェクト固有） |
 |---|---|
 | `.claude/rules/template/`（`MANIFEST.sha256` は生成物なので除外） | `.claude/rules/` 直下（ローカルルール） |
-| `.claude/skills/` | `.claude/CLAUDE.md`（固有の概要・制約を含む） |
+| `.claude/skills/` | `AGENTS.md` / `.claude/CLAUDE.md`（固有情報・入口） |
 | `.claude/agents/` | `.spec/` の**プロジェクト固有節**（`# プロジェクト固有` 以降） |
 | `scripts/` | `.spec/issues/`, `.spec/decisions/`, `.spec/subsystems/` |
 | `.spec/*.md` の**既定節**（`# 既定の` 〜 `# プロジェクト固有` の直前） | `data/`, `docs/`, `.dev/`, その他すべて |
@@ -304,10 +311,13 @@ rm -rf "$TMP_DIR"
 - 汚染チェックと品質レビューは省略禁止
 - PR 本文の3項目（元 issue・動機・汎用性の根拠）は省略禁止
 - ユーザーの確認なしに PR を作成しない
-- `.spec/` の固有節と `.claude/CLAUDE.md` は還流しない
+- `.spec/` の固有節と `AGENTS.md` / `.claude/CLAUDE.md` は還流しない
 
 ## Note
 
 - テンプレートからの更新取り込みは `/template-sync` を使用
 - `/issue-finish` は完了報告に還流候補を1行提示する（契機の組み込み）
 - GitHub 認証が必要（`gh auth status` で確認可能）
+
+Codex の template 指示も scripts/template-targets.sh の還流対象。local 指示、生成リンク、hooks.json、個人 config は対象外。
+上流 AGENTS/CLAUDE の雛形・install.sh の変更は上流 checkout で別途作り、下流の固有情報を移さない。

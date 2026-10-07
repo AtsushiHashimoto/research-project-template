@@ -1,7 +1,14 @@
 ---
+name: issue-diff
 description: Analyze gap between issue spec and implementation (Issue乖離分析)
 argument-hint: <issue_id>
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Issue Diff Analyzer
 

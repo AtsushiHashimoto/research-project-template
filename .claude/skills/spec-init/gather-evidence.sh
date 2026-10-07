@@ -69,10 +69,12 @@ git log --oneline --grep='revert\|Revert\|やり直し\|差し戻' -i -30 2>/dev
   | head -20 || echo "(該当なし)"
 
 # ---------------------------------------------------------------------------
-section "5. core-rules.md の候補: CLAUDE.md の禁止・必須表現"
+section "5. core-rules.md の候補: AGENTS.md（旧環境は CLAUDE.md）の禁止・必須表現"
 # ---------------------------------------------------------------------------
-if [ -f .claude/CLAUDE.md ]; then
-  grep -nE '禁止|必ず|絶対|してはいけない|しない' .claude/CLAUDE.md \
+CONTEXT_FILE=AGENTS.md
+[ -f "$CONTEXT_FILE" ] || CONTEXT_FILE=.claude/CLAUDE.md
+if [ -f "$CONTEXT_FILE" ]; then
+  grep -nE '禁止|必ず|絶対|してはいけない|しない' "$CONTEXT_FILE" \
     | grep -vE '^\s*[0-9]+:\s*\|' | head -25
 else
   echo "(.claude/CLAUDE.md が無い)"

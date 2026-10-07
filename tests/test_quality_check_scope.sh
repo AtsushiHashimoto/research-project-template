@@ -52,7 +52,7 @@ say
 # ---------------------------------------------------------------------------
 say "[static] #121 の成果と限定範囲"
 
-if grep -q 'append_ran' "$GATE" && grep -q '実行 (' "$GATE" && grep -q '未実行 (' "$GATE"; then
+if grep -q 'append_ran' "$GATE" && grep -q '実行 (' scripts/quality-check-report.sh && grep -q '未実行 (' scripts/quality-check-report.sh; then
   ok "実行/失敗/未実行のサマリが残っている（#121 D4）"
 else
   ng "サマリ機能が失われている（#121 の退行）"
@@ -147,6 +147,7 @@ make_repo() {
   REPO="$TMPROOT/$name"
   mkdir -p "$REPO/scripts"
   cp "$ROOT/$GATE" "$REPO/scripts/quality-check.sh"
+  cp "$ROOT/scripts/quality-check-report.sh" "$REPO/scripts/quality-check-report.sh"
   git init -q "$REPO" >/dev/null 2>&1
   git -C "$REPO" symbolic-ref HEAD "refs/heads/$branch"
   printf '#!/usr/bin/env bash\necho untouched-ok\n' > "$REPO/untouched_ok.sh"

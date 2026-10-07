@@ -1,7 +1,14 @@
 ---
+name: issue-start
 description: issue に着手する。ブランチと worktree を作成し、仕様レビューまで進める
 argument-hint: <issue番号> | --new --type <種類> --parent <task番号> --title <題>
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Issue Start
 
@@ -91,6 +98,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKTREE_PATH="${REPO_ROOT}/worktrees/issue${ISSUE_ID}"
 
 bash "${REPO_ROOT}/scripts/worktree-relative.sh" add "$WORKTREE_PATH" -b "$BRANCH"
+bash "$WORKTREE_PATH/scripts/configure-agent-workflow.sh" "$WORKTREE_PATH"
 cd "$WORKTREE_PATH"
 ```
 

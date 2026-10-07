@@ -45,5 +45,33 @@
   "disabled": [],
   "overrides": {
     "$comment": "role ごとにプロジェクト固有の上書きをする場合はここに書く。例: \"implementation\": \"sonnet\""
+  },
+  "agents": {
+    "codex": {
+      "roles": {
+        "planning": {
+          "primary": "inherit",
+          "fallback": []
+        },
+        "abstract-review": {
+          "primary": "inherit",
+          "fallback": []
+        },
+        "implementation": {
+          "primary": "inherit",
+          "fallback": []
+        },
+        "verification": {
+          "primary": "inherit",
+          "fallback": []
+        },
+        "mechanical": {
+          "primary": "inherit",
+          "fallback": []
+        }
+      },
+      "overrides": {},
+      "disabled": []
+    }
   }
 }

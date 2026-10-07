@@ -2,6 +2,13 @@
 
 サブエージェントのモデルは**呼び出し箇所（call-site）の役割（role）**で決める（issue のラベルや層ではない）。
 
+role は両エージェント共通。以下の省略形のコマンドとモデル例は Claude 用。
+Codex は `bash scripts/resolve-model.sh --agent codex <role>` を使い、同じ JSON の
+`agents.codex` から解決する。既定は `inherit`（モデル指定を省略）。Claude の別名を渡さない。
+Codex の一時無効化は `--agent codex --disable <model>`、環境変数は
+`CODEX_MODEL_POLICY_DISABLE`。Claude の disabled/override と分離する。
+必須モデル指定に runtime が対応しないときや Codex 候補が全て無効なときは停止する。
+
 - **スキルに具体的なモデル名を書かない。** `MODEL=$(bash scripts/resolve-model.sh <role>)` で引き、`Agent(... model=...)` に渡す。
   role → モデルの単一情報源は `.claude/model-policy.json`
 - role: `planning` / `abstract-review` / `implementation` / `verification`（既定 opus）、`mechanical`（haiku）。未定義は `inherit`

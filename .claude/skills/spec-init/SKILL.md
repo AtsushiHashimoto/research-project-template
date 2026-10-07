@@ -1,6 +1,13 @@
 ---
+name: spec-init
 description: .spec/ の必読ファイルにプロジェクト固有の内容を対話的に追加する
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Spec Init
 
@@ -42,7 +49,7 @@ bash .claude/skills/spec-init/gather-evidence.sh
 
 1. 3ファイルの記入状況（未作成 / 既定のみ / 固有あり）
 2. `known-issues` 候補: closed した `bug` ラベル Issue、`wontfix` Issue、revert コミット
-3. `core-rules` 候補: CLAUDE.md 中の禁止・必須表現
+3. `core-rules` 候補: AGENTS.md（旧環境は CLAUDE.md）中の禁止・必須表現
 4. `invariants` 候補: `docs/` の設計文書、closed の `feature` / `refactor` Issue
 
 **ファイルが存在しない場合**は、テンプレートから復元するようユーザーに伝えて中断すること
@@ -83,7 +90,7 @@ Step 1 で得た closed bug Issue を、**既定 KI-D01〜D13 に該当しない
 - 過去に「これをやって大事故になった」ことはありますか
 - 外部に公開・提出する成果物に関する制約はありますか（機密、ライセンス、再現性要件）
 
-**理由が書けないものは絶対ルールではない**ため、`invariants.md` か CLAUDE.md に回すこと。
+**理由が書けないものは絶対ルールではない**ため、`invariants.md` か AGENTS.md に回すこと。
 
 ### Step 4: invariants の確認
 

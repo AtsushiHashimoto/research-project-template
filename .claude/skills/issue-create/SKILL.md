@@ -1,7 +1,14 @@
 ---
+name: issue-create
 description: Issue 作成の単一情報源。epic/task/issue のいずれも作成し、親子リンクを張る
 argument-hint: --type <epic|task|issue-type> --title <題> [--parent <N>]
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Issue Create
 
