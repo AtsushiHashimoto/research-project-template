@@ -4,9 +4,41 @@
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=template-targets.sh
 source "$(dirname "${BASH_SOURCE[0]}")/template-targets.sh"
-agent_instruction_preflight() {
-  local root="$1" source_root="${2:-$(dirname "${BASH_SOURCE[0]}")/..}" reference cursor component
+# 配布元の各エントリに対応するコピー先を、変更開始前に再帰検査する。
+_agent_preflight_path() {
+  local root="$1" source_root="$2" reference="$3" cursor component child name
   local -a components
+  cursor="$root"
+  IFS=/ read -r -a components <<< "$reference"
+  for component in "${components[@]}"; do
+    cursor="$cursor/$component"
+    if [ -L "$cursor" ] || { [ "$cursor" != "$root/$reference" ] && [ -e "$cursor" ] && [ ! -d "$cursor" ]; }; then
+      echo "ERROR: distribution path must be repo-local: $reference" >&2
+      return 1
+    fi
+  done
+  if [ -L "$source_root/$reference" ]; then
+    echo "ERROR: distribution source must not be a symlink: $reference" >&2
+    return 1
+  fi
+  if [ -e "$cursor" ]; then
+    if { [ -d "$source_root/$reference" ] && [ ! -d "$cursor" ]; } \
+      || { [ -f "$source_root/$reference" ] && [ ! -f "$cursor" ]; }; then
+      echo "ERROR: distribution path type mismatch: $reference" >&2
+      return 1
+    fi
+  fi
+  if [ -d "$source_root/$reference" ]; then
+    for child in "$source_root/$reference/"* "$source_root/$reference/".*; do
+      name="${child##*/}"
+      case "$name" in .|..) continue ;; esac
+      [ -e "$child" ] || [ -L "$child" ] || continue
+      _agent_preflight_path "$root" "$source_root" "$reference/$name" || return 1
+    done
+  fi
+}
+agent_instruction_preflight() {
+  local root="$1" source_root="${2:-$(dirname "${BASH_SOURCE[0]}")/..}" reference
   for reference in .claude .codex .codex/instructions .agents; do
     if [ -L "$root/$reference" ] || { [ -e "$root/$reference" ] && [ ! -d "$root/$reference" ]; }; then
       echo "ERROR: agent directory must be repo-local: $reference" >&2
@@ -22,22 +54,7 @@ agent_instruction_preflight() {
     done
   done < <(template_targets reference)
   while IFS= read -r reference; do
-    cursor="$root"
-    IFS=/ read -r -a components <<< "$reference"
-    for component in "${components[@]}"; do
-      cursor="$cursor/$component"
-      if [ -L "$cursor" ] || { [ "$cursor" != "$root/$reference" ] && [ -e "$cursor" ] && [ ! -d "$cursor" ]; }; then
-        echo "ERROR: distribution path must be repo-local: $reference" >&2
-        return 1
-      fi
-    done
-    if [ -e "$cursor" ]; then
-      if { [ -d "$source_root/$reference" ] && [ ! -d "$cursor" ]; } \
-        || { [ -f "$source_root/$reference" ] && [ ! -f "$cursor" ]; }; then
-        echo "ERROR: distribution path type mismatch: $reference" >&2
-        return 1
-      fi
-    fi
+    _agent_preflight_path "$root" "$source_root" "$reference" || return 1
   done < <(template_targets install)
 }
 install_agent_instructions() {

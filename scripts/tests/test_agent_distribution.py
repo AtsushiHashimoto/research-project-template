@@ -267,6 +267,38 @@ class DistributionTest(unittest.TestCase):
         self.assertIn("PROJECT_INVARIANT", spec.read_text())
         self.assertTrue(json.loads(hooks.read_text())["custom"])
 
+        # Force must reject nested file/directory symlinks before copying anything.
+        outside = self.root / "outside protected"
+        outside.write_text("PROTECTED")
+        for relative in (
+            "scripts/handoff.sh",
+            ".claude/skills/review/SKILL.md",
+            ".claude/skills/review-spec/references",
+        ):
+            path = target / relative
+            existed = path.exists()
+            backup = path.with_name(path.name + ".preserved")
+            if existed:
+                path.rename(backup)
+            path.symlink_to(outside)
+            sentinel = target / ".claude/model-policy.json"
+            sentinel.write_text("PRESERVE_BEFORE_COPY")
+            result = subprocess.run(
+                ["bash", str(ROOT / "install.sh"), "--force", str(target)],
+                env=env,
+                text=True,
+                input="",
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("distribution path", result.stderr)
+            self.assertEqual(outside.read_text(), "PROTECTED")
+            self.assertEqual(sentinel.read_text(), "PRESERVE_BEFORE_COPY")
+            path.unlink()
+            if existed:
+                backup.rename(path)
+
 
 if __name__ == "__main__":
     unittest.main()

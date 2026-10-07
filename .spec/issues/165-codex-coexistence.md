@@ -4,7 +4,7 @@
 Keep project facts, common rules and skill bodies in one source. Add only engine-specific entry and execution adapters. Preserve existing research discipline and mandatory review gates.
 
 ## Design and state
-Issue → isolated branch → reviewed specification → implementation → quality / independent reviews → draft PR → merge after acceptance → template-sync distribution.
+Issue → isolated branch → reviewed specification → implementation → quality / independent reviews → PR → merge after implementation checks / review → template-sync distribution.
 
 - AGENTS.md is the canonical project instruction file; Claude imports it. Codex reads its own adapter after the shared entry.
 - Shared .claude rules and skills stay in place. Explicit shared metadata generates relative .agents links with ownership checks and collision preflight.
@@ -37,4 +37,4 @@ CLI verification used Claude Code 2.1.291 and Codex 0.160.1. Ephemeral Codex wor
 
 ## Resources and completion
 Standard Python, bash and existing git/jq/gh; no new packages, GPU or research data required. Fixtures use temporary directories.
-Draft PR only: unverified acceptance is explicit. Do not close the Issue, merge, or claim template-sync distribution before the upstream change is merged.
+The user approved separating operational acceptance into #167 and merging the verified implementation first. The open runtime checklist above remains explicitly unverified and is transferred to #167; it is not a claim of full runtime success. Mandatory quality and independent-review gates remain unchanged. Ordinary task comments hold evidence; the common deliverables rule describes discovery and aggregation. Do not claim template-sync distribution before it actually runs after merge.
