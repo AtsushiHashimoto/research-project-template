@@ -1,7 +1,13 @@
 ---
 name: release
 description: 開発用ファイルを除いたクリーンな成果物を生成し GitHub Release を作成する
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Release
 

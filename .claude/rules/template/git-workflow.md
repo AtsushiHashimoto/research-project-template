@@ -1,4 +1,4 @@
-<!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
+<!-- [Template] research-project-template 由来。プロジェクト固有の記述は AGENTS.md に書くこと -->
 
 ## ★ 既定ブランチは `main` 固定
 

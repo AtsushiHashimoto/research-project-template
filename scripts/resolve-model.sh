@@ -27,6 +27,18 @@
 
 set -uo pipefail
 
+# Claude の既存呼出はそのまま。Codex は同じ policy の agent 別 namespace を解決する。
+if [ "${1:-}" = "--agent" ]; then
+  case "${2:-}" in
+    codex)
+      shift 2
+      exec python3 "$(dirname "${BASH_SOURCE[0]}")/resolve-codex-model.py" "$@"
+      ;;
+    claude) shift 2 ;;
+    *) echo "ERROR: --agent must be claude or codex" >&2; exit 2 ;;
+  esac
+fi
+
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 POLICY="$REPO_ROOT/.claude/model-policy.json"
 LOCAL_POLICY="$REPO_ROOT/.claude/model-policy.local.json"

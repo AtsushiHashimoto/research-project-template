@@ -61,6 +61,11 @@ if [ -x ./scripts/configure-worktree-paths.sh ]; then
   ./scripts/configure-worktree-paths.sh || true
 fi
 
+# 共通スキルの参照とセッション文脈フック（失敗を最終判定へ反映）
+if [ -f scripts/configure-agent-workflow.sh ]; then
+  if ! bash scripts/configure-agent-workflow.sh; then claude_fail=1; fi
+fi
+
 # Claude Code native build（#151）
 # ~/.claude の chown と ~/.claude.json の symlink の後に置く（インストーラが ~/.claude.json に書くため）。
 # 失敗は記録して続行し、最後に非ゼロ終了する（[Project] 部分を巻き込まない）

@@ -1,6 +1,13 @@
 ---
+name: qa-check
 description: QA データディレクトリの answers.jsonl から未処理の回答を確認し、スレッドに返信する
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # QA Check
 

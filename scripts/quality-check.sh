@@ -217,9 +217,9 @@ fi
 if [ "$SCOPE" = "docs" ]; then
   skip "Python 検査（QUALITY_SCOPE=docs）"
 else
-  # 検査対象ディレクトリ。scripts/qa はテンプレート同梱の Python コード（#121 D3）
+  # 検査対象ディレクトリ。scripts は共通ハーネスを含む Python コード（#121 D3）
   PY_TARGETS=()
-  for d in src tests scripts/qa; do
+  for d in src tests scripts; do
     if [ -d "$d" ]; then PY_TARGETS+=("$d"); fi
   done
 
@@ -363,9 +363,9 @@ EOF
       skip "shellcheck（対象ファイル無し）"
     fi
   else
-    run_check "shellcheck (${#SH_FILES[@]} files, ${SH_LABEL})" shellcheck "${SH_FILES[@]}"
+    run_check "shellcheck (${#SH_FILES[@]} files, ${SH_LABEL})" shellcheck -x "${SH_FILES[@]}"
     if [ "$SCOPE_MODE" = "changed" ]; then
-      echo "    （変更された ${#SH_FILES[@]} 件のみ検査。ツリーの残りは未検査 — 全件は QUALITY_FULL_SCAN=1）"
+      echo "    （変更された ${#SH_FILES[@]} 件と参照する helper を検査。他は未検査 — 全件は QUALITY_FULL_SCAN=1）"
     fi
   fi
 fi
@@ -380,6 +380,16 @@ fi
 #   いずれもリポジトリ全体の整合性（グラフ的性質）が対象で、変更ファイルだけを見ると
 #   検出原理が壊れる。例: スキルを1つ削除したとき、それを参照している側のファイルは
 #   変更されていないので、限定すると参照切れを永久に検出できない。
+
+# .claude/rules/template/MANIFEST.sha256 の整合
+if [ -d scripts/tests ]; then
+  run_check "Claude/Codex 共存・配布の回帰テスト" python3 -m unittest discover -s scripts/tests -q
+fi
+
+# 生成リンクは追跡しない。品質チェックでは原本と ownership の整合を検査する。
+if [ -d .agents/skills ] && [ -f scripts/agent-skills.py ]; then
+  run_check "共通スキルリンクの整合" python3 scripts/agent-skills.py --check
+fi
 
 # .claude/rules/template/MANIFEST.sha256 の整合
 #   MANIFEST がずれていると /template-sync が無改変のルールを「還流候補」として
@@ -499,50 +509,6 @@ fi
 # 結果
 #   実行/失敗/未実行を必ず列挙する。無言の切り捨てはしない（#121 D4）
 # ---------------------------------------------------------------------------
-RAN_N=$(count_names "$RAN_NAMES")
-FAILED_N=$(count_names "$FAILED_NAMES")
-NOTRUN_N=$(count_names "$NOTRUN_NAMES")
-
-print_summary() {
-  if [ "$RAN_N" -gt 0 ]; then
-    echo "  実行 (${RAN_N}件): $(join_names "$RAN_NAMES")"
-  else
-    echo "  実行 (0件): なし"
-  fi
-  if [ "$FAILED_N" -gt 0 ]; then
-    echo "  失敗 (${FAILED_N}件): $(join_names "$FAILED_NAMES")"
-  fi
-  if [ "$NOTRUN_N" -gt 0 ]; then
-    echo "  未実行 (${NOTRUN_N}件): $(join_names "$NOTRUN_NAMES")"
-    case "$NOTRUN_NAMES" in
-      *"⚠"*)
-        echo "    ※ ⚠ 印は「検査系が未導入」。devcontainer 内では導入済みなので、"
-        echo "      ホストで作業している場合は devcontainer で再実行するか、手元に導入してください"
-        ;;
-    esac
-  fi
-  if [ "$SCOPE_MODE" = "changed" ]; then
-    echo "  範囲: 変更ファイルのみ（base: ${BASE_REF}）。触っていないファイルの既存指摘は"
-    echo "        検出されません。全件は QUALITY_FULL_SCAN=1 で確認してください"
-  fi
-}
-
-if [ "$FAILED" -ne 0 ]; then
-  echo "=== Quality checks FAILED ==="
-  print_summary
-  exit 1
-fi
-
-if [ "$RAN_ANY" -eq 0 ]; then
-  echo "=== 実行対象の検査がありませんでした（このリポジトリには該当する検査対象が無い） ==="
-  print_summary
-  exit 0
-fi
-
-if [ "$NOTRUN_N" -gt 0 ]; then
-  echo "=== All quality checks passed（未実行あり: ${NOTRUN_N}件） ==="
-else
-  echo "=== All quality checks passed ==="
-fi
-print_summary
-exit 0
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=quality-check-report.sh
+source "$(dirname "${BASH_SOURCE[0]}")/quality-check-report.sh"

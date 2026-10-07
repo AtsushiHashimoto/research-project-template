@@ -1,6 +1,6 @@
 # Research Project Template
 
-A project template for Claude Code integration with research workflows. Runs as a **VS Code DevContainer** with GPU support, Claude Code, and all tools pre-installed.
+A project template for shared Claude Code and Codex research workflows. Runs as a **VS Code DevContainer** with GPU support, Claude Code, and all tools pre-installed.
 
 [日本語](README-ja.md) | [中文](README-zh.md)
 
@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-t
 curl -fsSL https://raw.githubusercontent.com/AtsushiHashimoto/research-project-template/main/install.sh | bash -s -- --force
 ```
 
-After installation, edit `.claude/CLAUDE.md` to set project-specific information.
+After installation, edit `AGENTS.md` to set project-specific information.
 
 ---
 
@@ -76,8 +76,11 @@ With VS Code Dev Container:
 
 ```
 my-project/
+├── AGENTS.md                  # Shared project instructions
+├── .codex/                    # Codex-only adapter; local.md is preserved
+├── .agents/skills/            # Generated relative links (not tracked)
 ├── .claude/
-│   ├── CLAUDE.md              # Project config & workflow
+│   ├── CLAUDE.md              # Imports shared AGENTS.md
 │   ├── skills/                # Custom skills (slash commands)
 │   ├── rules/                 # Workflow rules (template/ is synced)
 │   └── agents/                # Subagent definitions
@@ -124,11 +127,11 @@ The list lives there only — this README does not duplicate it.
 
 You can customize the following:
 
-- **`.claude/CLAUDE.md`**: Project-specific rules and workflow
+- **`AGENTS.md`**: Shared project-specific rules and workflow; `.claude/CLAUDE.md` imports it
 - **`.devcontainer/Dockerfile`**: Base image, packages, tools (e.g., Ollama)
 - **`.devcontainer/devcontainer.json`**: VS Code extensions, environment variables
 
-See `.claude/CLAUDE.md` for detailed customization instructions.
+See `AGENTS.md` for shared customization and `.codex/instructions.md` for Codex-only instructions.
 
 ---
 
@@ -145,3 +148,41 @@ See `.claude/CLAUDE.md` for detailed customization instructions.
 ## License
 
 MIT License
+
+## Claude Code and Codex coexistence
+
+Project facts and common instructions live in `AGENTS.md`. Claude imports that file;
+Codex reads it directly and then reads `.codex/instructions.md`. Shared rules and skill
+bodies stay in `.claude/`; `.agents/skills/` contains generated relative links to those
+same skill directories. Edit the originals once to improve both agents.
+
+After cloning, creating a worktree, or selecting a template update:
+
+```bash
+bash scripts/configure-agent-workflow.sh
+```
+
+Claude uses `/task-start`. Install Codex CLI separately, start a new Codex session,
+check `/skills`, and use `$task-start`. Review both project-layer trust and the hook
+definitions in `/hooks`. Registration does not mean the hook is trusted or active.
+Personal authentication, permissions and terminal preferences are never distributed.
+
+Codex-specific template instructions live in `.codex/instructions/template.md`;
+project overrides live in `.codex/instructions/local.md` and are preserved by sync.
+Rule selection uses existing `paths:` metadata via `scripts/agent-rules.py`. Delegation
+uses the shared runtime contract: required independent reviewers, gates and stop rules
+remain mandatory. Environments without required worker/resume/nesting capabilities
+stop explicitly; nested `task-run` compatibility must be checked in that environment.
+
+For existing Claude projects, installation preserves the original instructions and
+writes `.template` references. `MIGRATION_REQUIRED` means compare these references,
+move project facts to AGENTS, connect Claude's `@../AGENTS.md`, and add the Codex entry
+read instruction. A non-force install stops before adding Codex files if existing
+skills have not been upgraded. Review/select the common harness updates with
+`/template-sync` or use the installer with `--force` after reviewing changes.
+
+Install/sync/contribute path selection is defined once in `scripts/template-targets.sh`.
+AGENTS and CLAUDE are reference-only during sync. Local rules, Codex local instructions,
+generated links and personal configuration are excluded from contribution. General
+file deletions remain manual; automatic cleanup is limited to template rules and
+previously owned skill links.

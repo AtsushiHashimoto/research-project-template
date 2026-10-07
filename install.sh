@@ -7,14 +7,12 @@
 
 set -e
 
-# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Detect language
 detect_lang() {
     local lang="${LANG:-${LC_ALL:-en}}"
     case "$lang" in
@@ -26,7 +24,6 @@ detect_lang() {
 
 LANG_CODE=$(detect_lang)
 
-# Multilingual messages
 msg() {
     local key="$1"
     case "$LANG_CODE" in
@@ -47,7 +44,7 @@ msg() {
                 "init_desc") echo "共有データの保存場所を設定します（デフォルト: data/shared）" ;;
                 "init_later") echo "後で初期化する場合: ./scripts/init-data.sh または Claude Code で /worktree-init" ;;
                 "next_steps") echo "次のステップ" ;;
-                "step_edit") echo ".claude/CLAUDE.md を編集してプロジェクト情報を設定" ;;
+                "step_edit") echo "AGENTS.md を編集してプロジェクト情報を設定" ;;
                 "step_claude") echo "Claude Code を起動" ;;
                 "step_start") echo "最初のタスクを開始" ;;
                 "skills") echo "利用可能なスキル" ;;
@@ -70,7 +67,7 @@ msg() {
                 "init_desc") echo "设置共享数据存储位置（默认: data/shared）" ;;
                 "init_later") echo "稍后初始化: ./scripts/init-data.sh 或在 Claude Code 中使用 /worktree-init" ;;
                 "next_steps") echo "下一步" ;;
-                "step_edit") echo "编辑 .claude/CLAUDE.md 设置项目信息" ;;
+                "step_edit") echo "编辑 AGENTS.md 设置项目信息" ;;
                 "step_claude") echo "启动 Claude Code" ;;
                 "step_start") echo "开始第一个任务" ;;
                 "skills") echo "可用技能" ;;
@@ -93,7 +90,7 @@ msg() {
                 "init_desc") echo "Configure shared data storage location (default: data/shared)" ;;
                 "init_later") echo "To initialize later: ./scripts/init-data.sh or /worktree-init in Claude Code" ;;
                 "next_steps") echo "Next steps" ;;
-                "step_edit") echo "Edit .claude/CLAUDE.md to set project info" ;;
+                "step_edit") echo "Edit AGENTS.md to set project info" ;;
                 "step_claude") echo "Start Claude Code" ;;
                 "step_start") echo "Start your first task" ;;
                 "skills") echo "Available skills" ;;
@@ -107,13 +104,11 @@ success() { echo -e "${GREEN}[OK]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# Default values
 TEMPLATE_REPO="https://github.com/AtsushiHashimoto/research-project-template"
 TEMPLATE_BRANCH="main"
 FORCE=false
 TARGET_DIR=""
 
-# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --force|-f)
@@ -159,23 +154,31 @@ info "$(msg downloading)"
 git clone --depth 1 --branch "$TEMPLATE_BRANCH" "$TEMPLATE_REPO" "$TMP_DIR/template" 2>/dev/null || \
     error "$(msg download_failed)"
 
+# 新設した入口・祖先をコピー前に検査し、外部リンクへの書込みを防ぐ。
+# shellcheck source=scripts/install-agent-instructions.sh
+source "$TMP_DIR/template/scripts/install-agent-instructions.sh"
+agent_instruction_preflight "$PROJECT_ROOT"
+if [[ -L "$PROJECT_ROOT/.codex/instructions" ]]; then
+    error ".codex/instructions must be a repo-local directory"
+fi
+# non-force の旧スキルは保持する。必要な更新が無いまま中途半端に Codex を配置しない。
+if [[ "$FORCE" != true ]] && [[ -d "$PROJECT_ROOT/.claude/skills" ]]; then
+    if ! python3 "$TMP_DIR/template/scripts/agent-skills.py" --root "$PROJECT_ROOT" --validate-sources; then
+        install_agent_instructions "$TMP_DIR/template" "$PROJECT_ROOT"
+        error "MIGRATION_REQUIRED: shared harness needs upgrade. Use template-sync to update skills/rules/scripts, or rerun this installer with --force after reviewing template changes. Project instructions remain preserved."
+    fi
+fi
+
 # Files to install
 #
 # ★ ITEMS と /template-sync の SYNC_TARGETS は**意図的に非対称**である。
 #   `.dev` は install の配布対象（雛形を置く）だが、sync の差分対象には入れない。
 #   backlog.md はユーザーデータであり、sync に載せると毎回「変更あり」の偽差分と
 #   雛形での上書き提案を恒久生成してしまうため（#122 D9）。
-ITEMS=(
-    ".claude/skills"
-    ".claude/agents"
-    ".claude/rules"
-    ".claude/worktree-config.json"
-    ".claude/model-policy.json"
-    ".devcontainer"
-    "scripts"
-    ".spec"
-    ".dev"
-)
+# shellcheck source=scripts/template-targets.sh
+source "$TMP_DIR/template/scripts/template-targets.sh"
+ITEMS=()
+while IFS= read -r target; do ITEMS+=("$target"); done < <(template_targets install)
 
 cd "$PROJECT_ROOT"
 
@@ -222,6 +225,12 @@ for item in "${ITEMS[@]}"; do
     src="$TMP_DIR/template/$item"
     dst="$PROJECT_ROOT/$item"
 
+    if [[ "$item" = ".spec" ]] && [[ -d "$dst" ]] && [[ "$FORCE" = true ]]; then
+        # 既存プロジェクトの固有節は force でも保持。既定節だけ更新する。
+        bash "$TMP_DIR/template/scripts/sync-spec-defaults.sh" --source "$TMP_DIR/template" --project-root "$PROJECT_ROOT"
+        mkdir -p "$dst/decisions" "$dst/subsystems" "$dst/issues" "$dst/archives"
+        continue
+    fi
     if [[ -e "$dst" ]] && [[ "$FORCE" != true ]]; then
         warn "$(msg skipping): $item"
         warn "  $(msg use_force)"
@@ -263,16 +272,10 @@ sanitize_sed() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
 # Sanitize values for JSON (escape backslashes and double quotes)
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
-# Handle CLAUDE.md
-CLAUDE_MD_INSTALLED=false
-if [[ -f ".claude/CLAUDE.md" ]]; then
-    cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md.template"
-    warn "$(msg preserved)"
-else
-    cp "$TMP_DIR/template/.claude/CLAUDE.md" ".claude/CLAUDE.md"
-    CLAUDE_MD_INSTALLED=true
-    success "$(msg installed): .claude/CLAUDE.md"
-fi
+# 既存プロジェクト指示は --force でも保存。未接続を共存完了と扱わない。
+# shellcheck source=scripts/install-agent-instructions.sh
+source "$TMP_DIR/template/scripts/install-agent-instructions.sh"
+install_agent_instructions "$TMP_DIR/template" "$PROJECT_ROOT"
 
 # プロジェクト情報の収集（CLAUDE.md の有無に関わらず行う）。
 # template-substitutions.json は /template-contribute の汚染チェックに使うため、
@@ -296,16 +299,16 @@ if [[ -t 0 ]]; then
     START_DATE="$(date +%Y-%m-%d)"
 
     # 置換対象は今回インストールした CLAUDE.md のみ（既存は上書きしない）
-    if [[ "$CLAUDE_MD_INSTALLED" == true ]]; then
-        sed_inplace "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" ".claude/CLAUDE.md"
-        sed_inplace "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" ".claude/CLAUDE.md"
-        sed_inplace "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" ".claude/CLAUDE.md"
-        sed_inplace "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" ".claude/CLAUDE.md"
-        success "CLAUDE.md configured for: $PROJECT_NAME"
+    if [[ "$AGENT_INSTRUCTIONS_INSTALLED" == true ]]; then
+        sed_inplace "s|{{PROJECT_NAME}}|$(sanitize_sed "$PROJECT_NAME")|g" "AGENTS.md"
+        sed_inplace "s|{{PROJECT_DESCRIPTION}}|$(sanitize_sed "$PROJECT_DESCRIPTION")|g" "AGENTS.md"
+        sed_inplace "s|{{RESEARCHER_NAME}}|$(sanitize_sed "$RESEARCHER_NAME")|g" "AGENTS.md"
+        sed_inplace "s|{{START_DATE}}|$(sanitize_sed "$START_DATE")|g" "AGENTS.md"
+        success "AGENTS.md configured for: $PROJECT_NAME"
     fi
-elif [[ "$CLAUDE_MD_INSTALLED" == true ]]; then
+elif [[ "$AGENT_INSTRUCTIONS_INSTALLED" == true ]]; then
     # Non-interactive: leave placeholders, user edits manually
-    info "Edit .claude/CLAUDE.md to replace {{...}} placeholders"
+    info "Edit AGENTS.md to replace {{...}} placeholders"
 fi
 
 # Save substitution log for /template-contribute contamination checks.
@@ -404,7 +407,14 @@ fi
 ENSURE_HOOKS="$TMP_DIR/template/scripts/ensure-claude-hooks.sh"
 if [[ -f "$ENSURE_HOOKS" ]]; then
     bash "$ENSURE_HOOKS" --root "$PROJECT_ROOT" \
-        || warn "Claude Code のフックを登録できませんでした（原因は上の [claude-hooks] の行。直してから bash scripts/ensure-claude-hooks.sh）"
+        || error "Claude Code のフックを登録できませんでした（原因は上の [claude-hooks] の行。直してから bash scripts/ensure-claude-hooks.sh）"
+fi
+
+# local 指示や個人 config は対象外。参照・フック生成失敗は非0で止まる。
+python3 "$TMP_DIR/template/scripts/agent-skills.py" --root "$PROJECT_ROOT"
+python3 "$TMP_DIR/template/scripts/ensure-codex-hooks.py" --root "$PROJECT_ROOT"
+if [[ "$AGENT_MIGRATION_REQUIRED" = true ]]; then
+    warn "MIGRATION_REQUIRED: agent coexistence needs instruction migration; see AGENTS.md.template"
 fi
 
 # Create data directory
@@ -419,7 +429,11 @@ chmod +x scripts/*.sh 2>/dev/null || true
 
 echo ""
 echo "=========================================="
-success "$(msg complete)"
+if [[ "$AGENT_MIGRATION_REQUIRED" = true ]]; then
+    warn "Template files installed; Claude/Codex coexistence migration is still required"
+else
+    success "$(msg complete)"
+fi
 echo "=========================================="
 echo ""
 
@@ -473,11 +487,12 @@ fi
 echo ""
 echo -e "${BLUE}$(msg next_steps):${NC}"
 echo "  1. $(msg step_edit)"
-echo "  2. $(msg step_claude): claude"
-echo "  3. $(msg step_start): /task-start <description>"
+echo '  2. Claude: claude → /task-start <description>'
+echo "     Codex (install CLI separately): codex → /skills → \$task-start <description>"
+echo '  3. Codex: trust the project layer and review hook definitions in /hooks'
 echo ""
 echo -e "${BLUE}$(msg skills):${NC}"
-echo "  /task-start     - Start new task (Issue + Branch + Worktree)"
+echo "  Claude /task-start; Codex \$task-start - Start a task (Issue + Worktree)"
 echo "  /commit push    - Save progress"
 echo "  /issue-finish    - Complete task (review + merge + close)"
 echo ""

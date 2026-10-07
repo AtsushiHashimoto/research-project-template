@@ -31,6 +31,9 @@ set -uo pipefail
 
 # ★ 増減させる場合はテンプレートの `.gitignore` 本体も同時に更新すること
 REQUIRED_ENTRIES=(
+  ".agents/skills/"
+  ".agents/skill-links.json"
+  ".codex/hooks.json"
   # worktrees/ はドット無し（.claude/rules/template/issue-hierarchy.md の規約に一致させる）
   "worktrees/"
   # data/shared 自体を無視する（`/**` だと symlink 化したパス自体が露出し、

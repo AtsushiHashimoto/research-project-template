@@ -1,6 +1,13 @@
 ---
+name: review
 description: Multi-agent review of current branch changes (多角的レビュー)
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Multi-Agent Review（多角的コードレビュー）
 
@@ -97,7 +104,7 @@ Task tool で `subagent_type=general-purpose` を使用。モデルは `bash scr
 - **データ保護**: 重要データが `data/shared/` に保存され、Worktree削除時に失われない設計か
 - **ハードコーディング**: マジックナンバー、固定パス、環境依存値が設定に抽出されているか
 - **ポータビリティ**: 他の環境でも動作するか
-- **プロジェクトルール遵守**: `.claude/CLAUDE.md` および `.claude/rules/`（`template/` 含む）で定義されたルール（コミット規則、ブランチ命名規則、開発ガイドライン等）に従っているか
+- **プロジェクトルール遵守**: `AGENTS.md` および `.claude/rules/`（`template/` 含む）で定義されたルール（コミット規則、ブランチ命名規則、開発ガイドライン等）に従っているか
 - **依存関係の永続化**: 新規パッケージが devcontainer rebuild 後も利用可能か（Python: `pyproject.toml`、システム: `Dockerfile` に追加されているか）
 
 #### 3-3. テストレビュー（Test Review）

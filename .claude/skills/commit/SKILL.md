@@ -1,7 +1,14 @@
 ---
+name: commit
 description: Smart commit router - routes to commit-only, commit-push, or commit-merge
 argument-hint: [省略可 | push | merge | 自然言語]
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Commit Router
 

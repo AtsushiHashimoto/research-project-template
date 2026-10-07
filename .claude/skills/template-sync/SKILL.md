@@ -1,6 +1,13 @@
 ---
+name: template-sync
 description: Sync updates from research-project-template (テンプレート更新の取り込み)
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Template Sync（テンプレート更新の取り込み）
 
@@ -29,7 +36,11 @@ description: Sync updates from research-project-template (テンプレート更�
 | `.spec/decisions/` `.spec/subsystems/` | **ディレクトリの存在だけ**を揃える（中身はプロジェクト固有なので比較しない） |
 | `.gitignore` | **必須エントリの追記のみ**（`scripts/ensure-gitignore.sh`。既存行は消さない） |
 | `.claude/settings.json` | **必須フックの追記のみ**（`scripts/ensure-claude-hooks.sh`。既存の設定・フックは消さない） |
-| `.claude/CLAUDE.md` | **差分表示のみ**（自動上書きしない） |
+| `AGENTS.md` / `.claude/CLAUDE.md` | **差分表示のみ**（固有情報を自動上書きしない） |
+| `.codex/instructions.md` / `.codex/instructions/template.md` | 差分表示→選択適用 |
+| `.codex/instructions/local.md` | **触らない** |
+| `.agents/skills/` / `.agents/skill-links.json` | 共通スキルから生成（コピー・還流対象外） |
+| `.codex/hooks.json` | 既存フックを保持して追記。trust は `/hooks` で確認 |
 | `.dev/` | **同期しない**（`backlog.md` はユーザーデータ。理由は Step 5 参照） |
 | `.claude/template-source.json` | **同期しない**（fork 先の URL を保持するため。install.sh が書き出す） |
 
@@ -57,7 +68,7 @@ description: Sync updates from research-project-template (テンプレート更�
 **`.claude/rules/template/` にプロジェクト固有の記述を書かないこと。**
 書いても失われはしないが（下記のとおり退避される）、還流できずに毎回退避され続ける。
 プロジェクト固有のルールは `.claude/rules/` 直下か
-`.claude/CLAUDE.md` の「プロジェクト固有のルール」節に書く。
+`AGENTS.md` の「プロジェクト固有のルール」節に書く。
 
 #### 置き換えの規律（`scripts/template-sync-rules.sh` が実装している）
 
@@ -215,14 +226,10 @@ Issue 番号を完了報告に記録し、sync の残りの Step は通常どお
 #   毎回「変更あり」の偽差分と、雛形での上書き提案を恒久的に生成してしまう。
 #   この非対称は意図的であり、対称にしないこと。
 # ★ `.claude/template-source.json` も入れない（fork 先の URL を上書きしてしまうため）。
-SYNC_TARGETS=(
-    ".claude/agents"
-    ".claude/skills"
-    ".claude/worktree-config.json"
-    ".claude/model-policy.json"
-    ".devcontainer"
-    "scripts"
-)
+# 最新テンプレートの一覧を使う。初回移行時にローカルの scripts が旧版でも読める。
+source "$TMP_DIR/template/scripts/template-targets.sh"
+SYNC_TARGETS=()
+while IFS= read -r target; do SYNC_TARGETS+=("$target"); done < <(template_targets sync)
 
 # 各ファイルの差分を取得する。
 #
@@ -315,7 +322,7 @@ done
 ### ローカルのみのファイル（テンプレートに存在しない）
 - `.claude/skills/custom-skill/SKILL.md` (ローカル追加)
 
-### CLAUDE.md の差分（参考表示のみ）
+### AGENTS.md / CLAUDE.md の差分（参考表示のみ）
 [diff表示]
 ```
 
@@ -326,7 +333,24 @@ done
 - **新規ファイル**: 追加するか確認
 - **変更されたファイル**: diff を表示し、適用するか確認
 - **ローカルのみのファイル**: 何もしない（情報として表示）
-- **CLAUDE.md**: diff表示のみ。ユーザーが手動で反映
+- **AGENTS.md / CLAUDE.md**: `template_targets reference` を使い diff 表示のみ。固有記述を保持する
+
+既存 CLAUDE からの移行では本文を AGENTS.md へ移し、CLAUDE の import を接続する。
+初回移行は既定の自動同期では行わず、明示指示があるときだけ実施する。
+AGENTS が無い・import 未接続なら「移行が必要」と報告し、共存完了としない。
+
+選択した scripts / skills / Codex 指示を適用した**後に**、以下を実行する。
+失敗したら同期完了とせず原因を報告する。個人 config.toml は変更しない。
+
+```bash
+python3 scripts/agent-skills.py
+python3 scripts/ensure-codex-hooks.py
+python3 scripts/agent-skills.py --check
+bash scripts/generate-rules-manifest.sh --check
+```
+
+Codex の `/hooks` で信頼を確認し、生成リンクによるスキル発見は次のセッションで確認する。
+リンク生成とフック登録だけで全ワークフローの実行を実証したと報告しない。
 
 ### Step 8: クリーンアップ
 
@@ -347,7 +371,7 @@ rm -rf "$TMP_DIR"
 8. 一時ディレクトリを削除
 
 **重要**:
-- `.claude/CLAUDE.md` は**絶対に自動上書きしない**（プロジェクト固有の設定を含むため）
+- `AGENTS.md` / `.claude/CLAUDE.md` は**絶対に自動上書きしない**（プロジェクト固有の設定を含むため）
 - `.claude/rules/template/` は**ディレクトリごと置き換える**（ローカル改変は退避してから）
 - `.claude/rules/` 直下（ローカルルール）には触らない（**例外は旧構造からの移行時のみ**。`template/` が既に存在する場合は同名ファイルも意図的なローカル上書きとして保持される）
 - `.spec/` の**プロジェクト固有節**（`# プロジェクト固有` 以降）は**絶対に触らない**

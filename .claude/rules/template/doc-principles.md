@@ -1,4 +1,4 @@
-<!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
+<!-- [Template] research-project-template 由来。プロジェクト固有の記述は AGENTS.md に書くこと -->
 
 ## ドキュメント原則
 
@@ -15,7 +15,7 @@
 
 ### 書き分け
 
-- **README（What）**: 何か・何ができるか・セットアップ。**CLAUDE.md（How）**: 作業の進め方・ルール。
+- **README（What）**: 何か・何ができるか・セットアップ。**AGENTS.md（How）**: 作業の進め方・ルール。
   同じ情報を両方に書かない（Single Source of Truth）
 - `docs/` は公開ドキュメント（survey の成果物 `docs/surveys/` を含む）。**内部開発メモは `.dev/`**
   （ADR `decisions.md`、バックログ `backlog.md`、設計ノート `design/`、QA ログ `qa/`。既定値の実体は `scripts/qa/config.py`）。
@@ -24,6 +24,9 @@
 ### ★ アカウント層（`~/.claude/`）には個人の好みだけを置く
 
 **`~/.claude/` には応答言語・出力スタイル・個人的なエイリアスだけを置く。ワークフロー・Issue 運用・レビュー手順・
-コード規約はリポジトリ内（`.claude/rules/template/` と `.claude/CLAUDE.md`）に置き、`/template-sync` で配布する。**
+コード規約はリポジトリ内（`.claude/rules/template/` と `AGENTS.md`）に置き、`/template-sync` で配布する。**
 アカウント層は共同研究者の環境に無く、devcontainer にもマウントされず、外部 import `@~/...` は承認を一度拒否すると
 黙って無効になり、全マシンで手動更新が要るため。
+
+共通指示は AGENTS.md、Claude の入口は .claude/CLAUDE.md の import、Codex 固有は .codex/instructions.md。
+共有スキルは .claude/skills の本文のみ編集し、.agents/skills は生成リンクを使う。

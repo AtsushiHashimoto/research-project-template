@@ -1,7 +1,14 @@
 ---
+name: epic-cycle
 description: epic のゴール達成まで task を繰り返し回す（旧 /issue-cycle）
 argument-hint: <epic番号> [最大サイクル数]
+metadata:
+  harness: shared
 ---
+
+実行前に `.claude/rules/template/agent-runtime.md` を読み、現在のエージェントで同じゲートを実施する。
+必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
+
 
 # Epic Cycle
 

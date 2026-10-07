@@ -195,7 +195,7 @@ scan_dir() {
     [ -n "$exclude" ] && [ "$sub" = "$exclude" ] && continue
     disp="$rel/$sub"
     compare_file "$disp" "$SOURCE_DIR/$disp" "$root/$sub"
-  done < <(cd "$root" && find . -type f | LC_ALL=C sort)
+  done < <(cd "$root" && find . -name __pycache__ -prune -o -type f ! -name '*.pyc' -print | LC_ALL=C sort)
 }
 
 # --- テンプレート由来ディレクトリ ---
@@ -204,17 +204,20 @@ scan_dir() {
 #   .dev/                      … backlog.md 等はユーザーデータ。還流も同期もしない
 #   .claude/template-source.json … fork 先の URL。上書き・還流の対象にしない
 # MANIFEST.sha256 は generate-rules-manifest.sh の生成物であり、還流の対象にしない
-scan_dir ".claude/rules/template" "$RULES_MANIFEST_NAME"
-scan_dir ".claude/skills"
-scan_dir ".claude/agents"
-scan_dir ".devcontainer"
-scan_dir "scripts"
-
-# --- テンプレート由来の単体ファイル ---
-for single in ".claude/worktree-config.json" ".claude/model-policy.json"; do
+# shellcheck source=template-targets.sh
+# shellcheck source-path=SCRIPTDIR
+source "$SCRIPT_DIR/template-targets.sh"
+while IFS= read -r target; do
+  if [ "$target" = ".claude/rules/template" ]; then
+    scan_dir "$target" "$RULES_MANIFEST_NAME"
+  else
+    scan_dir "$target"
+  fi
+done < <(template_targets contribute-dirs)
+while IFS= read -r single; do
   [ -f "$PROJECT_ROOT/$single" ] || continue
   compare_file "$single" "$SOURCE_DIR/$single" "$PROJECT_ROOT/$single"
-done
+done < <(template_targets contribute-files)
 
 # --- sync が退避したローカル改変（D1-b の template.bak-*/） ---
 for bak in "$PROJECT_ROOT"/.claude/rules/template.bak-*/; do

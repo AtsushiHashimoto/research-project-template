@@ -6,7 +6,7 @@ paths:
   - "scripts/resolve-model.sh"
 ---
 
-<!-- [Template] research-project-template 由来。プロジェクト固有の記述は .claude/CLAUDE.md に書くこと -->
+<!-- [Template] research-project-template 由来。プロジェクト固有の記述は AGENTS.md に書くこと -->
 
 ## モデル割当の詳細（call-site の対応表・fallback・overrides）
 
