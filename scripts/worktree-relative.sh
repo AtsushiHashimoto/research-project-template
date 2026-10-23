@@ -23,12 +23,19 @@
 # メイン側 gitdir を相対にしない理由（git 2.43 で確認）:
 #   git < 2.48 は相対の gitdir をカレントディレクトリ基準で解決し、worktree を prunable と判定する。
 #   `git worktree prune`（および gc）が worktree の管理情報を削除する。
+# add が worktree を lock する理由:
+#   メイン側 gitdir は 1 つの環境でしか有効にならないので、反対側の環境で `git gc --auto`
+#   （内部で `git worktree prune`）が走ると、その worktree の登録が消える。
+#   lock した worktree は prune の対象外になる。消すときは `git worktree unlock` してから
+#   `git worktree remove` する（scripts/commit-merge.sh・scripts/safe-remove-worktree.sh）。
 
 set -euo pipefail
 
 die()  { echo "[worktree-relative] ERROR: $*" >&2; exit 1; }
 log()  { echo "[worktree-relative] $*"; }
 warn() { echo "[worktree-relative] WARNING: $*" >&2; }
+
+LOCK_REASON="ホストと devcontainer の両方から使う。消すときは git worktree unlock してから remove"
 
 # relpath <target> <base>: base ディレクトリから target への相対パス（どちらも物理絶対パス）
 relpath() {
@@ -47,7 +54,7 @@ relativize_worktree_side() {
   wt=$(cd "$1" 2>/dev/null && pwd -P) || { warn "$1 がありません"; return 1; }
   [ -f "$wt/.git" ] || { warn "$wt/.git がファイルではありません（linked worktree ではない）"; return 1; }
   admin=$(git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null) \
-    || { warn "$wt の gitdir を解決できません（git worktree repair $wt を試してください）"; return 1; }
+    || { warn "$wt の gitdir を解決できません（登録が消えていないか git worktree list で確認。別環境で作ったならその環境で fix）"; return 1; }
   admin=$(cd "$admin" && pwd -P)
   rel=$(relpath "$admin" "$wt")
   printf 'gitdir: %s\n' "$rel" > "$wt/.git"
@@ -58,7 +65,9 @@ relativize_worktree_side() {
 cmd_add() {
   [ $# -ge 1 ] || die "使い方: $0 add <path> [git worktree add の引数...]"
   local path=$1; shift
-  git -c worktree.useRelativePaths=false worktree add "$path" "$@"
+  # --lock で作成と同時に lock する（作成と lock の間に失敗して、lock の無い worktree が残らないように）
+  git -c worktree.useRelativePaths=false worktree add --lock --reason "$LOCK_REASON" "$path" "$@"
+  log "lock: $path（反対側の環境の prune で登録が消えないように。消すときは unlock してから）"
   relativize_worktree_side "$path" || die "作成した worktree の相対化に失敗しました: $path"
 }
 

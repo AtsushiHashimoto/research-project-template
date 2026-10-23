@@ -178,6 +178,9 @@ echo -e "${BLUE}Removing worktree...${NC}"
 # ★ Must cd to main repo BEFORE removing worktree
 # Otherwise the shell's cwd becomes invalid after removal
 cd "$MAIN_REPO" || { echo -e "${RED}❌ Failed to cd to main repo: $MAIN_REPO${NC}"; exit 1; }
+# worktree-relative.sh add は worktree を lock する（反対側の環境の prune から登録を守るため）。
+# lock の無い古い worktree では unlock が失敗するが、それで構わない
+git worktree unlock "$WORKTREE_PATH" 2>/dev/null || true
 git worktree remove "$WORKTREE_PATH"
 # The store must have survived the removal (a link that resolved into it must not take it along)
 if [ -n "$SHARED_DATA_PATH" ]; then

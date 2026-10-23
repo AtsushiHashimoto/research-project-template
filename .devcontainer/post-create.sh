@@ -58,7 +58,9 @@ fi
 
 # worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
 if [ -x ./scripts/configure-worktree-paths.sh ]; then
-  ./scripts/configure-worktree-paths.sh || true
+  # 失敗しても作成は続ける。ただし捨てずに知らせる（理由はスクリプト自身が stderr に出す）
+  ./scripts/configure-worktree-paths.sh \
+    || echo "[post-create] WARNING: configure-worktree-paths.sh が失敗した（理由は直前の ERROR 行。bash scripts/worktree-relative.sh fix で再確認）" >&2
 fi
 
 # 共通スキルの参照とセッション文脈フック（失敗を最終判定へ反映）

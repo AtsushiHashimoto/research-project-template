@@ -50,5 +50,6 @@ run_case "一度も push していなければ止まる" 1 0 yes "比較でき�
 run_case "detached HEAD なら止まる"      1 0 yes "detached HEAD" "$PUSH && \"\${G[@]}\" checkout -q --detach"
 run_case "存在しない worktree なら止まる" 1 0 yes "worktree がありません" "$PUSH" "../nonexistent"
 run_case "クリーンなら merge して後始末（パスに空白）" 0 1 no "クリーンアップ完了" "$PUSH"
+run_case "lock した worktree も後始末で消す" 0 1 no "クリーンアップ完了" "$PUSH && \"\${G[@]}\" worktree lock \"\$PWD\""
 
 [ $FAIL = 0 ] && { [ "$QUIET" = 1 ] || echo "all passed"; exit 0; } || exit 1

@@ -139,9 +139,11 @@ git pull
 # ブランチ削除より先に行う必要がある
 if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
     log_info "Worktreeを削除中: $WORKTREE_PATH"
+    # worktree-relative.sh add は worktree を lock する。lock したままでは remove --force も拒まれる
+    git worktree unlock "$WORKTREE_PATH" 2>/dev/null || true
     git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || {
         log_warn "Worktreeの自動削除に失敗しました。手動で削除してください:"
-        log_warn "  git worktree remove $WORKTREE_PATH --force"
+        log_warn "  git worktree unlock $WORKTREE_PATH; git worktree remove $WORKTREE_PATH --force"
     }
 fi
 

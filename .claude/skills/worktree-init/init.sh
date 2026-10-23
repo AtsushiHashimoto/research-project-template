@@ -21,7 +21,9 @@ fi
 
 # worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
 if [ -x "$REPO_ROOT/scripts/configure-worktree-paths.sh" ]; then
-  "$REPO_ROOT/scripts/configure-worktree-paths.sh" || true
+  # 失敗しても初期化は続ける。ただし捨てずに知らせる（理由はスクリプト自身が stderr に出す）
+  "$REPO_ROOT/scripts/configure-worktree-paths.sh" \
+    || echo "[worktree-init] WARNING: configure-worktree-paths.sh が失敗した（exit $?。理由は直前の ERROR 行。bash scripts/worktree-relative.sh fix で再確認）" >&2
 fi
 
 # GitHub ラベルのプロビジョニング

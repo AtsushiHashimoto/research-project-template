@@ -22,28 +22,39 @@
 #
 # 呼び出し元:
 #   - .devcontainer/post-create.sh （コンテナ側）
-#   - scripts/init-data.sh         （ホスト側 /worktree-init 経由）
+#   - .claude/skills/worktree-init/init.sh（/worktree-init）
 
 set -uo pipefail
+# 終了コード: 0 = 正常（git リポジトリでない場合のスキップを含む）、1 = 異常（握りつぶさない）
 
-git rev-parse --show-toplevel >/dev/null 2>&1 || {
+if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+  # .git があるのに解決できない = 別環境で作られた worktree か、古い git では開けない設定
+  # （extensions.relativeWorktrees 等）。正常な分岐より静かにしない
+  if [ -e .git ]; then
+    echo "[worktree-paths] ERROR: .git はあるが、この環境の git から解決できません（git rev-parse で詳細を確認）" >&2
+    exit 1
+  fi
   echo "[worktree-paths] git リポジトリではないためスキップ"
   exit 0
-}
+fi
 
-if [ "$(git config --get worktree.useRelativePaths || true)" = true ]; then
-  echo "[worktree-paths] WARNING: worktree.useRelativePaths=true が設定されています。git 2.48+ で"
-  echo "[worktree-paths] extensions.relativeWorktrees が書かれ、古い git から開けなくなるため解除します。"
-  git config --unset worktree.useRelativePaths || true
+if [ "$(git config --type=bool --get worktree.useRelativePaths || true)" = true ]; then
+  echo "[worktree-paths] WARNING: worktree.useRelativePaths=true は古い git がリポジトリを開けなくなるので解除します" >&2
+  git config --unset worktree.useRelativePaths 2>/dev/null || true
+  # --global 等、このリポジトリの外で設定されていると上の --unset では消えない
+  if [ "$(git config --type=bool --get worktree.useRelativePaths || true)" = true ]; then
+    echo "[worktree-paths] ERROR: worktree.useRelativePaths=true が残っています: $(git config --show-origin --get worktree.useRelativePaths)" >&2
+    exit 1
+  fi
 fi
 
 # 既存 worktree を相対化し、メイン側の参照をこの環境向けに修復する。
 # 相対パス化されていない過去の worktree を救済するため、設定の成否に関わらず実行する。
 if [ -d "$(git rev-parse --git-common-dir)/worktrees" ]; then
   SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-  bash "$SCRIPT_DIR/worktree-relative.sh" fix >/dev/null \
-    && echo "[worktree-paths] 既存 worktree の参照を相対化・修復しました" \
-    || echo "[worktree-paths] WARNING: 既存 worktree の修復に失敗（bash scripts/worktree-relative.sh fix で詳細を確認）"
+  if ! bash "$SCRIPT_DIR/worktree-relative.sh" fix >/dev/null; then
+    echo "[worktree-paths] ERROR: 既存 worktree の修復に失敗（bash scripts/worktree-relative.sh fix で詳細を確認）" >&2
+    exit 1
+  fi
+  echo "[worktree-paths] 既存 worktree の参照を相対化・修復しました"
 fi
-
-exit 0

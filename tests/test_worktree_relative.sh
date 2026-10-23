@@ -27,15 +27,31 @@ git -C "$W" status >/dev/null 2>&1 && ok "worktree で git status が動く" || 
 prunable "$R" && ng "prunable にならない" || ok "prunable にならない"
 [ -z "$(git -C "$R" config --get extensions.relativeWorktrees)" ] && ok "extensions.relativeWorktrees を書かない" \
   || ng "extensions.relativeWorktrees を書かない"
+[ -e "$R/.git/worktrees/issue1/locked" ] && ok "add は worktree を lock する" || ng "add は worktree を lock する"
+# 対照: lock の無い worktree（lock 導入前に作ったものと同じ形）
+( cd "$R" && bash "$WR" add worktrees/issue0 -b feature/0-x >/dev/null 2>&1 && git worktree unlock worktrees/issue0 )
 
 # 2: マウント先が変わった状況（リポジトリごと別パスへ移す）→ worktree 内はそのまま動き、fix で一覧も直る
 mv "$B" "$TMP/mount b"; R="$TMP/mount b/repo"; W="$R/worktrees/issue1"
 git -C "$W" status >/dev/null 2>&1 && ok "移動後も worktree で git status が動く" || ng "移動後も worktree で git status が動く"
-prunable "$R" && ok "（対照）移動直後はメイン側が prunable" || ng "（対照）移動直後はメイン側が prunable"
+# 移動後のメイン側の登録は、この環境では無効（＝反対側の環境から見た状態と同じ）
+prune_out=$(git -C "$R" worktree prune --dry-run -v 2>&1)
+[[ "$prune_out" == *issue0* ]] && ok "（対照）lock の無い worktree は移動後に prune の対象になる" \
+  || ng "（対照）lock の無い worktree は移動後に prune の対象になる（$prune_out）"
+[[ "$prune_out" != *issue1* ]] && ok "lock した worktree は移動後も prune の対象にならない" \
+  || ng "lock した worktree は移動後も prune の対象にならない（$prune_out）"
+git -C "$R" -c gc.worktreePruneExpire=now gc --quiet >/dev/null 2>&1
+[ -d "$R/.git/worktrees/issue1" ] && ok "gc の後も lock した worktree の登録が残る" || ng "gc の後も lock した worktree の登録が残る"
+[ ! -d "$R/.git/worktrees/issue0" ] && ok "（対照）gc は lock の無い worktree の登録を消す" || ng "（対照）gc は lock の無い worktree の登録を消す"
+rm -rf "$R/worktrees/issue0"   # 登録を失った残骸（fix は解決できないと正しく失敗する）
 ( cd "$W" && bash "$WR" fix >/dev/null 2>&1 ) && ok "worktree の中から fix しても成功" || ng "worktree の中から fix しても成功"
 relative "$W" && ok "fix 後も worktree 側は相対" || ng "fix 後も worktree 側は相対"
 prunable "$R" && ng "fix 後は移動先で prunable にならない" || ok "fix 後は移動先で prunable にならない"
 git -C "$W" status >/dev/null 2>&1 && ok "fix 後も git status が動く" || ng "fix 後も git status が動く"
+[ -e "$R/.git/worktrees/issue1/locked" ] && ok "fix 後も lock が残る" || ng "fix 後も lock が残る"
+git -C "$R" worktree remove --force "$W" >/dev/null 2>&1 && ng "lock したままでは remove --force が拒む" || ok "lock したままでは remove --force が拒む"
+git -C "$R" worktree unlock "$W" 2>/dev/null
+git -C "$R" worktree remove --force "$W" >/dev/null 2>&1 && ok "unlock の後は remove できる" || ng "unlock の後は remove できる"
 
 # 3: 旧来の絶対パスの worktree を configure-worktree-paths.sh 経由で相対化し、useRelativePaths を解除する
 R="$TMP/old/repo"; newrepo "$R"; mkdir -p "$R/scripts"
