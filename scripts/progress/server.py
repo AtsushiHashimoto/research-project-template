@@ -10,6 +10,7 @@ cwd の repo の epic / task / issue の木と、要対応・作業中・次の�
 import argparse
 import datetime
 import json
+import re
 import sys
 import threading
 import time
@@ -23,6 +24,8 @@ import progress_gh
 import progress_git
 import progress_tree
 from progress_cmd import FetchError
+
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 HERE = Path(__file__).resolve().parent
 JST = datetime.timezone(datetime.timedelta(hours=9))
@@ -125,7 +128,8 @@ def make_handler(cache):
 
         def do_GET(self):
             port = self.server.server_address[1]
-            if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"}:
+            # DNS rebinding 対策なのでホスト名だけを見る。ポートは見ない（ポート転送で手元の番号が変わる）
+            if re.sub(r":\d+$", "", self.headers.get("Host") or "") not in LOOPBACK_HOSTS:
                 return self.send(403, f"forbidden host（http://127.0.0.1:{port}/ で開く）\n".encode(),
                                  "text/plain; charset=utf-8")
             url = urlparse(self.path)

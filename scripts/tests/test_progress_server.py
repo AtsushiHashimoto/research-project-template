@@ -101,6 +101,11 @@ class Server(unittest.TestCase):
             self.assertEqual(self.req(port, m)[0], 405, m)
         self.assertEqual(self.req(port, host="evil.example:80")[0], 403)
         self.assertEqual(self.req(port, path="/", host=f"localhost:{port}")[0], 200)
+        # ポート転送で手元のポート番号が変わっても開ける。ホスト名が違えば同じポートでも拒む
+        self.assertEqual(self.req(port, path="/", host=f"127.0.0.1:{port + 1}")[0], 200)
+        self.assertEqual(self.req(port, path="/", host="localhost")[0], 200)
+        self.assertEqual(self.req(port, path="/", host=f"evil.example:{port}")[0], 403)
+        self.assertEqual(self.req(port, path="/", host=f"127.0.0.1.evil.example:{port}")[0], 403)
 
     def test_refresh_needs_page_header(self):
         calls = []
