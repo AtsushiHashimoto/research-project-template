@@ -200,6 +200,14 @@ scope_setup() {
   echo "対象範囲: 変更ファイルのみ ${changed_n} 件（shellcheck / ruff）— 全件は QUALITY_FULL_SCAN=1"
 }
 
+# changed_any <ERE>: 限定走査で、変更ファイルのどれかが ERE に一致するか（全件走査では常に真）
+#   重い回帰テストを「関係するファイルが変わったときだけ」走らせ、ゲートの所要時間を抑えるために使う。
+#   一致を見落とすと検査が黙って外れるので、ERE にはテスト自身と、テストが読む実体を全て並べること。
+changed_any() {
+  [ "$SCOPE_MODE" = "changed" ] || return 0
+  [ "$(grep -cE -- "$1" <<<"$CHANGED_FILES")" -gt 0 ]
+}
+
 echo "=== Running quality checks ==="
 
 SCOPE="${QUALITY_SCOPE:-all}"
@@ -466,6 +474,19 @@ if [ ! -f tests/test_worktree_relative.sh ]; then
   skip "worktree 相対化の回帰テスト（tests/test_worktree_relative.sh が無い）"
 else
   run_check "worktree 相対化の回帰テスト" bash tests/test_worktree_relative.sh --quiet
+fi
+
+# setup-worktree.sh の回帰テスト（data/shared のリンク・共有ストアの保護・model-policy.local.json）
+#   一時リポジトリで worktree を作るので約 9 秒かかる。関係するファイルが変わったときだけ走らせる。
+SETUP_WT_FILES='^(scripts/(setup-worktree|resolve-model)\.sh|scripts/lib/shared-store\.sh|tests/test_setup_worktree_shared\.sh)$'
+if [ "$SCOPE" = "docs" ]; then
+  skip "setup-worktree の回帰テスト（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_setup_worktree_shared.sh ]; then
+  skip "setup-worktree の回帰テスト（tests/test_setup_worktree_shared.sh が無い）"
+elif ! changed_any "$SETUP_WT_FILES"; then
+  skip "setup-worktree の回帰テスト（関係するファイルの変更なし vs ${BASE_REF:-?}）"
+else
+  run_check "setup-worktree の回帰テスト" bash tests/test_setup_worktree_shared.sh
 fi
 
 # 共有ストアの所在と削除前の再確認（scripts/lib/shared-store.sh）

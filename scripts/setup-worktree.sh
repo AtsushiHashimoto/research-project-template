@@ -180,6 +180,26 @@ CONFIG_FILE="$MAIN_REPO/.claude/worktree-config.json"
 info "$(msg main_repo): $MAIN_REPO"
 echo ""
 
+# .claude/model-policy.local.json
+# The local policy (`resolve-model.sh --disable <model>`) is gitignored, so a fresh
+# worktree has none and subagents launched there resolve to the very model the user
+# disabled.  Link it to the main repository's file -- relative, like data/shared --
+# so both read and write the same file.  Done before the data/shared section so that
+# an error there cannot leave this unlinked.  A real file already in the worktree is
+# the user's own; never overwrite it.  Nothing in main -> nothing to link.
+LOCAL_POLICY_MAIN="$MAIN_REPO/.claude/model-policy.local.json"
+LOCAL_POLICY_WT="$CURRENT_DIR/.claude/model-policy.local.json"
+if [[ -f "$LOCAL_POLICY_MAIN" ]]; then
+    if [[ -e "$LOCAL_POLICY_WT" && ! -L "$LOCAL_POLICY_WT" ]]; then
+        warn ".claude/model-policy.local.json is a real file in this worktree; leaving it as is"
+    else
+        mkdir -p "$CURRENT_DIR/.claude"
+        LOCAL_POLICY_TARGET=$(realpath --relative-to="$CURRENT_DIR/.claude" "$LOCAL_POLICY_MAIN")
+        ln -sfn "$LOCAL_POLICY_TARGET" "$LOCAL_POLICY_WT"
+        success "linked: .claude/model-policy.local.json -> $LOCAL_POLICY_TARGET"
+    fi
+fi
+
 # Check configuration
 if [[ ! -f "$CONFIG_FILE" ]]; then
     error "$(msg config_not_found): $CONFIG_FILE
