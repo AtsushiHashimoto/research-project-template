@@ -217,6 +217,7 @@ if [ "$1" = pr ] && [ "$2" = list ]; then
   exit 0
 fi
 if [ "$1" = pr ] && [ "$2" = view ]; then
+  case "$*" in *"--json state"*) [ "${GH_PR_STATE:-open}" = merged ] && echo MERGED || echo OPEN; exit 0;; esac
   if [ -n "${GH_PR_NO_REVIEW:-}" ]; then echo "## 変更概要"; else
     echo "## /review 結果"; echo ""; echo "| x | ok |"; fi
   printf '%s\n' "${GH_PR_CONFORM-$'## 仕様整合\n\n- goal 書き換え: なし\n- positive control: 砂場で検出できた\n- matched-engineering: 揃えた\n- 格付け: verified-negative'}"

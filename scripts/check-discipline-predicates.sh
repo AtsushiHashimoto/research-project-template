@@ -115,6 +115,8 @@ check_no_closes() {
 # 4'''. PR 本文の閉じるキーワードを止める（理由はコミットと同じ）
 check_pr_no_closes() {
   local n="$1" body re rc=1
+  # マージ済みの PR（再入）はもう閉じる時点を過ぎているので見ない
+  [ "$(gh pr view --json state -q .state 2>/dev/null || true)" = MERGED ] && { pass "PR はマージ済み（閉じるキーワードは見ない）"; return 0; }
   body="$(gh pr view --json body -q .body 2>/dev/null || true)"
   re="$(closing_re "$n")"
   shopt -s nocasematch
