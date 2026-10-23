@@ -336,6 +336,17 @@ run 0 "★ 変更は無いが未 push があれば push だけ行う" push --iss
 if [ "$(printf '%s' "$LAST_OUT" | grep -cF '未 push のコミットがあるので push だけ' || true)" -gt 0 ]; then
   ok "その旨を出力する"; else ng "push だけの分岐に入っていない"; fi
 run 1 "★ 変更も未 push も無ければ落ちる" push --issue 901 --message "使われないはず"
+# ★ 未 push のコミットと stage していない変更が両方あるなら、push だけで済ませずに止める
+( cd "$SANDBOX/repo" && git commit -q --allow-empty -m "未 push
+
+Refs #901" && echo unstaged >> c.txt ) >/dev/null
+before="$(git -C "$SANDBOX/repo" rev-parse "origin/spec/900-i901")"
+run 1 "★ 未 push のコミットと stage していない変更が両方あると止まる" push --issue 901 --message "使われないはず"
+if [ "$(git -C "$SANDBOX/repo" rev-parse "origin/spec/900-i901")" = "$before" ] \
+   && [ "$(printf '%s' "$LAST_OUT" | grep -cF 'stage されたファイルが無い' || true)" -gt 0 ]; then
+  ok "→ push せず、stage されたファイルが無いことを理由に止まる"
+else ng "stage していない変更を残したまま push した、または理由が違う"; fi
+( cd "$SANDBOX/repo" && git checkout -q -- c.txt )
 
 # ══════════════════════════════════════════════════════════════════
 # merge

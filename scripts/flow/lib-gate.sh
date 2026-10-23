@@ -40,17 +40,19 @@ $missing
 }
 
 # goal の中身の判定は、ワーカーではなく verification のサブエージェントが書く（自己申告にしない）
+# ★ 判定の項目は check-discipline-gates.py の GOAL_KEYS が単一情報源（ここに書き写さない）
 goal_gate_launch() {  # goal_gate_launch <task番号>
+  local keys
+  keys="$(python3 -B "$REPO_ROOT/scripts/check-discipline-gates.py" goal-keys | sed 's/^/      /')" \
+    || keys="      （判定の項目を scripts/check-discipline-gates.py goal-keys から読めなかった）"
   printf '%s\n' \
     "goal の中身の判定が要るなら、verification のサブエージェントを起動する" \
     "  （モデルは bash scripts/resolve-model.sh verification）。渡す文:" \
-    "    「task #$1 の本文の『## 目標の状態』と『## 未確定』を読み、次の 3 点を判定せよ。" \
-    "      G1b: 成功条件が 1 文の合否の述語になっているか" \
-    "      G3: 未確定に言及する語を削っても、何を作り何を測るかが残るか" \
-    "      G4: 解釈が 1 つに定まるか" \
+    "    「task #$1 の本文の『## 目標の状態』と『## 未確定』を読み、次の各項目を判定せよ。" \
+    "$keys" \
     "      前提（bash scripts/read-premises.sh $1 の出力を原文で貼る）に反していないかも見ること。" \
     "      結果を gh issue comment $1 で、見出し『## goal ゲート』の下に、上の書く行の" \
-    "      『目標の状態の hash: …』と『- G1b: PASS — <根拠>』の形の 3 行を書け（通らないなら FAIL と理由）」" \
+    "      『目標の状態の hash: …』と、項目ごとに『- <項目>: PASS — <根拠>』の行を書け（通らないなら FAIL と理由）」" \
     "  ★ FAIL なら「## 目標の状態」の直しをユーザーに頼み、直った本文をもう一度判定させる。" \
     "    判定は「## 目標の状態」の hash で本文と結びつく（直したら hash が変わり、判定し直しになる。" \
     "    「## 未確定」の書き換えでは変わらない）。判定コメントは編集せず、新しく書く"

@@ -339,7 +339,8 @@ if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
   esac
   exit 0
 fi
-if [ "$1" = pr ] && [ "$2" = view ]; then [ -z "${GH_PR_VIEW_FAIL:-}" ] || { echo "boom" >&2; exit 1; }
+if [ "$1" = pr ] && [ "$2" = view ]; then  # GH_PR_VIEW_FAIL=<json の値> でその呼び出しだけ落とす
+  case " $* " in *" --json ${GH_PR_VIEW_FAIL:-__none__} "*) echo "boom" >&2; exit 1;; esac
   cat "$SANDBOX/pr_body.txt" 2>/dev/null; exit 0; fi
 if [ "$1" = "api" ]; then
   # ★ epic-cycle の「直近に closed になった task の closed_at」照会は**空**を返す
@@ -724,7 +725,10 @@ stop3() {
   else ng "$1（rc=$2。足りないもの・書く行・再実行のどれかが無い）"; printf '%s\n' "$3" | grep -E 'FAILED|書く行|再実行' | sed -n '1,8p' | sed 's/^/        /'; fi
 }
 nostop() {  # nostop <説明> <出力> <止まった理由の語>
-  if ! has "$2" "止まった理由: $3"; then ok "$1"; else ng "$1"; printf '%s\n' "$2" | grep -E 'FAILED' | sed -n '1,5p' | sed 's/^/        /'; fi
+  # ★ 「止まらなかった」だけでなく、goal の後の段（子の段の選択）まで進んだことも見る
+  #   （別の理由で手前で落ちた出力も「その理由では止まっていない」に見えるため）
+  if ! has "$2" "止まった理由: $3" && has "$2" "いまの段: #"; then ok "$1"
+  else ng "$1（goal で止まったか、子の段まで進んでいない）"; printf '%s\n' "$2" | grep -E 'FAILED|!!!' | sed -n '1,5p' | sed 's/^/        /'; fi
 }
 tr400() { out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 400 2>&1)"; rc=$?; }
 GOAL_OK='## 目標の状態
@@ -765,6 +769,12 @@ done
 if has "$out" "needs-user で返す（goal はユーザーが書く）" && has "$out" "書き換えてよい本文は「## 未確定」節の行だけ"; then
   ok "goal の停止: ワーカーが直してよいのは「## 未確定」だけで、goal の空欄は needs-user と書く"
 else ng "goal の停止に、ワーカーが書き換えてよい範囲（## 未確定 だけ・goal は needs-user）が無い"; fi
+# ★ 判定の項目の文言は gates.py の GOAL_KEYS だけにある（lib-gate.sh に写さない）
+keys="$(python3 -B "$REPO_ROOT/scripts/check-discipline-gates.py" goal-keys)"
+miss=0; while IFS= read -r k; do has "$out" "$k" || miss=1; done <<< "$keys"
+if [ -n "$keys" ] && [ "$miss" = 0 ] && [ "$(grep -vE '^[[:space:]]*#' "$REPO_ROOT/scripts/flow/lib-gate.sh" | grep -cE 'G[0-9]+[a-z]?:|matched-engineering|positive control' || true)" -eq 0 ]; then
+  ok "goal の停止: 判定の項目は gates.py の GOAL_KEYS から出す（lib-gate.sh に項目・仕様整合の鍵を写していない）"
+else ng "goal の停止の判定の項目が gates.py と食い違うか、lib-gate.sh に項目・鍵が写してある"; fi
 order="$(printf '%s\n' "$out" | awk '/1\. 先に上の「足りないもの」を直す/&&!a{a=NR} /2\. 1 が済んでから goal の中身の判定/&&!b{b=NR} END{print (a&&a<b)?"ok":"ng"}')"
 if [ "$order" = ok ]; then ok "goal の停止: 1. 空欄を直す → 2. その後で判定のサブエージェント の順に書く"
 else ng "goal の停止の手順が「1. 直す → 2. 判定を起動」の順になっていない"; fi
@@ -968,7 +978,9 @@ neg 410 positive; gh_put 800 "$GH_EPIC_BODY" "$GH_EPIC_COMMENT" 2020-02-03T00:00
 if [ "$rc" -eq 0 ]; then ok "全部 negative: 1 件でも negative でなければ確認を求めない"
 else ng "全部 negative: positive が混ざっても止まる（rc=$rc）"; fi
 neg 410 'negative（検出力の不足）'; ec
-stop3 "全部 negative: 「結果: negative（…）」も negative と数える" "$rc" "$out" "結果がすべて negative" "## 全部 negative の確認" "bash scripts/flow/epic-cycle.sh 800"
+stop3 "全部 negative: 「結果: negative（…）」も negative と数える" "$rc" "$out" "閉じた task 2 件の結果がすべて negative" "## 全部 negative の確認" "bash scripts/flow/epic-cycle.sh 800"
+if ! has "$out" "判定が無い"; then ok "→ 「結果: negative（…）」の task を「判定が無い」と読まない"
+else ng "「結果: negative（…）」の task を判定が無いと読んだ"; fi
 gh_put 410 "$GOAL_OK"; ec
 stop3 "全部 negative: 閉じた task に判定が無いと止まる（数えずに通さない）" "$rc" "$out" "閉じた task #410 に判定が無い" "結果: <positive|negative|未達成>" "bash scripts/flow/epic-cycle.sh 800"
 make_gh_stub '800:epic:OPEN:epic:parent=0
@@ -1127,8 +1139,10 @@ fcheck() {  # fcheck <説明> <出力に要る語> <環境 NAME=VAL> <check-disc
 }
 fcheck "★ Closes: コミットの git log が失敗したら FAIL（キーワードが無いと読まない）" \
   "Closes: git log" GIT_FAIL_ON=--regexp-ignore-case merge 901 experiment 900
-fcheck "★ Closes: PR の gh pr view が失敗したら FAIL（キーワードが無いと読まない）" \
-  "PR 本文の閉じるキーワード: gh pr view が失敗した" GH_PR_VIEW_FAIL=1 merge 901 experiment 900
+fcheck "★ Closes: PR の状態の gh pr view が失敗したら FAIL（キーワードが無いと読まない）" \
+  "PR の状態を引く gh pr view が失敗した" GH_PR_VIEW_FAIL=state merge 901 experiment 900
+fcheck "★ Closes: PR の本文の gh pr view が失敗したら FAIL（キーワードが無いと読まない）" \
+  "PR の本文を引く gh pr view が失敗した" GH_PR_VIEW_FAIL=body merge 901 experiment 900
 fcheck "★ epic: git log が失敗したら FAIL（0 件と読まない）" \
   "が失敗した（0 件と読まない）" GIT_FAIL_ON=--since= epic 800
 

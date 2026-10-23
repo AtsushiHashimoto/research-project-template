@@ -279,6 +279,12 @@ run 0 "削除だけの変更でも finish が通る" finish --issue 901 --messag
 if [ "$(git -C "$SANDBOX/repo" show --name-status --format= HEAD | grep -c '^D[[:space:]]*a.txt$' || true)" -eq 1 ]; then
   ok "★ 削除したファイルも名前で stage される"
 else ng "削除が コミットに入っていない"; fi
+setup_sandbox
+( cd "$SANDBOX/repo" && rm a.txt )
+run 0 "stage していない削除（rm だけ）でも finish が通る" finish --issue 901 --message "rm だけ"
+if [ "$(git -C "$SANDBOX/repo" show --name-status --format= HEAD | grep -c '^D[[:space:]]*a.txt$' || true)" -eq 1 ]; then
+  ok "★ rm しただけのファイルも git rm --cached で名指しして削除をコミットに入れる"
+else ng "rm しただけの削除がコミットに入っていない"; fi
 
 # 2: 行数
 setup_sandbox

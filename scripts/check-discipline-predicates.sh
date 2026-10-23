@@ -67,6 +67,8 @@ check_auto_decisions() {
 }
 
 # 3. ブランチ（★ 番号は **task の番号**。親が task でなければ issue 自身の番号）
+# ★ bug は branch_prefix（lib.sh）が作らない（bug の枝は fix/）。手で切った bug/<N>-* の枝を
+#   落とさないためにだけ残す。★ この行の形は lib.sh が sed で読む（崩すと lib.sh が止まる）
 readonly BRANCH_TYPES="feature|survey|spec|experiment|validation|fix|bug|docs|refactor|chore"
 check_branch() {
   local n="$1" b
@@ -131,10 +133,10 @@ check_no_closes() {
 check_pr_no_closes() {
   local n="$1" body re st rc=1
   # ★ gh の失敗（PR が無い場合を含む）を「キーワードが無い」と読まない
-  st="$(gh pr view --json state -q .state 2>/dev/null)" || { fail "PR 本文の閉じるキーワード: gh pr view が失敗した（PR が無いか gh の失敗）"; return 1; }
+  st="$(gh pr view --json state -q .state 2>/dev/null)" || { fail "PR 本文の閉じるキーワード: PR の状態を引く gh pr view が失敗した（PR が無いか gh の失敗）"; return 1; }
   # マージ済みの PR（再入）はもう閉じる時点を過ぎているので見ない
   [ "$st" = MERGED ] && { pass "PR はマージ済み（閉じるキーワードは見ない）"; return 0; }
-  body="$(gh pr view --json body -q .body 2>/dev/null)" || { fail "PR 本文の閉じるキーワード: gh pr view が失敗した"; return 1; }
+  body="$(gh pr view --json body -q .body 2>/dev/null)" || { fail "PR 本文の閉じるキーワード: PR の本文を引く gh pr view が失敗した"; return 1; }
   re="$(closing_re "$n")"
   shopt -s nocasematch
   while IFS= read -r line; do [[ "$line" =~ $re ]] && { rc=0; break; }; done <<<"$body"

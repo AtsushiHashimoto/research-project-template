@@ -122,8 +122,9 @@ def records(comments):
 
 
 def owner_tokens(raw):
-    """→ の後の担当（#N か種類ラベル）。補足（括弧の中）と、解消済み・解消不能より後は見ない"""
-    arrow = re.split(r"→|->", norm(raw), maxsplit=1)
+    """→ の後の担当（#N か種類ラベル）。補足（括弧の中）と、解消済み・解消不能より後は見ない。
+    装飾（** や `）は字句の抽出が読み飛ばすので norm() を通さない"""
+    arrow = re.split(r"→|->", raw, maxsplit=1)
     if len(arrow) < 2:
         return None
     head = re.split(r"[（(]|解消済み|解消不能", arrow[1])[0]

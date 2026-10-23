@@ -84,12 +84,25 @@ echo "--- §7-1 静的な性質 ---"
 flow_files="$(sed -n "s/^FLOW_FILES='\(.*\)'$/\1/p" "$REPO_ROOT/scripts/quality-check.sh")"
 if [ -z "$flow_files" ]; then ng "quality-check.sh に FLOW_FILES が無い（flow のテストが品質ゲートに登録されていない）"
 else
-  missing=""
-  while IFS= read -r ref; do
-    [ -e "$REPO_ROOT/$ref" ] || continue
-    [[ "$ref" =~ $flow_files ]] || missing="$missing $ref"
-  done < <(grep -ohE 'scripts/[A-Za-z0-9_./-]+\.(sh|py)' "$FLOW"/*.sh "$REPO_ROOT"/scripts/check-discipline* | sort -u)
-  if [ -z "$missing" ]; then ok "flow が呼ぶ scripts/ のファイルは全部 FLOW_FILES に入っている"
+  # ★ 起点は flow・check-discipline・4 本のテスト・tests/lib/。そこから参照を**辿って**閉包を取る
+  #   （テストが実物を走らせる configure-agent-workflow.sh の子なども入る）。quality-check.sh の先は辿らない（ゲートそのもの）
+  missing=""; seen=" "
+  todo="$(cd "$REPO_ROOT" && printf '%s\n' scripts/flow/*.sh scripts/check-discipline* tests/lib/* \
+          tests/test_issue_flow.sh tests/test_commit_flow.sh tests/test_quick_flow.sh tests/test_task_run.sh)"
+  while [ -n "$todo" ]; do
+    nxt=""
+    while IFS= read -r ref; do
+      [ -n "$ref" ] && [ -f "$REPO_ROOT/$ref" ] || continue
+      case "$seen" in *" $ref "*) continue;; esac
+      seen="$seen$ref "
+      [[ "$ref" =~ $flow_files ]] || missing="$missing $ref"
+      [ "$ref" = scripts/quality-check.sh ] && continue
+      nxt="$nxt$(grep -ohE '(scripts|tests/lib)/[A-Za-z0-9_./-]+\.(sh|py)' "$REPO_ROOT/$ref" | sort -u)
+"
+    done <<< "$todo"
+    todo="$nxt"
+  done
+  if [ -z "$missing" ]; then ok "flow とそのテストが（間接にも）呼ぶ scripts/・tests/lib/ のファイルは全部 FLOW_FILES に入っている"
   else ng "FLOW_FILES に無い:$missing"; fi
   for t in issue_flow commit_flow quick_flow task_run; do
     if [ "$(grep -cF "for t in issue_flow commit_flow quick_flow task_run" "$REPO_ROOT/scripts/quality-check.sh")" -gt 0 ] \
@@ -190,6 +203,15 @@ prefixes="$(bash -c '. "$1"; for k in $DEFAULT_ORDER $EXTRA_ORDER; do branch_pre
 types="$(sed -n 's/^readonly BRANCH_TYPES="\(.*\)"$/\1/p' "$REPO_ROOT/scripts/check-discipline-predicates.sh" | tr '|' '\n' | grep -vx bug | sort -u | tr '\n' ' ')"
 if [ -n "$prefixes" ] && [ "$prefixes" = "$types" ]; then ok "branch_prefix の値の集合が BRANCH_TYPES（bug を除く）と一致する（$prefixes）"
 else ng "branch_prefix の値（$prefixes）と BRANCH_TYPES（$types）が食い違う"; fi
+# ★ lib.sh は predicates の BRANCH_TYPES の行を sed で読む。行の形が変わったら黙らずに止まる
+bt="$SANDBOX/bt"; rm -rf "$bt"; mkdir -p "$bt/scripts/flow"
+cp "$FLOW"/lib*.sh "$bt/scripts/flow/"
+sed 's/^readonly BRANCH_TYPES="\(.*\)"$/readonly BRANCH_TYPES='"'"'\1'"'"'/' "$REPO_ROOT/scripts/check-discipline-predicates.sh" \
+  > "$bt/scripts/check-discipline-predicates.sh"
+out="$(cd "$bt" && bash -c '. scripts/flow/lib.sh; echo "読めた: $BRANCH_TYPES"' 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && [ "$(printf '%s' "$out" | grep -cF 'BRANCH_TYPES を読めない' || true)" -gt 0 ]; then
+  ok "★ BRANCH_TYPES の行の形が変わると lib.sh は「読めない」と言って止まる（空の一覧で進まない）"
+else ng "BRANCH_TYPES の行の形が変わっても lib.sh が止まらない（rc=$rc: ${out:0:80}）"; fi
 if [ -z "$(bash -c '. "$1"; branch_prefix unknown-kind' _ "$FLOW/lib.sh" 2>/dev/null)" ]; then ok "表に無い種類は空（既定の接頭辞に丸めない）"
 else ng "表に無い種類に接頭辞を返している"; fi
 # ══════════════════════════════════════════════════════════════════
@@ -848,6 +870,14 @@ prepare_finish
 if [ ! -d "$WT/.dev/qa" ]; then ok "（前提）QA の置き場所は無い"
 else ng "QA の置き場所が残っている"; fi
 fin 0 "QA の置き場所が無くても落ちない（恒偽でない）"
+# ★ QA の置き場所は scripts/qa/qa-dir.sh が解決する（.claude/qa-config.yaml の qa_dir を読む）
+mkdir -p "$WT/.claude" "$WT/elsewhere/qa"
+printf 'qa_dir: elsewhere/qa\n' > "$WT/.claude/qa-config.yaml"
+printf '{"id":"Q002","issue":901,"timestamp":"2026-09-18T00:00:00Z","question":"x","type":"provisional"}\n' > "$WT/elsewhere/qa/questions.jsonl"
+fin 1 "★ qa-config.yaml の qa_dir の先に未回答の QA があると非ゼロ（qa-dir.sh で解決している）"
+if [ "$(n_out '未回答の QA が 1 件')" -gt 0 ]; then ok "→ 止まった理由は未回答の QA（elsewhere/qa を読んだ）"
+else ng "qa_dir の先を読んでいない（止まった理由が未回答の QA でない）"; fi
+rm -rf "$WT/.claude/qa-config.yaml" "$WT/elsewhere"
 
 prepare_finish; rm -f "$WT/.spec/issues/901-x.md"
 printf 'Issue #901\n停止条件: 該当なし\n' > "$WT/.spec/issues/901-auto-decisions.md"

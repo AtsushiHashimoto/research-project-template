@@ -6,6 +6,7 @@
   all-negative <EPIC>        閉じた task が全部 negative なら、全部 negative の確認を求める
   conformance  <N> <種類> [PR]  PR 本文の ## 仕様整合 節（PR 番号を省くと現在のブランチの PR）
   latest-comment <N> <見出し>  見出しが完全一致する最新のコメントの本文（無ければ空）
+  goal-keys                  goal の中身の判定の項目（lib-gate.sh の起動文が読む。項目の単一情報源）
 
 出力は check-discipline.sh と同じ形（`  ok   …` / `!!! FAILED: …`）。落ちた項目は
 **全部**出してから終わる（1 つずつ止めない）。`書く行:` が、そのまま書けばよい行。
@@ -17,7 +18,7 @@ import sys
 from check_discipline_md import (FAILS, check_undecided, children, fail, goal_hash, goal_values,
                                  issue, latest, norm, ok, records, run, section)
 
-# goal の中身の判定（verification のサブエージェントが書く）。lib-gate.sh の起動文と同じ鍵
+# goal の中身の判定（verification のサブエージェントが書く）。lib-gate.sh の起動文は goal-keys で読む
 GOAL_KEYS = {"G1b": "成功条件が 1 文の合否の述語になっている",
              "G3": "未確定に言及する語を削っても、何を作り何を測るかが残る",
              "G4": "解釈が 1 つに定まる"}
@@ -168,8 +169,13 @@ def mode_latest_comment(n, heading):
     print(c["body"] if c else "")
 
 
+def mode_goal_keys():
+    for k, v in GOAL_KEYS.items():
+        print(f"{k}: {v}か")
+
+
 def main(a):
-    modes = {"goal": (2, mode_goal), "verdict-task": (2, mode_verdict_task),
+    modes = {"goal-keys": (1, mode_goal_keys), "goal": (2, mode_goal), "verdict-task": (2, mode_verdict_task),
              "all-negative": (2, mode_all_negative), "conformance": (3, mode_conformance),
              "latest-comment": (3, mode_latest_comment)}
     if not a or a[0] not in modes or len(a) not in (modes[a[0]][0], 4 if a[0] == "conformance" else -1):
