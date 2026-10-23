@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 #
-# scripts/flow/quick.sh の自己検証（#561）。
+# scripts/flow/quick.sh の自己検証。
 #
 # ★ **検査が「落ちること」を、項目ごとに単独で確かめる。**
-#   存在だけを見る検査は恒真になり（.spec/known-issues.md KI-008）、
-#   規律を完璧に守っても落ちる検査は恒偽になる（KI-013）。**両方を見る。**
+#   存在だけを見る検査は恒真になり（壊しても緑のまま）、
+#   規律を完璧に守っても落ちる検査は恒偽になる（正しくても赤）。**両方を見る。**
 #
-# 仕様: .spec/issues/559-quick-flow.md §7（この並びのまま実装している）
+# 仕様: .spec/issues/185-flow-port.md §7（validation の判定項目）。§7-1 などの節番号はこのファイルの中の見出し
 #
 # ★ **上限の 3 / 50 は直書きする。** `quick.sh` の定数を読むと、値を変えた瞬間に
-#   検査が黙って追随して恒真になる（独立オラクル。#554 で確立した形）。
+#   検査が黙って追随して恒真になる（独立オラクル。値を直書きする形）。
 #
 # 実行:  ./tests/test_quick_flow.sh
 # 終了:  0 全て成立 / 1 いずれか不成立
 #
-# ★ `| grep -q` / `| head ` を使わない（#454）。
+# ★ `| grep -q` / `| head ` を使わない（pipefail 下の SIGPIPE）。
 
 set -uo pipefail
 # ★ 起動のたびに読まれる初期化ファイルを切る（bash 1 回の起動が 275 ms → 14 ms）
@@ -43,7 +43,7 @@ export SB="$SANDBOX"
 trap 'rm -rf "${SANDBOX:?}"' EXIT
 mkdir -p "${SANDBOX:?}/bin"
 
-echo "=== flow/quick.sh の自己検証（#561）==="
+echo "=== flow/quick.sh の自己検証==="
 
 # ══════════════════════════════════════════════════════════════════
 # 静的な性質
@@ -55,8 +55,8 @@ if [ "$n" -le 300 ]; then ok "quick.sh は $n 行（上限 300）"
 else ng "quick.sh は $n 行で上限 300 を超える"; fi
 
 if [ "$(count_in_code "$FLOW/quick.sh" '\|[[:space:]]*(grep -q|head )')" -gt 0 ]; then  # pipefail-grep-q:allow 検出対象の綴りそのもの
-  ng "quick.sh に #454 の禁止形がある"
-else ok "quick.sh に #454 の禁止形が無い"; fi
+  ng "quick.sh に pipefail の禁止形がある"
+else ok "quick.sh に pipefail の禁止形が無い"; fi
 
 # ★ 検査 11: 上限の定数は 1 箇所だけ
 for c in QUICK_MAX_FILES=3 QUICK_MAX_LINES=50; do
@@ -66,7 +66,7 @@ for c in QUICK_MAX_FILES=3 QUICK_MAX_LINES=50; do
 done
 
 # ★ 検査 12: 述語を写経していない（既存へ移譲する）
-# ★ **案内文ではなく実際の呼び出しに当てる**（#560 の /review）。
+# ★ **案内文ではなく実際の呼び出しに当てる**（/review の指摘）。
 #   `'commit\.sh push'` は `commit.sh" push`（間に `"` がある）に一致せず、
 #   出力の案内文にだけ当たっていた（＝呼び出しを消しても緑のままだった。実測）
 # shellcheck disable=SC2016  # 検出したい**綴りそのもの**なので展開させない
@@ -83,7 +83,7 @@ if [ "$(count_in_code "$FLOW/quick.sh" 'git add (-N|-A|--all|\.)')" -eq 0 ]; the
   ok "quick.sh は git add -N / -A / . を使わない"
 else ng "quick.sh が git add -N / -A / . を使っている"; fi
 
-# ★ 検査 20: 接頭辞の対応表が chore:chore になっている（#559 の N1）
+# ★ 検査 20: 接頭辞の対応表が chore:chore になっている
 if [ "$(count_in_code "$REPO_ROOT/tests/test_issue_flow.sh" 'chore:chore')" -gt 0 ]; then
   ok "★ tests/test_issue_flow.sh の対応表が chore:chore（branch_prefix と揃っている）"
 else ng "接頭辞の対応表が chore:chore になっていない（branch_prefix と食い違う）"; fi
@@ -119,8 +119,8 @@ if [ "$1" = pr ] && [ "$2" = list ]; then
 fi
 if [ "$1" = pr ] && [ "$2" = create ]; then
   printf 'gh pr create\n' >> "$SB/calls.log"
-  # ★ **本文を記録する**（#561）。本文が `/review` を飛ばせる形に戻っても
-  #   検査が気づかなかった（変異 Q15 で 58/0 緑だった）
+  # ★ **本文を記録する**。本文が `/review` を飛ばせる形に戻っても
+  #   検査が気づかなかった（壊しても緑のままだった）
   prev=""; for a in "$@"; do [ "$prev" = "--body" ] && printf '%s' "$a" > "$SB/pr_body.txt"; prev="$a"; done
   echo "https://x/y/pull/1"; exit 0
 fi
@@ -165,7 +165,7 @@ setup_sandbox() {
 exit 0
 SH
   # ★ 偽の setup-worktree.sh（issue-start.sh が data/shared の symlink を要求する）
-  # ★ issue-start.sh は data/shared が**共有ストアに解決するか**で判定する（#527）。
+  # ★ issue-start.sh は data/shared が**共有ストアに解決するか**で判定する。
   #   ストアの場所は実物の scripts/lib/shared-store.sh と .claude/worktree-config.json から引く
   mkdir -p "$R/scripts/lib" "$R/.claude" "$R/data/shared"
   cp "$REPO_ROOT/scripts/lib/shared-store.sh" "$R/scripts/lib/"
@@ -185,8 +185,8 @@ SH
   rm -f "$SANDBOX/calls.log" "$SANDBOX/pr_body.txt"
   printf '%s' "$FIXTURE" > "$SANDBOX/issues.txt"
   unset GH_PR
-  # ★ セットアップの失敗を黙らせない（#560 の /review）。枝が main のままだと
-  #   `run 1` 系が**別の理由で**緑になる（KI-008 の形）
+  # ★ セットアップの失敗を黙らせない（/review の指摘）。枝が main のままだと
+  #   `run 1` 系が**別の理由で**緑になる（壊しても緑のままになる形）
   [ "$(git -C "$R" symbolic-ref --quiet --short HEAD 2>/dev/null)" = "chore/901-i901" ] \
     || ng "（前提）砂場が chore/901-i901 に居ない"
 }
@@ -224,8 +224,8 @@ echo "--- 上限（★ 3 と 50 は直書き。定数を読まない）---"
 setup_sandbox
 ( cd "$SANDBOX/repo" && for i in 1 2 3; do printf 'a\n' > "f$i.txt"; done )
 run 0 "3 ファイルは通る（恒偽でない）" finish --issue 901 --message "3 ファイル"
-# ★ **肯定側**（#560 の /review）。否定側（「超過時に PR を作らない」）だけだと、
-#   PR 作成もコミットも**消してしまえば自動的に成立する**（KI-008 の形。実測で 46/46 緑だった）
+# ★ **肯定側**（/review の指摘）。否定側（「超過時に PR を作らない」）だけだと、
+#   PR 作成もコミットも**消してしまえば自動的に成立する**（壊しても緑のままになる形）
 if has_call "gh pr create"; then ok "★ 上限の内側なら PR を作る（作る側の主張）"
 else ng "上限の内側なのに PR を作っていない"; fi
 if [ "$(cd "$SANDBOX/repo" && git log -1 --format=%B | grep -cF 'Refs #901' || true)" -gt 0 ]; then
@@ -234,9 +234,9 @@ else ng "Refs #901 のコミットが無い（コミットしていない）"; f
 if [ "$(cd "$SANDBOX/repo" && git ls-remote --heads origin "chore/901-i901" | grep -c . || true)" -gt 0 ]; then
   ok "★ origin に push されている"
 else ng "push されていない"; fi
-# ★ **PR 本文が `/review` の門を開けないこと**（#561 の変異 Q15）。
+# ★ **PR 本文が `/review` の門を開けないこと**。
 #   `check_pr_review` と**同じ awk** を掛け、この時点では**まだ通らない**ことを見る。
-#   見出しの下に但し書きを 1 行置くだけで通ってしまうのが、#560 で見つかった Critical
+#   見出しの下に但し書きを 1 行置くだけで通ってしまうのが、/review で見つかった Critical
 review_ok() {  # review_ok <本文ファイル> → 0 なら check_pr_review が通る
   awk '
     { sub(/\r$/, "") }
@@ -404,7 +404,7 @@ run 1 "★ start は issue のブランチに居ると落ちる（既定ブラ�
 if said "既定ブランチから呼ぶ"; then ok "→ 落ちた理由がブランチである"; else ng "ブランチ以外の理由で落ちている"; fi
 run 1 "start に題が無いと落ちる" start
 
-# ★ **落ちない側**（恒偽でないことの確認。#560 の /review）。
+# ★ **落ちない側**（恒偽でないことの確認。/review の指摘）。
 #   start の成功経路（issue 作成 → 枝と worktree）は、これまで一度も踏まれていなかった
 setup_sandbox
 ( cd "$SANDBOX/repo" && git checkout -q main )

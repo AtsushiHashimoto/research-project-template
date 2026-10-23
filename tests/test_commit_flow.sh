@@ -85,6 +85,12 @@ done
 if [ -f "$REPO_ROOT/scripts/commit-merge.sh" ]; then
   ng "scripts/commit-merge.sh がまだ存在する（取り込んで削除したはず）"
 else ok "scripts/commit-merge.sh が存在しない（flow/commit.sh に取り込んだ）"; fi
+# ★ sync は消えたファイルを消さず tests/ を同期しないので、下流の手順を /template-sync に書いておく
+ts="$REPO_ROOT/.claude/skills/template-sync/SKILL.md"
+miss=""; for w in scripts/commit-merge.sh tests/test_commit_merge.sh 'tests/test_{issue,commit,quick}_flow.sh' tests/test_task_run.sh tests/lib/; do
+  [ "$(grep -cF -e "$w" "$ts" || true)" -gt 0 ] || miss="$miss $w"; done
+if [ -z "$miss" ]; then ok "/template-sync に手で行う移行（commit-merge の削除と flow のテストのコピー）がある"
+else ng "/template-sync の移行の案内に無い:$miss"; fi
 
 # ★ 対象は scripts/flow/（.spec/ と docs/ は過去の記録なので数えない）
 left=0

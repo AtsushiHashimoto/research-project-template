@@ -3,8 +3,8 @@
 # scripts/check-discipline.sh と scripts/flow/*.sh の自己検証。
 #
 # ★ **検査が「落ちること」を、項目ごとに単独で確かめる。**
-#   存在だけを見る検査は恒真になり（.spec/known-issues.md KI-008）、
-#   規律を完璧に守っても落ちる検査は恒偽になる（KI-013）。**両方を見る。**
+#   存在だけを見る検査は恒真になり（壊しても緑のまま）、
+#   規律を完璧に守っても落ちる検査は恒偽になる（正しくても赤）。**両方を見る。**
 #
 #   実際にこの形で、実装中に恒偽が 4 件見つかっている:
 #     - git diff が未追跡ファイルを見ない（spec / survey の段が必ず落ちる）
@@ -63,26 +63,26 @@ echo "=== check-discipline / flow の自己検証 ==="
 
 # ── 静的な性質 ──────────────────────────────────────────────────
 # ★ **述語の実体（predicates）を必ず含める。** 切り出した時点で
-#   #454 の検査から二重に漏れ、恒偽を戻しても緑のままだった（/review 2 回目 C-2）
+#   pipefail の禁止形の検査から二重に漏れ、恒偽を戻しても緑のままだった
 for f in "$CHECK" "$REPO_ROOT/scripts/check-discipline-predicates.sh" \
          "$REPO_ROOT/scripts/flow/task-run.sh" \
          "$REPO_ROOT/scripts/flow/epic-cycle.sh" "$LIB"; do
   n="$(wc -l <"$f")"
   if [ "$n" -le 300 ]; then ok "$(basename "$f") は $n 行（上限 300）"
   else ng "$(basename "$f") は $n 行で上限 300 を超える"; fi
-  # ★ #454: pipefail 下で `| grep -q` / `| head` は生産者を SIGPIPE で殺す。
+  # ★ pipefail 下で `| grep -q` / `| head` は生産者を SIGPIPE で殺す。
   #   ★★ **この検査自身が禁止形を使わない**（実際に自分で自分を捕まえた）。
   #      `grep -c` で件数を見る（tests/test_pipefail_grep_q.sh:98-104 と同じ形）
   body="$(grep -vE '^[[:space:]]*#' "$f")"
   hits="$(printf '%s' "$body" | grep -cE '\|[[:space:]]*(grep -q|head )' || true)"  # pipefail-grep-q:allow 検出対象の綴りそのもの
   if [ "${hits:-0}" -gt 0 ]; then
-    ng "$(basename "$f") に #454 の禁止形がある"
+    ng "$(basename "$f") に pipefail の禁止形がある"
   else
-    ok "$(basename "$f") に #454 の禁止形が無い"
+    ok "$(basename "$f") に pipefail の禁止形が無い"
   fi
 done
 
-# ★ SKILL.md に判定の bash が残っていないこと（#668 V4: check / exit / if も行頭に置かない）
+# ★ SKILL.md に判定の bash が残っていないこと（check / exit / if も行頭に置かない）
 for s in task-run epic-cycle; do
   f="$REPO_ROOT/.claude/skills/$s/SKILL.md"
   if [ "$(grep -cE '^\s*(gh |git |\[ |bash scripts/check-discipline|check |exit|if )' "$f" || true)" -gt 0 ]; then
@@ -90,12 +90,12 @@ for s in task-run epic-cycle; do
   else
     ok "$s/SKILL.md に判定の bash が無い"
   fi
-  # ★ /clear を案内しない（/compact を勧める。#668 §2）
+  # ★ /clear を案内しない（/compact を勧める）
   if [ "$(grep -cF '/clear' "$f" || true)" -eq 0 ]; then ok "$s/SKILL.md に /clear が無い"
   else ng "$s/SKILL.md に /clear がある（/compact を勧める方針）"; fi
 done
 
-# ── #668 V4: 実行形態（メインとワーカー）が task-run/SKILL.md に在る（固定文字列）──
+# ── 実行形態（メインとワーカー）が task-run/SKILL.md に在る（固定文字列）──
 # ★ 起動文・報告の形式・メインの動きは references/worker.md（メインが起動するときだけ読む）。
 #   SKILL.md はそこを指す
 if [ "$(grep -cF 'references/worker.md' "$REPO_ROOT/.claude/skills/task-run/SKILL.md" || true)" -gt 0 ]; then
@@ -137,7 +137,7 @@ if [ "$(grep -cF '/task-run` の「実行形態」に従う' "$REPO_ROOT/.claude
   ok "epic-cycle/SKILL.md が /task-run の実行形態を指す"
 else ng "epic-cycle/SKILL.md に「/task-run の実行形態に従う」が無い"; fi
 
-# ── #668 V5: /compact と handoff.sh write の文言は scripts/flow/lib.sh だけにある（3 箇所に直書きしない）──
+# ── /compact と handoff.sh write の文言は scripts/flow/lib.sh だけにある（3 箇所に直書きしない）──
 for f in "$REPO_ROOT"/scripts/flow/*.sh; do
   for pat in '/compact' 'handoff\.sh write'; do
     n="$(grep -vE '^[[:space:]]*#' "$f" | grep -cE -e "$pat" || true)"
@@ -248,7 +248,7 @@ run_check 1 "survey: 空ファイルは通らない" issue 901 survey 900
 setup_sandbox
 d=data/shared/experiments/2026-09-18_x
 mkdir -p "$d/data" "$d/figures"
-# ★ 見出しを #901 にしておく（本文で言及するだけでは通らない。#671）
+# ★ 見出しを #901 にしておく（本文で言及するだけでは通らない）
 printf '# 実験（#901）\n\n本文\n' > "$d/README.md"
 run_check 0 "experiment: 見出し行に #901 があれば通る" issue 901 experiment 900
 
@@ -258,9 +258,9 @@ run_check 1 "experiment: figures/ が無いと落ちる" issue 901 experiment 90
 mkdir -p "$d/figures"; printf '# 実験\n\n番号なし\n' > "$d/README.md"
 run_check 1 "experiment: README に #901 が無いと落ちる" issue 901 experiment 900
 
-# ★ 別の実験の README が本文で #901 に言及しているだけでは通らない（#671。旧実装はここで通った）
+# ★ 別の実験の README が本文で #901 に言及しているだけでは通らない（旧実装はここで通った）
 printf '# 別の実験（#899）\n\n#901 の結果を参照する\n' > "$d/README.md"
-run_check 1 "experiment: 本文で #901 に言及するだけの README では通らない（★ #671）" issue 901 experiment 900
+run_check 1 "experiment: 本文で #901 に言及するだけの README では通らない" issue 901 experiment 900
 
 # ══════════════════════════════════════════════════════════════════
 # 7. artifacts（closed の先行段）— ★ 段の種類ごとに違うこと
@@ -321,7 +321,7 @@ esac
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
   r="$(row "$3")"; [ -n "$r" ] || { echo "not found" >&2; exit 1; }
   IFS=: read -r _ labels state title <<< "$r"
-  # ★ **`$*` 全体ではなく `--json` の値で分ける**（#555 の /review）。
+  # ★ **`$*` 全体ではなく `--json` の値で分ける**（/review の指摘）。
   #   `$*` で見ると `--json comments` の jq に含まれる `.body` に `*body*` が当たり、
   #   コメントの問い合わせが本文を返す。`--json title,body` も題名だけを返してしまう
   json=""; prev=""
@@ -344,8 +344,8 @@ if [ "$1" = pr ] && [ "$2" = view ]; then  # GH_PR_VIEW_FAIL=<json の値> で�
   cat "$SANDBOX/pr_body.txt" 2>/dev/null; exit 0; fi
 if [ "$1" = "api" ]; then
   # ★ epic-cycle の「直近に closed になった task の closed_at」照会は**空**を返す
-  #   （epic の createdAt へ落ちる経路を通す。#555）
-  #   GH_CLOSED_AT_FAIL=1 で gh の失敗を再現する（#527。代入の時点で無言終了する実装を捕まえる）
+  #   （epic の createdAt へ落ちる経路を通す）
+  #   GH_CLOSED_AT_FAIL=1 で gh の失敗を再現する（代入の時点で無言終了する実装を捕まえる）
   case "$*" in *closed_at*) [ -z "${GH_CLOSED_AT_FAIL:-}" ] || { echo "boom" >&2; exit 1; }; exit 0;; esac
   parent="$(echo "$2" | sed -E 's|.*/issues/([0-9]+)/sub_issues|\1|')"
   grep -E "^[0-9]+:.*:parent=$parent" "$f" | cut -d: -f1
@@ -357,7 +357,7 @@ if [ "$1" = "issue" ] && [ "$2" = "list" ]; then
     *review-integrity*) printf '%s\n' "${GH_RI_COUNT:-1}"; exit 0;;
   esac
 fi
-# ★ **知らない呼び出しは大声で落とす**（#555 の /review）。既定を `exit 0`（空出力）に
+# ★ **知らない呼び出しは大声で落とす**（/review の指摘）。既定を `exit 0`（空出力）に
 #   すると、新しい gh 呼び出しが増えたときテストは空の値で緑のまま通る
 printf '偽 gh: 未対応の呼び出し: %s\n' "$*" >&2
 exit 1
@@ -431,7 +431,7 @@ order="$(printf '%s\n' "$out" | awk '/commit\.sh push/&&!a{a=NR} /gh pr create/&
 if [ "$order" = ok ]; then ok "★ 品質チェックの後: stage・push → gh pr create → /review・仕様整合 → gh pr edit → issue-finish の順"
 else ng "品質チェックの後の案内の順が違う（rc=$rc、行番号 ${order#ng }）"; printf '%s\n' "$out" | tail -15 | sed 's/^/        /'; fi
 
-# ── #668 V1: 全ての子が closed → 完了判定＋区切りの引き継ぎ（終了コード 0）──
+# ── 全ての子が closed → 完了判定＋区切りの引き継ぎ（終了コード 0）──
 # ★ closed の子（401 spec・402 feature）の成果物を揃えて、全 closed の分岐に届かせる
 #   spec は仕様ファイルと判断ログ、feature は main 上の 'Refs #402' のコミット
 printf '# Issue #401: x\n' > .spec/issues/401-x.md
@@ -469,7 +469,7 @@ out2="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 400
 if has "$out2" "再開は \`bash scripts/flow/task-run.sh 400\`"; then ok "（対照）親 epic が無ければ再開は task-run.sh 400"
 else ng "（対照）親 epic が無いのに task-run.sh 400 で再開を案内していない: $(printf '%s' "$out2" | tail -3)"; fi
 
-# #661: epic-cycle から降りた task-run が全 closed に届いたら、epic-cycle へ戻る案内を足す（終了コードは task-run のまま）
+# epic-cycle から降りた task-run が全 closed に届いたら、epic-cycle へ戻る案内を足す（終了コードは task-run のまま）
 make_gh_stub '800:epic:OPEN:sandbox epic:parent=0
 400:task:OPEN:sandbox task:parent=800
 401:spec:CLOSED:spec 段:parent=400
@@ -485,7 +485,7 @@ if [ "$(printf '%s' "$out" | grep -cF '後、もう一度 `bash scripts/flow/epi
   ok "★ epic-cycle→task-run 全 closed: epic-cycle.sh 800 へ戻る案内がある"
 else ng "epic-cycle→task-run 全 closed: epic-cycle へ戻る案内が無い"; fi
 
-# ★ closed 済みの task には完了判定を案内しない（#671）
+# ★ closed 済みの task には完了判定を案内しない
 make_gh_stub '900:task:CLOSED:sandbox task:parent=800
 901:spec:CLOSED:spec 段:parent=900
 800:epic:OPEN:sandbox epic:parent=0
@@ -494,12 +494,12 @@ out="$(PATH="$SANDBOX/bin:$PATH" \
        bash "$REPO_ROOT/scripts/flow/task-run.sh" 900 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && [[ "$out" == *'closed 済み'* ]] \
    && [[ "$out" != *'完了判定を行う'* ]]; then
-  ok "task-run: closed 済みの task には完了判定を案内しない（★ #671）"
+  ok "task-run: closed 済みの task には完了判定を案内しない"
 else
   ng "task-run: closed 済みの task に完了判定を案内した（rc=$rc）"
 fi
 
-# ★ #528: 状態ラベル（user-action / blocked / out-of-date）の open な子は、既定構成の後ろの種類（docs 等）だけ飛ばす。
+# ★ 状態ラベル（user-action / blocked / out-of-date）の open な子は、既定構成の後ろの種類（docs 等）だけ飛ばす。
 #   **飛ばしたことを出す。** 既定構成の段に付いていたら飛ばさずに止まる（validation より先に experiment へ進ませない）
 for sl in user-action blocked out-of-date; do
   make_gh_stub "400:task:OPEN:sandbox task:parent=800
@@ -511,7 +511,7 @@ for sl in user-action blocked out-of-date; do
 "
   out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 400 2>&1)"; rc=$?
   if [[ "$out" == *"#403 [docs] は $sl ラベル付きなので飛ばす"* ]] && [[ "$out" == *"いまの段: #404"* ]]; then
-    ok "★ task-run: $sl の docs の子（#403）を飛ばしたと出して、次の子（#404）へ進む（#528）"
+    ok "★ task-run: $sl の docs の子（#403）を飛ばしたと出して、次の子（#404）へ進む"
   else ng "task-run: $sl の docs の子で止まる、または黙って飛ばす（rc=$rc）: $(printf '%s' "$out" | tail -3)"; fi
   # 飛ばした子しか残っていない → 「全て closed」と読まない（完了判定へ進ませない）
   make_gh_stub "400:task:OPEN:sandbox task:parent=800
@@ -521,7 +521,7 @@ for sl in user-action blocked out-of-date; do
 "
   out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 400 2>&1)"; rc=$?
   if [ "$rc" -eq 1 ] && [[ "$out" == *"飛ばしたものだけ"* ]] && [[ "$out" != *"全ての子 issue が closed"* ]]; then
-    ok "★ task-run: 残りが $sl の子だけなら非ゼロで止まり、完了判定へ進まない（#528）"
+    ok "★ task-run: 残りが $sl の子だけなら非ゼロで止まり、完了判定へ進まない"
   else ng "task-run: $sl の子が open のまま完了判定へ進んだ（rc=$rc）: $(printf '%s' "$out" | tail -3)"; fi
   # 既定構成の段（spec）に付いていたら飛ばさない（後ろの feature を「いまの段」にしない）
   make_gh_stub "400:task:OPEN:sandbox task:parent=800
@@ -531,7 +531,7 @@ for sl in user-action blocked out-of-date; do
 "
   out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 400 2>&1)"; rc=$?
   if [ "$rc" -eq 1 ] && [[ "$out" == *"既定構成の段は飛ばさない"* ]] && [[ "$out" != *"いまの段: #402"* ]]; then
-    ok "★ task-run: 既定構成の段（spec）に $sl が付いていたら飛ばさずに止まる（#528 の /review）"
+    ok "★ task-run: 既定構成の段（spec）に $sl が付いていたら飛ばさずに止まる（/review の指摘）"
   else ng "task-run: $sl の spec を飛ばして feature へ進んだ（rc=$rc）: $(printf '%s' "$out" | tail -3)"; fi
 done
 # ★ closed の子は状態ラベルが付いていても飛ばさない（成果物の検査を受ける側に残す）
@@ -541,7 +541,7 @@ make_gh_stub '400:task:OPEN:sandbox task:parent=800
 800:epic:OPEN:sandbox epic:parent=0
 '
 out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 400 2>&1)"; rc=$?
-if [[ "$out" != *"飛ばす"* ]] && [[ "$out" == *"いまの段: #402"* ]]; then ok "task-run: closed の子は状態ラベル付きでも飛ばさない（#528）"
+if [[ "$out" != *"飛ばす"* ]] && [[ "$out" == *"いまの段: #402"* ]]; then ok "task-run: closed の子は状態ラベル付きでも飛ばさない"
 else ng "task-run: closed の子を飛ばした扱いにしている（rc=$rc）"; fi
 
 # epic-cycle: open な sub-epic があると葉ではないので止まる
@@ -590,7 +590,7 @@ else ng "chore の単独 issue を数えている"; fi
 if [ "$rc" -ne 0 ] && [ "$(printf '%s' "$out" | grep -c "'## 判定' の見出しを含むコメント" || true)" -gt 0 ]; then
   ok "★ verdict モードを踏み、判定コメントが無ければ非ゼロ"
 else ng "verdict が判定コメントの不在を落としていない（rc=$rc）"; fi
-# #668 V3: 判定コメントが揃っていない（next_fail）ときは区切りの引き継ぎを出さない
+# 判定コメントが揃っていない（next_fail）ときは区切りの引き継ぎを出さない
 if [ "$(printf '%s' "$out" | grep -cE 'handoff\.sh write|/compact' || true)" -eq 0 ]; then
   ok "★ epic-cycle: 判定コメントが揃っていないときは引き継ぎを案内しない"
 else ng "epic-cycle: next_fail の段で引き継ぎを案内している"; fi
@@ -606,7 +606,7 @@ out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/epic-cycle.sh" 80
 if [ "$(printf '%s' "$out" | grep -c '完了条件を 1 項目ずつ引用している' || true)" -gt 0 ]; then
   ok "★ 判定コメントが完了条件を引用していれば verdict が通る（恒偽でない）"
 else ng "揃った判定コメントでも verdict が通らない: $(printf '%s' "$out" | tail -5)"; fi
-# #668 V3: 最後の next（判断）には epic への引き継ぎを足し、末尾の再呼び出しは付けない
+# 最後の next（判断）には epic への引き継ぎを足し、末尾の再呼び出しは付けない
 if [ "$rc" -eq 0 ] && [ "$(printf '%s' "$out" | grep -cE 'handoff\.sh write 800 -([[:space:]]|$)' || true)" -gt 0 ] \
    && [ "$(printf '%s' "$out" | grep -cF '/compact' || true)" -gt 0 ]; then
   ok "★ epic-cycle: 最後の出力に handoff.sh write 800（epic 番号）と /compact がある（0 で終わる）"
@@ -636,7 +636,7 @@ if [ "$(printf '%s' "$out" | grep -c '完了条件が引用されていない' |
   ok "★ 引用の欠けた完了条件を単独で落とす"
 else ng "引用が欠けても通ってしまう"; fi
 
-# ★ 番号付き列挙の完了条件も項目として読む（#742。epic #614 の形。継続行・入れ子は項目にしない）
+# ★ 番号付き列挙の完了条件も項目として読む（継続行・入れ子は項目にしない）
 export GH_EPIC_BODY='## 完了条件
 
 **前置きの段落は項目ではない**
@@ -689,22 +689,22 @@ if [ "$rc" -ne 0 ] && [ "$(printf '%s' "$out" | grep -c 'epic の計数が失敗
 else ng "epic の計数の失敗を握り潰している（rc=$rc）: $(printf '%s' "$out" | tail -3)"; fi
 unset GH_NO_CREATEDAT
 
-# ★ #527: サイクル開始時刻（closed_at）の照会が失敗したら、**理由を出して**落ちる
+# ★ サイクル開始時刻（closed_at）の照会が失敗したら、**理由を出して**落ちる
 #   （`since="$(gh … 2>/dev/null)"` は set -e 下で代入の時点で終わり、何も出さない）
 export GH_CLOSED_AT_FAIL=1
 out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/epic-cycle.sh" 800 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && [ "$(printf '%s' "$out" | grep -c 'closed_at 取得 が失敗した' || true)" -gt 0 ]; then
-  ok "★ closed_at の照会が失敗したら理由を出して落ちる（無言終了で規律違反と区別できない、を防ぐ。#527）"
+  ok "★ closed_at の照会が失敗したら理由を出して落ちる（無言終了で規律違反と区別できない、を防ぐ）"
 else ng "closed_at の照会の失敗が無言終了になる（rc=$rc）: $(printf '%s' "$out" | tail -3)"; fi
 unset GH_CLOSED_AT_FAIL
 
 unset GH_EPIC_BODY GH_EPIC_COMMENT
 
-# ★ gh が失敗したら黙って通さない（C3 の回帰検査）
+# ★ gh が失敗したら黙って通さない
 make_gh_stub '800:epic:OPEN:親:parent=0'
 run_flow 1 "flow: gh が引けない issue を指すと落ちる（黙って通さない）" task-run.sh 777
 
-# ★ QUALITY_SCOPE の裏口（H4 の回帰検査）
+# ★ QUALITY_SCOPE の裏口（環境から docs を継がない）
 # shellcheck disable=SC2016  # $1 は bash -c の中で展開させる
 scope="$(QUALITY_SCOPE=docs QUALITY_BASE_BRANCH=HEAD bash -c \
   '. "$1/scripts/flow/lib.sh"; scope_for feature' _ "$REPO_ROOT" 2>/dev/null)"

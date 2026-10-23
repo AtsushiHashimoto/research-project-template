@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# scripts/flow/issue-{create,start,branch,finish}.sh の自己検証（#506）。
+# scripts/flow/issue-{create,start,branch,finish}.sh の自己検証。
 #
 # ★ **検査が「落ちること」を、項目ごとに単独で確かめる。**
-#   存在だけを見る検査は恒真になり（.spec/known-issues.md KI-008）、
-#   規律を完璧に守っても落ちる検査は恒偽になる（KI-013）。**両方を見る。**
+#   存在だけを見る検査は恒真になり（壊しても緑のまま）、
+#   規律を完璧に守っても落ちる検査は恒偽になる（正しくても赤）。**両方を見る。**
 #
-# 仕様: .spec/issues/504-issue-scripts.md §7（この並びのまま実装している）
+# 仕様: .spec/issues/185-flow-port.md §7（validation の判定項目）。§7-1 などの節番号はこのファイルの中の見出し
 #
 # 実行:  ./tests/test_issue_flow.sh
 # 終了:  0 全て成立 / 1 いずれか不成立
@@ -14,7 +14,7 @@
 # ★ **砂場に scripts/ をコピーして、そのコピーを実行する**（§7 冒頭）。
 #   REPO_ROOT は lib.sh の 2 つ上なので砂場を指し、$QUALITY / $CHECK / $MERGE_CMD が
 #   すべて砂場側の偽物になる（本物は readonly で env 差し替え不可）。
-# ★ `| grep -q` / `| head ` を使わない（#454）。`grep -c` と [[ =~ ]] を使う。
+# ★ `| grep -q` / `| head ` を使わない（pipefail 下の SIGPIPE）。`grep -c` と [[ =~ ]] を使う。
 #
 # ── 偽 gh の応答表（§7 冒頭の要求。fixture は $SB/issues.txt）──────────────────
 #   行の形: 番号:ラベル列:状態:題名:parent=<番号|空>
@@ -32,7 +32,7 @@
 #                                        （--head の有無だけで分けると cd 後に引き直す実装が素通りする）
 #   gh pr view --json body            → `## /review 結果` 付き本文。$GH_PR_NO_REVIEW=1 で見出しを消す。
 #                                        末尾に PR ごとの $GH_PR_CLOSES_<番号>、無ければ $GH_PR_CLOSES の行
-#                                        （既定 `Refs #901`）を足す（#715。番号を無視すると 1 本目だけ見る実装が素通りする）
+#                                        （既定 `Refs #901`）を足す（番号を無視すると 1 本目だけ見る実装が素通りする）
 #   gh pr view --json headRefOid     → $GH_PR_HEAD_OID（既定は空）
 #   gh api …/commits/<sha>/pulls      → $GH_COMMIT_PR（既定 77。空なら PR 無し）
 #   GH_NOISE=1                        → すべての呼び出しで stderr に 1 行出す（本物の更新通知の再現）
@@ -72,7 +72,7 @@ export FAKE_GH="$REPO_ROOT/tests/lib/fake_gh.py" FAKE_GH_DIR="$SANDBOX/gh" FAKE_
 trap 'rm -rf "${SANDBOX:?}"' EXIT
 mkdir -p "${SANDBOX:?}/bin"
 
-echo "=== flow/issue-*.sh の自己検証（#506）==="
+echo "=== flow/issue-*.sh の自己検証==="
 
 # ══════════════════════════════════════════════════════════════════
 # §7-1 静的な性質（★ 4 本を固定列挙せず glob で回す）
@@ -110,6 +110,10 @@ else
     else ng "quality-check.sh が test_$t.sh を走らせていない"; fi
   done
 fi
+# ★ 小タスクの親はブランチの番号（task 単位の worktree なら task）。ルールの表にもそう書く
+if [ "$(grep -cE '^\| 小タスク \|.*親は task 単位なら task' "$REPO_ROOT/.claude/rules/template/issue-hierarchy.md" || true)" -eq 1 ]; then
+  ok "issue-hierarchy.md の小タスクの行が、親は task 単位なら task と書く"
+else ng "issue-hierarchy.md の小タスクの行に、task 単位のときの親が無い"; fi
 # ★ 作業場所は task 単位（worktrees/task<TASK>・ブランチ <type>/<TASK>-*）。issue 番号で引く写しを残さない
 gaps="$REPO_ROOT/.claude/skills/issue-gaps/SKILL.md"
 # shellcheck disable=SC2016  # SKILL.md の字面（展開しない）を探す
@@ -121,10 +125,10 @@ for f in "$FLOW"/*.sh; do
   n="$(wc -l <"$f")"
   if [ "$n" -le 300 ]; then ok "$(basename "$f") は $n 行（上限 300）"
   else ng "$(basename "$f") は $n 行で上限 300 を超える"; fi
-  # #454: pipefail 下で `| grep -q` / `| head ` は生産者を SIGPIPE で殺す
+  # pipefail 下で `| grep -q` / `| head ` は生産者を SIGPIPE で殺す
   if [ "$(count_in_code "$f" '\|[[:space:]]*(grep -q|head )')" -gt 0 ]; then  # pipefail-grep-q:allow 検出対象の綴りそのもの
-    ng "$(basename "$f") に #454 の禁止形がある"
-  else ok "$(basename "$f") に #454 の禁止形が無い"; fi
+    ng "$(basename "$f") に pipefail の禁止形がある"
+  else ok "$(basename "$f") に pipefail の禁止形が無い"; fi
 done
 
 for s in issue-create issue-start issue-branch issue-finish; do
@@ -164,7 +168,7 @@ for f in "$FLOW"/*.sh; do
 done
 if [ "$creators" -eq 1 ]; then ok "gh issue create を含む flow は 1 本だけ（issue-create.sh）"
 else ng "gh issue create を含む flow が $creators 本ある"; fi
-if [ "$(count_in_code "$FLOW/issue-start.sh" '--relative-paths')" -eq 0 ]; then ok "issue-start.sh に --relative-paths が無い（INV-001）"
+if [ "$(count_in_code "$FLOW/issue-start.sh" '--relative-paths')" -eq 0 ]; then ok "issue-start.sh に --relative-paths が無い（git < 2.48 の環境がリポジトリを開けなくなる）"
 else ng "issue-start.sh が --relative-paths を付けている"; fi
 if [ "$(count_in_code "$FLOW/issue-start.sh" '--add-label')" -eq 0 ]; then ok "issue-start.sh に --add-label が無い（状態ラベルを付けない）"
 else ng "issue-start.sh が状態ラベルを付けている"; fi
@@ -181,7 +185,7 @@ fi
 if [ "$(count_in_code "$FLOW/issue-finish.sh" 'scripts/commit-merge\.sh')" -eq 0 ]; then
   ok "issue-finish.sh に旧マージスクリプトへの参照が無い（段 3 で flow/commit.sh に移した）"
 else ng "issue-finish.sh がまだ旧マージスクリプトを指している"; fi
-if [ "$(count_in_code "$FLOW/lib.sh" '2>&1')" -eq 0 ]; then ok "lib.sh が gh の stderr を値に混ぜていない（#505 の回帰）"
+if [ "$(count_in_code "$FLOW/lib.sh" '2>&1')" -eq 0 ]; then ok "lib.sh が gh の stderr を値に混ぜていない"
 else ng "lib.sh に 2>&1 がある（gh の stderr が値を壊す）"; fi
 # ★ `\|` は grep -E ではリテラルの縦棒。つまり「BRANCH_TYPES の値をそのまま写した並び」を探す
 #   （交替と読むと issue-start.sh の `spec)` に当たって恒偽になる）。
@@ -194,10 +198,10 @@ done
 if [ "$copied" -eq 0 ]; then ok "flow のどれも BRANCH_TYPES の値を書き写していない（predicates から読む）"; fi
 if [ "$(count_in_code "$REPO_ROOT/scripts/check-skill-labels.sh" "scripts/flow")" -gt 0 ]; then ok "check-skill-labels.sh の走査対象に scripts/flow が入っている"
 else ng "check-skill-labels.sh が scripts/flow を走査しない（ラベル検査の網が外れる）"; fi
-# ★ #528: /task-start の task 作成は --body-file を渡す（issue-create.sh は本文なしの task で必ず落ちる）
+# ★ /task-start の task 作成は --body-file を渡す（issue-create.sh は本文なしの task で必ず落ちる）
 ts_line="$(grep -E 'Skill\(skill="issue-create", args="--type task ' "$REPO_ROOT/.claude/skills/task-start/SKILL.md" || true)"
-if [ -n "$ts_line" ] && [[ "$ts_line" == *--body-file* ]]; then ok "task-start/SKILL.md の task 作成が --body-file を渡す（#528）"
-else ng "task-start/SKILL.md の task 作成に --body-file が無い（documented な経路が必ず落ちる。#528）"; fi
+if [ -n "$ts_line" ] && [[ "$ts_line" == *--body-file* ]]; then ok "task-start/SKILL.md の task 作成が --body-file を渡す"
+else ng "task-start/SKILL.md の task 作成に --body-file が無い（documented な経路が必ず落ちる）"; fi
 # ★ 接頭辞の表（lib.sh の branch_prefix）の値の集合 ＝ predicates の BRANCH_TYPES（bug は旧来の綴りとして BRANCH_TYPES にだけ残す）
 prefixes="$(bash -c '. "$1"; for k in $DEFAULT_ORDER $EXTRA_ORDER; do branch_prefix "$k"; echo; done' _ "$FLOW/lib.sh" 2>/dev/null | sort -u | tr '\n' ' ')"
 types="$(sed -n 's/^readonly BRANCH_TYPES="\(.*\)"$/\1/p' "$REPO_ROOT/scripts/check-discipline-predicates.sh" | tr '|' '\n' | grep -vx bug | sort -u | tr '\n' ' ')"
@@ -322,7 +326,7 @@ setup_sandbox() {
 #!/usr/bin/env bash
 printf 'configure-agent-workflow %s\n' "${1:-}" >> "$SB/calls.log"
 SH
-  # ★ issue-start.sh が共有ストアの場所を引く（#527。何に解決するかで data/shared を判定する）
+  # ★ issue-start.sh が共有ストアの場所を引く（何に解決するかで data/shared を判定する）
   mkdir -p "$R/scripts/lib" "$R/.claude"
   cp "$REPO_ROOT/scripts/lib/shared-store.sh" "$R/scripts/lib/"
   printf '{"shared_data_path": "data/shared", "path_type": "relative"}\n' > "$R/.claude/worktree-config.json"
@@ -442,7 +446,7 @@ else
   ng "stdout が '作成: #4242' でない: '$out'"
 fi
 
-# ★ gh の stderr 混入に耐えるか（#505 の回帰。混ざると kind_of が空になり die する）
+# ★ gh の stderr 混入に耐えるか（混ざると kind_of が空になり die する）
 GH_NOISE=1 flow 0 "gh が stderr に 1 行出しても値が壊れない（gh_json の回帰）" issue-create.sh --type feature --title t --parent 900
 
 # ══════════════════════════════════════════════════════════════════
@@ -496,23 +500,23 @@ else ng "呼び直していない（setup-worktree.sh の失敗が恒久化す�
 rm -f "$WT/data/shared"; : > "$SANDBOX/setup_fail"
 flow 1 "setup-worktree.sh が落ちたら非ゼロ（張られないまま作業させない）" issue-start.sh 901
 rm -f "$SANDBOX/setup_fail"
-# ★ #527: **ダングリング**な symlink・**共有ストア以外**を指す symlink でも張り直す（`-L` だけで判定しない）
+# ★ **ダングリング**な symlink・**共有ストア以外**を指す symlink でも張り直す（`-L` だけで判定しない）
 for bad in "$SANDBOX/nowhere" "$SANDBOX/bin"; do
   ln -sfn "$bad" "$WT/data/shared"; rm -f "$SANDBOX/calls.log"
   flow 0 "data/shared が $bad を指す symlink → 既存 worktree でも動く" issue-start.sh 901
   if has_call "setup-worktree" && [ "$(readlink -f "$WT/data/shared")" = "$(readlink -f "$SANDBOX/repo/data/shared")" ]; then
-    ok "★ $bad を指す symlink を共有ストアへ張り直した（偽の ok を出さない。#527）"
-  else ng "$bad を指す symlink のまま「共有ストアへの symlink」と扱った（#527 の再発）"; fi
+    ok "★ $bad を指す symlink を共有ストアへ張り直した（偽の ok を出さない）"
+  else ng "$bad を指す symlink のまま「共有ストアへの symlink」と扱った（再発）"; fi
 done
 # ★ data/ 自体がメインリポジトリへの symlink（worktrees/issue92 の形）→ ストアに解決するので**呼ばない**（毎回張り直す誤りの検査）
 rm -rf "$WT/data"; ln -s ../../data "$WT/data"; rm -f "$SANDBOX/calls.log"
 flow 0 "data/ がメインリポジトリへの symlink でも 0" issue-start.sh 901
-if has_call "setup-worktree"; then ng "data/ 経由でストアに解決するのに setup-worktree.sh を呼んだ（#527）"
-else ok "★ data/ 経由でストアに解決するなら setup-worktree.sh を呼ばない（#527）"; fi
+if has_call "setup-worktree"; then ng "data/ 経由でストアに解決するのに setup-worktree.sh を呼んだ"
+else ok "★ data/ 経由でストアに解決するなら setup-worktree.sh を呼ばない"; fi
 rm -f "$WT/data"
-# ★ ストア自体が symlink（#215 の形）→ 解決後の比較で素通りさせず止まる
+# ★ ストア自体が symlink → 解決後の比較で素通りさせず止まる
 mv "$SANDBOX/repo/data/shared" "$SANDBOX/store-real"; ln -s "$SANDBOX/store-real" "$SANDBOX/repo/data/shared"
-flow 1 "★ 共有ストア自体が symlink なら止まる（#215 の形を ok と出さない。#527）" issue-start.sh 901
+flow 1 "★ 共有ストア自体が symlink なら止まる（ok と出さない）" issue-start.sh 901
 rm -f "$SANDBOX/repo/data/shared"; mv "$SANDBOX/store-real" "$SANDBOX/repo/data/shared"
 
 # ★ 種類ラベルごとの接頭辞（間違えても check_branch は BRANCH_TYPES に含むので落ちない）
@@ -607,18 +611,18 @@ rm -f "$SANDBOX/gh-body.log"
 flow 0 "同じ task の**別 slug**のブランチが残っている → それを使う（2 本目を作らない）" issue-start.sh 901
 if [ "$(git -C "$SANDBOX/repo/worktrees/task900" branch --show-current)" = "spec/900-other" ]; then ok "既存ブランチ spec/900-other を再利用した"
 else ng "新しいブランチを作ってしまった（1 task = 1 ブランチに反する）"; fi
-# ★ #527: 着手コメントには**実際に使った**ブランチ名を書く（使わなかった新規名 spec/900-i901 を書かない）
+# ★ 着手コメントには**実際に使った**ブランチ名を書く（使わなかった新規名 spec/900-i901 を書かない）
 if [ "$(grep -cF 'spec/900-other' "$SANDBOX/gh-body.log" 2>/dev/null || true)" -gt 0 ] \
    && [ "$(grep -cF 'spec/900-i901' "$SANDBOX/gh-body.log" 2>/dev/null || true)" -eq 0 ]; then
-  ok "★ 着手コメントに再利用したブランチ名 spec/900-other が出る（#527）"
-else ng "着手コメントに使われなかったブランチ名が出ている（#527 の再発）"; fi
+  ok "★ 着手コメントに再利用したブランチ名 spec/900-other が出る"
+else ng "着手コメントに使われなかったブランチ名が出ている（再発）"; fi
 # ══════════════════════════════════════════════════════════════════
 # §7-5 issue-branch.sh
 # ══════════════════════════════════════════════════════════════════
 echo "--- §7-5 issue-branch.sh ---"
 setup_sandbox
 flow 1 "main に居ると落ちる"            issue-branch.sh --title t
-# ★ **落ちた理由まで見る**（#554）。ブランチ名の形の検査でも 1 で落ちるので、
+# ★ **落ちた理由まで見る**。ブランチ名の形の検査でも 1 で落ちるので、
 #   終了コードだけでは「保護ブランチの判定が効いている」ことを示せない（実際に素通りしていた）
 if [ "$(printf '%s' "$LAST_OUT" | grep -cF 'issue のブランチで実行すること' || true)" -gt 0 ]; then
   ok "★ 落ちた理由が保護ブランチの判定である（形の検査に素通りしていない）"
@@ -656,10 +660,10 @@ if [ "$(grep -cF -- '--assignee @me' "$SANDBOX/gh.log" 2>/dev/null || true)" -gt
 flow_in "$WT" 0 'title に日本語と " が入っても通る' issue-branch.sh --title 'a"b 日本語'
 
 # ══════════════════════════════════════════════════════════════════
-# §7-5b realign_branch（#565。squash merge の後、枝を既定ブランチに合わせ直す）
+# §7-5b realign_branch（squash merge の後、枝を既定ブランチに合わせ直す）
 #   ★ gh は要らない。**本物の git だけ**で、衝突が起きる状況を作って確かめる
 # ══════════════════════════════════════════════════════════════════
-echo "--- §7-5b realign_branch（#565）---"
+echo "--- §7-5b realign_branch---"
 
 # rb_setup → $SANDBOX/rb に「1 回 squash merge した後」の状態を作る
 rb_setup() {
@@ -695,8 +699,8 @@ rb_setup
 
 Refs #902" ) >/dev/null 2>&1
 if ( cd "$SANDBOX/rb" && git checkout -q main && git merge --squash "spec/900-i901" ) >/dev/null 2>&1; then
-  ng "（前提）合わせ直す前でも 2 回目の squash が通ってしまう（#565 が再現しない）"
-else ok "★（前提）合わせ直さないと 2 回目の squash merge が衝突する（#565 の再現）"; fi
+  ng "（前提）合わせ直す前でも 2 回目の squash が通ってしまう（衝突が再現しない）"
+else ok "★（前提）合わせ直さないと 2 回目の squash merge が衝突する（再現）"; fi
 
 # ★ 合わせ直すと衝突しない
 rb_setup
@@ -715,7 +719,7 @@ else ng "1 回目の子の内容が消えた"; fi
 
 Refs #902" ) >/dev/null 2>&1
 if ( cd "$SANDBOX/rb" && git checkout -q main && git merge --squash "spec/900-i901" ) >/dev/null 2>&1; then
-  ok "★ 合わせ直した後は 2 回目の squash merge が通る（#565 が直っている）"
+  ok "★ 合わせ直した後は 2 回目の squash merge が通る（直っている）"
 else ng "合わせ直しても 2 回目の squash merge が衝突する"; fi
 
 # ★ 汚れていたら触らない（reset --hard で未コミットの変更を消さない）
@@ -763,7 +767,7 @@ else ng "main が進んだだけで合わせ直さなかった（rc=$rc）: $(pr
 # §7-6 issue-finish.sh
 # ══════════════════════════════════════════════════════════════════
 echo "--- §7-6 issue-finish.sh ---"
-# ── #668 V2 の判定（LAST_OUT を見る）──────────────────────────────
+# ── 完了の案内の判定（LAST_OUT を見る）──────────────────────────────
 n_out() { printf '%s' "$LAST_OUT" | grep -cE -e "$1" || true; }
 assert_task_next() {  # 親 task があるとき: task-run.sh 900 の案内が残り、引き継ぎは出さない
   if [ "$(n_out 'task-run\.sh 900([^0-9]|$)')" -gt 0 ]; then ok "$1: task-run.sh 900 の案内が残る"
@@ -815,9 +819,9 @@ else ng "close していない"; fi
 # 他に open な子（902）が居るので worktree パスは渡さない
 if [ "$(calls | grep -cE 'merge args=merge 901 900$' || true)" -gt 0 ]; then ok "open な子が残っている → 第 2 引数を渡さない"
 else ng "worktree パスを渡してしまった（次の段が続けられなくなる）"; fi
-# ★ 枝を残すなら、段 9b（#565）を通る。通らないと次の子の squash merge が add/add で衝突する
+# ★ 枝を残すなら、段 9bを通る。通らないと次の子の squash merge が add/add で衝突する
 if [ "$(printf '%s' "$LAST_OUT" | grep -cF '枝を既定ブランチに合わせ直す' || true)" -gt 0 ]; then
-  ok "★ 枝を残すときは段 9b（枝の合わせ直し）を通る（#565）"
+  ok "★ 枝を残すときは段 9b（枝の合わせ直し）を通る"
 else ng "段 9b を通っていない（次の子で squash merge が衝突する）"; fi
 # ★ 段 9b はマージした PR の head（headRefOid）を渡し、合わないなら先に差分を見せる案内を出す
 prepare_finish
@@ -909,7 +913,7 @@ prepare_finish
 ( cd "$WT" && git commit -q --amend -m "参照なしのコミット" ) >/dev/null
 fin 1 "Refs #N を持つコミットが無いと非ゼロ"
 if has_call "merge args"; then ng "Refs が無いのにマージしている"; else ok "→ \$MERGE_CMD を呼ばない"; fi
-# ★ 検査は品質チェックより先（#554）。**動的に見る**（行番号で見ると、挙動を変えない
+# ★ 検査は品質チェックより先。**動的に見る**（行番号で見ると、挙動を変えない
 #   書き換え（`if ! check merge …; then`）で落ちる恒偽になる）。
 #   いま落ちたのは check merge だけなので、先なら品質チェックは一度も呼ばれていない
 if has_call "quality scope="; then
@@ -938,14 +942,14 @@ else ok "→ \$MERGE_CMD を呼ばない"; fi
 if [ "$(grep -cF '削除した' "$SANDBOX/gh-body.log" 2>/dev/null || true)" -eq 0 ]; then
   ok "完了コメントに「削除した」と書かない（段 9 を飛ばしている）"
 else ng "消していないのに「削除した」と記録している"; fi
-# ★ #715: 枝を使い回したとき、前の段（#902）の merged な PR を今回の PR と取り違えない
+# ★ 枝を使い回したとき、前の段（#902）の merged な PR を今回の PR と取り違えない
 for closes in "Closes #902" "Refs #9010" "discloses #901" ""; do
   prepare_finish
   out="$(cd "$WT" && PATH="$SANDBOX/bin:$PATH" GH_PR_STATE=merged GH_PR_HEAD="spec/900-i901" GH_PR_CLOSES="$closes" \
          bash "$WT/scripts/flow/issue-finish.sh" 901 900 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] && [ "$(grep -cF 'close 901' "$SANDBOX/gh.log" 2>/dev/null || true)" -eq 0 ]; then
-    ok "★ merged な PR の本文が '${closes:-（Closes なし）}' → 止まり、#901 を close しない（#715）"
-  else ng "merged な PR の本文が '${closes:-（Closes なし）}' なのに #901 を close した（rc=$rc。#715 の再発）"; fi
+    ok "★ merged な PR の本文が '${closes:-（Closes なし）}' → 止まり、#901 を close しない"
+  else ng "merged な PR の本文が '${closes:-（Closes なし）}' なのに #901 を close した（rc=$rc。再発）"; fi
 done
 prepare_finish
 out="$(cd "$WT" && PATH="$SANDBOX/bin:$PATH" GH_PR_STATE=merged GH_PR_HEAD="spec/900-i901" GH_PR_CLOSES="fixes #901." \
@@ -957,7 +961,7 @@ for order in "77 78" "78 77"; do
   prepare_finish
   out="$(cd "$WT" && PATH="$SANDBOX/bin:$PATH" GH_PR_STATE=merged GH_PR_HEAD="spec/900-i901" GH_PR="$order" \
          GH_PR_CLOSES_77="Refs #902" GH_PR_CLOSES_78="Refs #901" bash "$WT/scripts/flow/issue-finish.sh" 901 900 2>&1)"; rc=$?
-  if [ "$rc" -eq 0 ] && [[ "$out" == *"（PR 78）"* ]]; then ok "★ merged な PR が '$order' の順でも #901 を参照する PR 78 を採る（#715）"
+  if [ "$rc" -eq 0 ] && [[ "$out" == *"（PR 78）"* ]]; then ok "★ merged な PR が '$order' の順でも #901 を参照する PR 78 を採る"
   else ng "merged な PR が '$order' の順のとき PR 78 を採らない（rc=$rc。1 本目だけ見ている）"; fi
 done
 
@@ -983,7 +987,7 @@ else ng "exit 10 で close していない（issue が open のまま残る）";
 if [ "$(grep -cF '後片付けのどこかが失敗した' "$SANDBOX/gh-body.log" 2>/dev/null || true)" -gt 0 ]; then
   ok "★ 完了コメントに「後片付けのどこかが失敗した」と書く（「削除した」と嘘をつかない）"
 else ng "exit 10 なのに嘘の完了報告をしている"; fi
-# ★ **どれが失敗したかを断定しない**（#554 の /review。既定ブランチの更新かもしれない）
+# ★ **どれが失敗したかを断定しない**（/review の指摘。既定ブランチの更新かもしれない）
 if [ "$(grep -cF '既定ブランチの更新' "$SANDBOX/gh-body.log" 2>/dev/null || true)" -gt 0 ]; then
   ok "★ 失敗候補を worktree に限定していない（既定ブランチの更新も挙げる）"
 else ng "完了コメントが worktree の失敗と断定している（記録が読み手を誤らせる）"; fi
@@ -1039,10 +1043,10 @@ if [ "$(grep -cF 'close 901' "$SANDBOX/gh.log" || true)" -eq 0 ]; then ok "★ �
 else ng "再入: 仕様整合の無い PR で close した"; fi
 
 # ══════════════════════════════════════════════════════════════════
-# #668 V2: 親 task を持たない issue（910 bug）と、その小タスク（911。親 910 は通常の issue）
+# 親 task を持たない issue（910 bug）と、その小タスク（911。親 910 は通常の issue）
 #   引数 3 通り × 通常・再入の 2 経路。書き先は $TASK（910）
 # ══════════════════════════════════════════════════════════════════
-echo "--- #668 親 task なしの完了（引き継ぎ手順）---"
+echo "--- 親 task なしの完了（引き継ぎ手順）---"
 prepare_np() {  # prepare_np <閉じる issue>  worktree は #910 のもの（小タスクは親と共有）
   setup_sandbox
   [ "$1" = 910 ] || fixture "${DEFAULT_FIXTURE}911:bug:OPEN:小タスク:parent=910
@@ -1056,7 +1060,7 @@ Refs #$1" ) >/dev/null
   rm -f "$SANDBOX/calls.log"
 }
 np_merge_into_main() {  # 再入の前提: 作業が main に入っている
-  # ★ squash merge の失敗を握りつぶさない（落ちたら再入経路の検査が無意味になる。#661）
+  # ★ squash merge の失敗を握りつぶさない（落ちたら再入経路の検査が無意味になる）
   local log
   if ! log="$(cd "$SANDBOX/repo" && git merge --squash --no-commit "fix/910-bug" 2>&1)"; then
     ng "np_merge_into_main: git merge --squash が失敗した: $log"; return 1
