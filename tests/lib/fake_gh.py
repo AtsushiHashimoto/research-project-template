@@ -4,13 +4,12 @@
 各テストの偽 gh（行形式 `番号:ラベル列:状態:題名:parent=<番号>`）は、§4 のゲートが使う
 次の 3 つの呼び出しだけをここへ回す（`exec python3 "$FAKE_GH" "$@"`）:
 
-  gh issue view N --json body,comments,createdAt[,labels,state]   → JSON（-q は使わない）
-  gh api graphql … -F number=N                                    → lastEditedAt
-  gh issue comment N --body B | --body-file F                     → コメントを足す
+  gh issue view N --json body,comments,createdAt[,labels,state,stateReason]   → JSON（-q は使わない）
+  gh issue comment N --body B | --body-file F                                 → コメントを足す
 
 状態の置き場所:
   $FAKE_GH_ROWS        行形式のファイル（ラベル・状態・親）。各テストの issues.txt
-  $FAKE_GH_DIR/N.json  本文・コメント・createdAt・lastEditedAt。無ければ既定値（DEFAULT_*）
+  $FAKE_GH_DIR/N.json  本文・コメント・createdAt・stateReason。無ければ既定値（DEFAULT_*）
   $FAKE_GH_DIR/comments.log  足したコメントの記録（テストが grep する）
 
 ★ 既定値は「ゲートを全部通る task」。ゲートを落とすテストは N.json を書いて上書きする。
@@ -20,13 +19,18 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+# goal ゲートの hash は本物と同じ計算で作る
+from check_discipline_md import goal_hash  # noqa: E402
+
 DEFAULT_BODY = """## 目標の状態
 
 - 成功条件: 砂場の測定が 1 回通ること
 - negative の意味: 通らなければ実装が壊れている
 """
 DEFAULT_COMMENTS = [
-    {"body": "## goal ゲート\n\n- G1b: PASS — 1 文の述語\n- G3: PASS — 残る\n- G4: PASS — 1 つ",
+    {"body": f"## goal ゲート\n\n- 目標の状態の hash: {goal_hash(DEFAULT_BODY)}\n"
+             "- G1b: PASS — 1 文の述語\n- G3: PASS — 残る\n- G4: PASS — 1 つ",
      "createdAt": "2020-01-02T00:00:00Z"},
     {"body": "## 判定\n\n結果: positive\n\n- 成功条件: 砂場の測定が 1 回通ること → 満たした",
      "createdAt": "2020-01-03T00:00:00Z"},
@@ -68,13 +72,15 @@ def load(n):
     d.setdefault("body", DEFAULT_BODY)
     d.setdefault("comments", [dict(c) for c in DEFAULT_COMMENTS])
     d.setdefault("createdAt", "2020-01-01T00:00:00Z")
-    d.setdefault("lastEditedAt", None)
     r = rows().get(str(n))
     if r:
         d.setdefault("labels", r["labels"])
         d.setdefault("state", r["state"])
     d.setdefault("labels", [])
     d.setdefault("state", "OPEN")
+    d.setdefault("stateReason", "COMPLETED" if d["state"] == "CLOSED" else None)
+    for c in d["comments"]:
+        c.setdefault("includesCreatedEdit", False)
     return d
 
 
@@ -108,16 +114,6 @@ def main(a):
                 die(f"未対応の欄 {k}")
         print(json.dumps(out, ensure_ascii=False))
         return
-    if a[:2] == ["api", "graphql"]:
-        n = None
-        for i, x in enumerate(a):
-            if x in ("-F", "-f") and a[i + 1].startswith("number="):
-                n = a[i + 1].split("=", 1)[1]
-        n or die(f"graphql に number が無い: {a}")
-        d = load(n)
-        print(json.dumps({"data": {"repository": {"issue": {
-            "lastEditedAt": d["lastEditedAt"], "createdAt": d["createdAt"]}}}}))
-        return
     if a[:2] == ["issue", "comment"]:
         n = a[2]
         body = opt(a, "--body")
@@ -126,7 +122,7 @@ def main(a):
             body = sys.stdin.read() if f == "-" else open(f, encoding="utf-8").read()
         d = load(n)
         # ★ 時刻は既存のどのコメント・本文の編集より後にする（「新しいか」の比較を通すため）
-        times = [c["createdAt"] for c in d["comments"]] + [d["createdAt"], d["lastEditedAt"] or ""]
+        times = [c["createdAt"] for c in d["comments"]] + [d["createdAt"]]
         last = max(times)
         d["comments"].append({"body": body, "createdAt": bump(last)})
         save(n, d)

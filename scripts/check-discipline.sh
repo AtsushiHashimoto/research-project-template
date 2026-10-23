@@ -161,9 +161,11 @@ mode_verdict() {
   local epic="$1" body comment item n_items=0
   body="$(gh issue view "$epic" --json body -q .body 2>/dev/null || true)"
   [ -n "$body" ] || { fail "verdict: #$epic の本文を取得できない"; return; }
-  comment="$(gh issue view "$epic" --json comments \
-              -q '[.comments[]|select(.body|contains("## 判定"))]|last|.body' 2>/dev/null || true)"
-  if [ -z "$comment" ] || [ "$comment" = "null" ]; then
+  # ★ 見出しの照合は python 側（check_discipline_md.latest）と同じもの。「## 判定の前に」等の語を含むだけの
+  #   コメントを判定と読まない
+  comment="$(python3 -B "$(dirname "${BASH_SOURCE[0]}")/check-discipline-gates.py" latest-comment "$epic" "## 判定")" \
+    || { fail "verdict: #$epic のコメントを取得できない"; return; }
+  if [ -z "$comment" ]; then
     fail "verdict: '## 判定' の見出しを含むコメントが #$epic に無い"; return
   fi
   info "達成判定コメントと完了条件を照合（#$epic）"

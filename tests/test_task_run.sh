@@ -307,9 +307,9 @@ make_gh_stub() {
   printf '%s' "$1" > "$SANDBOX/issues.txt"
   cat > "$SANDBOX/bin/gh" <<'STUB'
 #!/usr/bin/env bash
-# ★ §4 のゲートが使う呼び出し（本文・コメント・lastEditedAt・コメントの追加）は
+# ★ §4 のゲートが使う呼び出し（本文・コメント・コメントの追加）は
 #   issue ごとの状態を持つ tests/lib/fake_gh.py に回す
-case "$*" in "issue view "*" --json body,comments,createdAt"*|"api graphql"*) exec python3 -B "$FAKE_GH" "$@";; esac
+case "$*" in "issue view "*" --json body,comments,createdAt"*) exec python3 -B "$FAKE_GH" "$@";; esac
 if [ "$1 $2" = "issue comment" ]; then python3 -B "$FAKE_GH" "$@" || exit 1; exit 0; fi
 # 偽の gh。issues.txt を引いて必要な JSON だけ返す
 f="$SANDBOX/issues.txt"
@@ -361,6 +361,22 @@ STUB
   chmod +x "$SANDBOX/bin/gh"
 }
 
+# gh_put <N> <本文> [<コメント> <createdAt>]...
+#   $GH_COMMENT_EDITED=1 でコメントを「編集された」にする。$GH_STATE_REASON で閉じた理由
+gh_put() {
+  local n="$1"; shift; mkdir -p "$FAKE_GH_DIR"
+  python3 -c 'import json,os,sys; a=sys.argv[2:]
+d={"body":a[0],"comments":[{"body":a[i],"createdAt":a[i+1]} for i in range(1,len(a),2)]}
+if os.environ.get("GH_COMMENT_EDITED"): [c.update(includesCreatedEdit=True) for c in d["comments"]]
+if os.environ.get("GH_STATE_REASON"): d["stateReason"]=os.environ["GH_STATE_REASON"]
+json.dump(d,open(sys.argv[1],"w"),ensure_ascii=False)' "$FAKE_GH_DIR/$n.json" "$@"
+}
+has() { [ "$(printf '%s' "$1" | grep -cF -e "$2" || true)" -gt 0 ]; }
+# epic の判定コメントを置く（verdict は見出しを本物と同じ照合で引くので、偽 gh の issue ごとの状態に置く）
+epic_comment() {
+  export GH_EPIC_COMMENT="$1"
+  if [ -n "$1" ]; then gh_put 800 "${GH_EPIC_BODY:-}" "$1" 2020-02-03T00:00:00Z; else gh_put 800 "${GH_EPIC_BODY:-}"; fi
+}
 # run_flow <期待コード> <説明> <スクリプト> <引数...>
 run_flow() {
   local want="$1" what="$2" script="$3"; shift 3
@@ -549,7 +565,7 @@ export GH_EPIC_BODY='## 完了条件
 - [ ] 条件その二が満たされている
 '
 # ★ まず判定コメントが**無い**場合（verdict が落ちる）
-export GH_EPIC_COMMENT=''
+epic_comment ''
 out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/epic-cycle.sh" 800 2>&1)"; rc=$?
 if [ "$(printf '%s' "$out" | grep -c 'issue に紐づかないコミット' || true)" -gt 0 ]; then
   ok "★ epic モードを踏む（紐づかないコミットを数える）"
@@ -566,7 +582,7 @@ if [ "$(printf '%s' "$out" | grep -cE 'handoff\.sh write|/compact' || true)" -eq
 else ng "epic-cycle: next_fail の段で引き継ぎを案内している"; fi
 
 # ★ 判定コメントを揃えると通る（恒偽でないことの確認）
-export GH_EPIC_COMMENT='## 判定
+epic_comment '## 判定
 
 - 条件その一が満たされている → 達成
 - 条件その二が満たされている → 達成
@@ -585,8 +601,18 @@ if [ "$(printf '%s' "$out" | grep -cE '/clear|もう一度このスクリプト�
   ok "★ epic-cycle: 最後の出力で /clear も「もう一度このスクリプトを」も出さない"
 else ng "epic-cycle: 最後の出力で /clear か再呼び出しを促している"; fi
 
+# ★ 見出しは完全一致（「## 判定の前に」は判定ではない。python 側の照合と同じ）
+epic_comment '## 判定の前にメモ
+
+- 条件その一が満たされている → 達成
+- 条件その二が満たされている → 達成
+'
+out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/epic-cycle.sh" 800 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && has "$out" "'## 判定' の見出しを含むコメント"; then ok "★ verdict: 「## 判定の前にメモ」を判定コメントと読まない"
+else ng "verdict: 見出しが違うコメントを判定と読んだ（rc=$rc）"; fi
+
 # ★ 引用が 1 項目欠けると落ちる（項目ごとに単独で落ちることの確認）
-export GH_EPIC_COMMENT='## 判定
+epic_comment '## 判定
 
 - 条件その一が満たされている → 達成
 
@@ -608,7 +634,7 @@ export GH_EPIC_BODY='## 完了条件
 
 ---
 '
-export GH_EPIC_COMMENT='## 判定
+epic_comment '## 判定
 
 - ★ **番号ゼロの条件が揃っている**（上記の形式）。 → 達成
 - **番号一の条件が列挙されている。** → 達成
@@ -618,7 +644,7 @@ out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/epic-cycle.sh" 80
 if [ "$rc" -eq 0 ] && [ "$(printf '%s' "$out" | grep -c '完了条件が引用されている' || true)" -eq 2 ]; then
   ok "★ 番号付き列挙の完了条件を 2 項目と読み、引用が揃えば verdict が通る"
 else ng "番号付き列挙の完了条件を読めていない（rc=$rc）: $(printf '%s' "$out" | tail -5)"; fi
-export GH_EPIC_COMMENT='## 判定
+epic_comment '## 判定
 
 - ★ **番号ゼロの条件が揃っている**（上記の形式）。 → 達成
 
@@ -679,15 +705,6 @@ fi
 #     3 点（足りないもの・書く行・再実行コマンド）があることを grep する。
 #     issue ごとの本文・コメントは tests/lib/fake_gh.py（$FAKE_GH_DIR/<N>.json）が返す
 # ══════════════════════════════════════════════════════════════════
-# gh_put <N> <本文> [<コメント> <createdAt>]...   （$GH_LAST_EDITED で本文の最終編集時刻）
-gh_put() {
-  local n="$1"; shift; mkdir -p "$FAKE_GH_DIR"
-  python3 -c 'import json,os,sys; a=sys.argv[2:]
-d={"body":a[0],"comments":[{"body":a[i],"createdAt":a[i+1]} for i in range(1,len(a),2)]}
-if os.environ.get("GH_LAST_EDITED"): d["lastEditedAt"]=os.environ["GH_LAST_EDITED"]
-json.dump(d,open(sys.argv[1],"w"),ensure_ascii=False)' "$FAKE_GH_DIR/$n.json" "$@"
-}
-has() { [ "$(printf '%s' "$1" | grep -cF -e "$2" || true)" -gt 0 ]; }
 # stop3 <説明> <rc> <出力> <足りないもの> <書く行> <再実行コマンド>
 stop3() {
   if [ "$2" -ne 0 ] && has "$3" "$4" && has "$3" "書く行: $5" && has "$3" "再実行: $6"; then ok "$1"
@@ -701,11 +718,14 @@ GOAL_OK='## 目標の状態
 
 - 成功条件: 砂場の測定が 1 回通ること
 - negative の意味: 通らなければ実装が壊れている'
-GATE_OK='## goal ゲート
+# goal ゲートの判定は「## 目標の状態」の hash で本文と結びつく（計算は本物の goal_hash）
+ghash() { python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); from check_discipline_md import goal_hash; print(goal_hash(sys.argv[2]))' "$REPO_ROOT/scripts" "$1"; }
+GATE_OK="## goal ゲート
 
+- 目標の状態の hash: $(ghash "$GOAL_OK")
 - G1b: PASS — 1 文の述語
 - G3: PASS — 残る
-- G4: PASS — 1 つ'
+- G4: PASS — 1 つ"
 RERUN='bash scripts/flow/task-run.sh 400'
 GOALW='task #400 の goal'
 
@@ -760,14 +780,28 @@ stop3 "goal ゲート: 判定コメントが無いと止まる" "$rc" "$out" "go
 if has "$out" "resolve-model.sh verification" && has "$out" "bash scripts/read-premises.sh 400" \
    && has "$out" "成功条件が 1 文の合否の述語"; then ok "goal ゲート: 停止文が起動文（verification・前提・判定の中身）を出す"
 else ng "goal ゲート: 停止文に起動文が無い"; fi
-GH_LAST_EDITED=2020-03-01T00:00:00Z gh_put 400 "$GOAL_OK" "$GATE_OK" 2020-02-01T00:00:00Z; tr400
-stop3 "goal ゲート: 判定が本文の最終編集より古いと止まる" "$rc" "$out" "本文の最終編集" "- G1b: PASS —" "$RERUN"
-GH_LAST_EDITED=2020-01-15T00:00:00Z gh_put 400 "$GOAL_OK" "$GATE_OK" 2020-02-01T00:00:00Z; tr400
-nostop "goal ゲート: 判定が最終編集より新しければ通る" "$out" "$GOALW"
+GOAL_NEW="${GOAL_OK/1 回通ること/2 回通ること}"
+gh_put 400 "$GOAL_NEW" "$GATE_OK" 2020-02-01T00:00:00Z; tr400
+stop3 "goal ゲート: 判定の hash がいまの「## 目標の状態」と違うと止まる（書く hash を出す）" "$rc" "$out" \
+  "いまの「## 目標の状態」（hash $(ghash "$GOAL_NEW")）に対するものでない" "目標の状態の hash: $(ghash "$GOAL_NEW")" "$RERUN"
+gh_put 400 "$GOAL_OK
+
+## 未確定
+
+- 閾値の値 → #402" "$GATE_OK" 2020-02-01T00:00:00Z; tr400
+nostop "goal ゲート: 「## 未確定」だけを書き換えても判定し直さなくてよい（hash は目標の状態だけ）" "$out" "$GOALW"
+gh_put 400 "$GOAL_OK" "${GATE_OK/- 目標の状態の hash: */- G0: x}" 2020-02-01T00:00:00Z; tr400
+stop3 "goal ゲート: 判定に hash の行が無いと止まる" "$rc" "$out" "判定の hash: 無し" "目標の状態の hash: $(ghash "$GOAL_OK")" "$RERUN"
+GH_COMMENT_EDITED=1 gh_put 400 "$GOAL_OK" "$GATE_OK" 2020-02-01T00:00:00Z; tr400
+stop3 "goal ゲート: 判定コメントが編集されていると止まる（新しいコメントで出し直す）" "$rc" "$out" "判定コメントが編集されている" "- G1b: PASS —" "$RERUN"
+gh_put 400 "$GOAL_OK" "$GATE_OK
+- G3: FAIL — 残らない" 2020-02-01T00:00:00Z; tr400
+stop3 "goal ゲート: PASS の行があっても FAIL の行が 1 つでもあれば止まる" "$rc" "$out" "G3（未確定に言及する語を削っても、何を作り何を測るかが残る）が FAIL" "- G3: PASS —" "$RERUN"
 gh_put 400 "$GOAL_OK" "${GATE_OK/- G3: PASS — 残る/- G3: FAIL — 残らない}" 2020-02-01T00:00:00Z; tr400
 stop3 "goal ゲート: G3 が FAIL なら止まる" "$rc" "$out" "G3（未確定に言及する語を削っても" "- G3: PASS —" "$RERUN"
 gh_put 400 "$GOAL_OK" "$GATE_OK" 2020-02-01T00:00:00Z "## goal ゲート
 
+- 目標の状態の hash: $(ghash "$GOAL_OK")
 - G1b: PASS — x" 2020-02-02T00:00:00Z; tr400
 stop3 "goal ゲート: **最新の**判定に G4 が無ければ止まる（古い判定で通さない）" "$rc" "$out" "G4（解釈が 1 つに定まる）" "- G4: PASS —" "$RERUN"
 
@@ -793,10 +827,30 @@ stop3 "未確定: 担当に user-action が付いていると止まる" "$rc" "$
 make_gh_stub "$ROWS"
 und ''
 nostop "未確定: 節が空なら続行する" "$out" "$GOALW"
+# shellcheck disable=SC2016  # バッククォートは本文の装飾そのもの（展開させない）
+und '- 閾値の値 → `validation`（補足）'
+nostop "未確定: 担当の装飾（バッククォート）を落として読む" "$out" "$GOALW"
+make_gh_stub "${ROWS/402:validation:OPEN/402:validation,blocked:OPEN}"
+und '- 閾値の値 → #402'
+stop3 "未確定: 担当に blocked が付いていると止まる（task-run が飛ばすので誰も解消しない）" "$rc" "$out" "状態ラベル付き: #402(blocked)" "" "$RERUN"
+make_gh_stub "$ROWS"
+und '- 閾値の値 → #402
+  - 入れ子の補足（担当なし）
+1. 番号の項目 → #402'
+nostop "未確定: 行頭の - と N. を項目にし、字下げした入れ子は項目にしない" "$out" "$GOALW"
+if grep -qx -- '1. 番号の項目 → #402\|- 番号の項目 → #402' "$FAKE_GH_DIR/comments.log" && ! grep -q '入れ子の補足' "$FAKE_GH_DIR/comments.log"; then
+  ok "未確定: 番号の項目は記録し、入れ子は記録しない"
+else ng "未確定: 番号の項目の記録か入れ子の除外が違う"; fi
+make_gh_stub "$ROWS"
+und '- 閾値の値 -> #999'
+if [ "$rc" -ne 0 ] && grep -qx -- '- 閾値の値 → #999' "$FAKE_GH_DIR/comments.log"; then
+  ok "★ 未確定: 他の検査が落ちた回でも、初めて見た項目を記録する"
+else ng "未確定: 落ちた回に記録を書いていない（rc=$rc）"; fi
 
 # ── 未確定の記録と、行を消して逃げることの検出 ──
+make_gh_stub "$ROWS"   # 記録の数を数えるので、前の検査が書いたコメントを消す
 und '- 閾値の値 → #402'
-if [ "$(grep -c '^## 未確定（記録）' "$FAKE_GH_DIR/comments.log" || true)" = 1 ] && grep -qx -- '- 閾値の値' "$FAKE_GH_DIR/comments.log"; then
+if [ "$(grep -c '^## 未確定（記録）' "$FAKE_GH_DIR/comments.log" || true)" = 1 ] && grep -qx -- '- 閾値の値 → #402' "$FAKE_GH_DIR/comments.log"; then
   ok "未確定: 初回の PASS で項目名を「## 未確定（記録）」にコメントする"
 else ng "未確定: 記録のコメントが無い"; fi
 tr400
@@ -810,12 +864,26 @@ stop3 "★ 未確定: 記録にある項目を本文から消すと止まる" "$
 make_gh_stub "${ROWS/402:validation:OPEN/402:validation:CLOSED}"
 und '- 閾値の値 → #402'
 stop3 "再照合: 担当がすべて closed なのに書き換えていないと止まる" "$rc" "$out" "解消したかどうかが書かれていない" "- 閾値の値 解消済み（→ #402," "$RERUN"
-und '- 閾値の値 解消済み（→ #402, base.txt §2）'
-nostop "再照合: 解消済み（closed な #N と origin/main にあるファイル）なら通る" "$out" "$GOALW"
-und '- 閾値の値 解消済み（→ #402, nope.txt）'
+REC='## 未確定（記録）
+
+- 閾値の値 → #402'
+und '- 閾値の値 解消済み（→ #402, base.txt §2）' "$REC" 2020-01-20T00:00:00Z
+nostop "再照合: 解消済み（closed な担当 #N と origin/main にあるファイル）なら通る（担当は記録から）" "$out" "$GOALW"
+und '- 閾値の値 → #402 解消済み（→ #402, base.txt）'
+nostop "再照合: 解消済み（担当を行に残した形）なら通る" "$out" "$GOALW"
+und '- 閾値の値 解消済み（→ #402, base.txt）'
+stop3 "再照合: 担当が行にも記録にも無いと止まる" "$rc" "$out" "担当が分からない" "- 閾値の値 → <担当> 解消済み（→ #<担当の番号>" "$RERUN"
+und '- 閾値の値 解消済み（→ #77, base.txt）' "$REC" 2020-01-20T00:00:00Z
+stop3 "再照合: 根拠の #N が担当でない（PR の番号など）と止まる（rc 2 にしない）" "$rc" "$out" "根拠 #77 が担当（#402）のどれでもない" "- 閾値の値 解消済み（→ #402," "$RERUN"
+if has "$out" "検査そのものが失敗した"; then ng "再照合: 担当でない #N で検査が壊れた（exit 2）"; else ok "再照合: 担当でない #N は gh を引かずに止める"; fi
+git checkout -q main && mkdir -p dd && echo x > dd/f.txt && git add dd/f.txt && git commit -qm dd \
+  && git update-ref refs/remotes/origin/main main && git checkout -q -
+und '- 閾値の値 解消済み（→ #402, dd）' "$REC" 2020-01-20T00:00:00Z
+stop3 "再照合: 根拠がディレクトリだと止まる（blob だけ）" "$rc" "$out" "dd が origin/main に無い" "- 閾値の値 解消済み（→ #402, <origin/main にあるファイル>）" "$RERUN"
+und '- 閾値の値 解消済み（→ #402, nope.txt）' "$REC" 2020-01-20T00:00:00Z
 stop3 "再照合: 根拠のファイルが origin/main に無いと止まる（git cat-file -e）" "$rc" "$out" "nope.txt が origin/main に無い" "- 閾値の値 解消済み（→ #402, <origin/main にあるファイル>）" "$RERUN"
 make_gh_stub "$ROWS"
-und '- 閾値の値 解消済み（→ #402, base.txt）'
+und '- 閾値の値 解消済み（→ #402, base.txt）' "$REC" 2020-01-20T00:00:00Z
 stop3 "再照合: 解消済みの根拠の #N が closed でないと止まる" "$rc" "$out" "根拠 #402 が closed でない" "- 閾値の値 解消済み（→ #<closed な issue>" "$RERUN"
 und '- 閾値の値 解消不能（理由: 測れない）'
 nostop "再照合: 解消不能（理由つき）なら通る" "$out" "$GOALW"
@@ -876,6 +944,16 @@ else ng "全部 negative: 確認の節があっても止まる（rc=$rc）"; fi
 neg 410 positive; gh_put 800 "$GH_EPIC_BODY" "$GH_EPIC_COMMENT" 2020-02-03T00:00:00Z; ec
 if [ "$rc" -eq 0 ]; then ok "全部 negative: 1 件でも negative でなければ確認を求めない"
 else ng "全部 negative: positive が混ざっても止まる（rc=$rc）"; fi
+neg 410 'negative（検出力の不足）'; ec
+stop3 "全部 negative: 「結果: negative（…）」も negative と数える" "$rc" "$out" "結果がすべて negative" "## 全部 negative の確認" "bash scripts/flow/epic-cycle.sh 800"
+gh_put 410 "$GOAL_OK"; ec
+stop3 "全部 negative: 閉じた task に判定が無いと止まる（数えずに通さない）" "$rc" "$out" "閉じた task #410 に判定が無い" "結果: <positive|negative|未達成>" "bash scripts/flow/epic-cycle.sh 800"
+make_gh_stub '800:epic:OPEN:epic:parent=0
+410:task:CLOSED:t2:parent=800
+420:task:CLOSED:t3:parent=800
+'
+neg 410 negative; GH_STATE_REASON=NOT_PLANNED neg 420 positive; gh_put 800 "$GH_EPIC_BODY" "$GH_EPIC_COMMENT" 2020-02-03T00:00:00Z; ec
+stop3 "全部 negative: not planned で閉じた task は数えない" "$rc" "$out" "閉じた task 1 件の結果がすべて negative" "## 全部 negative の確認" "bash scripts/flow/epic-cycle.sh 800"
 unset GH_EPIC_BODY GH_EPIC_COMMENT
 
 # ── 仕様レビュー（spec の判断ログの停止条件）──
@@ -891,6 +969,29 @@ if [ "$rc" -ne 0 ] && has "$out" "書く行: 停止条件: 該当なし"; then o
 else ng "仕様レビュー: 停止条件の行が無くても通る（rc=$rc）"; fi
 printf 'Issue #901\n- 停止条件チェック: **該当なし**\n' > .spec/issues/901-auto-decisions.md
 run_check 0 "仕様レビュー: 停止条件チェック: 該当なし（装飾つき）なら通る" issue 901 spec 900
+# ★ auto-reviewer の判断ログは表の形（| 停止条件チェック | X |）で書かれる。値の読み方を形ごとに固定する
+while IFS='|' read -r want line; do
+  printf 'Issue #901\n%s\n' "$line" > .spec/issues/901-auto-decisions.md
+  run_check "$want" "仕様レビュー: 「$line」は $([ "$want" = 0 ] && echo 非該当 || echo 停止)" issue 901 spec 900
+done <<'LOGS'
+0|| 停止条件チェック | 該当なし |
+0|| 停止条件チェック | 該当なし（S4 非該当: 全項目が判定可能） |
+0|| 停止条件チェック | **なし**（条件を課すことで解消） |
+0|- 該当した停止条件: **無し**（S1: 3 ファイル存在）
+0|| 停止条件チェック | S4 を検討したが、具体化により判定可能となるため停止しない |
+1|| 停止条件チェック | S2（成功条件が測れない） |
+1|| 停止条件チェック | 要確認 |
+1|停止条件: S7（goal の書き換えを含む）
+LOGS
+# ★ このリポジトリの実際の判断ログ（.spec/issues/*-auto-decisions.md）を全部読ませる。
+#   S1〜S8 の判定を書く前の 2 本（#75・#100。停止条件の行そのものが無い）だけが止まる
+for f in "$REPO_ROOT"/.spec/issues/*-auto-decisions.md; do
+  n="$(basename "$f")"; n="${n%%-*}"
+  rm -f .spec/issues/*.md; cp "$f" .spec/issues/; printf '# Issue #%s: x\n' "$n" > ".spec/issues/$n-x.md"
+  case "$n" in 75|100) want=1;; *) want=0;; esac
+  run_check "$want" "仕様レビュー: 実際の判断ログ #$n を $([ "$want" = 0 ] && echo 通す || echo 止める)" issue "$n" spec 900
+done
+rm -f .spec/issues/*.md; printf '# Issue #901: x\n' > .spec/issues/901-x.md
 
 # ── 前提の受け渡し（auto-reviewer と仕様整合の起動文）──
 make_gh_stub '800:epic:OPEN:epic:parent=0
@@ -930,6 +1031,11 @@ pr "$CONF_OK"
 rcheck 0 "仕様整合: そろえば merge の検査が通る（experiment）" merge 901 experiment 900
 pr "${CONF_OK/- 格付け: verified-negative/- 格付け: unverified-negative}"
 rcheck 1 "仕様整合: experiment の格付けが unverified-negative なら止まる" merge 901 experiment 900
+pr "${CONF_OK/- 格付け: verified-negative/- 格付け: **unverified-negative**}"
+rcheck 1 "仕様整合: 装飾つきの格付け **unverified-negative** でも止まる" merge 901 experiment 900
+pr "${CONF_OK/- goal 書き換え: なし/- **goal 書き換え**: なし}"
+rcheck 0 "仕様整合: 装飾つきの **goal 書き換え**: なし を読む" merge 901 experiment 900
+pr "${CONF_OK/- 格付け: verified-negative/- 格付け: unverified-negative}"
 make_gh_stub '800:epic:OPEN:epic:parent=0
 900:task:OPEN:t:parent=800
 901:experiment:OPEN:e:parent=900

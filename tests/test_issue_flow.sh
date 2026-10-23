@@ -190,9 +190,9 @@ else ng "表に無い種類に接頭辞を返している"; fi
 make_gh() {
   cat > "$SANDBOX/bin/gh" <<'STUB'
 #!/usr/bin/env bash
-# ★ §4 のゲートが使う呼び出し（本文・コメント・lastEditedAt・コメントの追加）は
+# ★ §4 のゲートが使う呼び出し（本文・コメント・コメントの追加）は
 #   issue ごとの状態を持つ tests/lib/fake_gh.py に回す
-case "$*" in "issue view "*" --json body,comments,createdAt"*|"api graphql"*) exec python3 -B "$FAKE_GH" "$@";; esac
+case "$*" in "issue view "*" --json body,comments,createdAt"*) exec python3 -B "$FAKE_GH" "$@";; esac
 if [ "$1 $2" = "issue comment" ]; then python3 -B "$FAKE_GH" "$@" || exit 1; fi
 # 偽の gh。$SB/issues.txt を引く。行の形: 番号:ラベル列:状態:題名:parent=<番号|空>
 f="$SB/issues.txt"

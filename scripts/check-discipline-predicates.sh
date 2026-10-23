@@ -33,20 +33,29 @@ check_auto_decisions() {
     body="$(cat "$f")"
     [[ "$body" =~ Issue[[:space:]]*\#$n([^0-9]|$) ]] || continue
     [[ "$body" == *停止条件* ]] || continue
-    # ★ 停止条件（S1〜S8 の具体的な欠落）に当たっていたら進めない。
-    #   「停止条件: …」の行が 1 本以上あり、**すべて**「該当なし」であること
-    local line n_lines=0 hit=""
+    # ★ 停止条件（.claude/agents/auto-reviewer.md の S1〜S8）に当たっていたら進めない。
+    #   受理する形は 2 つ: 「停止条件: X」（該当した停止条件・停止条件チェックも）と表の「| 停止条件チェック | X |」。
+    #   X が 該当なし・なし・無し で始まれば非該当。S1〜S8 で始まれば該当（ただし「停止しない」「非該当」
+    #   「該当しない」と書いてあれば非該当）。それ以外は読めないので止める
+    local line v n_lines=0 hit=""
     while IFS= read -r line; do
-      [[ "$line" =~ 停止条件[^:：]*[:：][[:space:]]*(.*)$ ]] || continue
+      if [[ "$line" =~ ^[[:space:]]*\|[[:space:]]*\**(該当した)?停止条件(チェック)?\**[[:space:]]*\|([^|]*)\| ]]; then
+        v="${BASH_REMATCH[3]}"
+      elif [[ "$line" =~ ^[-*[:space:]]*\**(該当した)?停止条件(チェック)?\**[[:space:]]*[:：](.*)$ ]]; then
+        v="${BASH_REMATCH[3]}"
+      else continue; fi
       n_lines=$((n_lines + 1))
-      [[ "${BASH_REMATCH[1]}" =~ ^[*\`[:space:]]*該当なし ]] || hit="$hit
+      [[ "$v" =~ ^[*\`[:space:]]*(該当なし|なし|無し) ]] && continue
+      [[ "$v" =~ ^[*\`[:space:]]*S[1-8] ]] && [[ "$v" =~ 停止しない|非該当|該当しない ]] && continue
+      hit="$hit
      $line"
     done <<< "$body"
     if [ "$n_lines" = 0 ]; then
       fail "判断ログ $f に「停止条件: 該当なし」の形の行が無い（auto-reviewer が停止条件を判定していない）
      書く行: 停止条件: 該当なし（S1〜S8 のどれにも当たらないときだけ）"
     elif [ -n "$hit" ]; then
-      fail "判断ログ $f が停止条件に該当している（仕様の欠落。進まずにユーザーへ報告する）:$hit"
+      fail "判断ログ $f が停止条件に該当しているか、値が読めない（該当なし・なし・S1〜S8 のどれでもない）。
+     該当なら仕様の欠落なので進まずにユーザーへ報告する。読めないだけなら値を「該当なし（…）」の形に直す:$hit"
     else
       pass "auto-reviewer の判断ログ ($f。停止条件: 該当なし)"
     fi
