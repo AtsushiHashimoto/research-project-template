@@ -303,7 +303,8 @@ fi
 # 7. worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
 #    スクリプトが無い派生プロジェクトでも止まらないようガードしている
 if [ -x ./scripts/configure-worktree-paths.sh ]; then
-  ./scripts/configure-worktree-paths.sh || true
+  ./scripts/configure-worktree-paths.sh \
+    || echo "[post-create] WARNING: configure-worktree-paths.sh が失敗した（…）" >&2
 fi
 
 # 8. Claude Code native build の導入（~/.claude の chown・~/.claude.json の symlink の後）

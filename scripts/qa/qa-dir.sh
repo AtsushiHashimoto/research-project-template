@@ -54,7 +54,7 @@ QA_CONFIG="$ROOT/.claude/qa-config.yaml"
 QA_DIR=""
 if [ -f "$QA_CONFIG" ]; then
   QA_DIR=$(sed -n 's/^[[:space:]]*qa_dir:[[:space:]]*"\{0,1\}\([^"#]*\)"\{0,1\}[[:space:]]*$/\1/p' \
-    "$QA_CONFIG" | head -1)
+    "$QA_CONFIG" | sed -n '1p')
   QA_DIR="${QA_DIR%"${QA_DIR##*[![:space:]]}"}"
 fi
 [ -n "$QA_DIR" ] || QA_DIR="$DEFAULT_QA_DIR"

@@ -58,7 +58,9 @@ fi
 
 # worktree の .git 参照を相対パス化（ホスト/コンテナ間でパスが異なるため）
 if [ -x ./scripts/configure-worktree-paths.sh ]; then
-  ./scripts/configure-worktree-paths.sh || true
+  # 失敗しても作成は続ける。ただし捨てずに知らせる（理由はスクリプト自身が stderr に出す）
+  ./scripts/configure-worktree-paths.sh \
+    || echo "[post-create] WARNING: configure-worktree-paths.sh が失敗した（理由は直前の ERROR 行。bash scripts/worktree-relative.sh fix で再確認）" >&2
 fi
 
 # 共通スキルの参照とセッション文脈フック（失敗を最終判定へ反映）
@@ -70,6 +72,30 @@ fi
 # ~/.claude の chown と ~/.claude.json の symlink の後に置く（インストーラが ~/.claude.json に書くため）。
 # 失敗は記録して続行し、最後に非ゼロ終了する（[Project] 部分を巻き込まない）
 if ! bash .devcontainer/install-claude-native.sh; then
+  claude_fail=1
+fi
+
+# PATH 上で実際に起動する claude の版を確かめる
+#   導入が「ok」でも、PATH の先に古い npm 版などが居ると古い claude が起動する（下流で実際に起きた）。
+#   下限は install-claude-native.sh の MIN_VERSION_DEFAULT から読む（書き写すと上げたときに古いまま緑になる）。
+#   行全体の形を検証し、崩れていたら空になって下で明示的に落ちる。パイプと早期終了する読み手は使わない。
+claude_min=$(awk -F= '/^MIN_VERSION_DEFAULT=[0-9.]+$/{print $2; exit}' .devcontainer/install-claude-native.sh)
+if [ -z "$claude_min" ]; then
+  echo "[post-create:claude-path] FAIL: install-claude-native.sh から下限を読めなかった（MIN_VERSION_DEFAULT の行が変わった？）" >&2
+  claude_fail=1
+elif resolved=$(command -v claude 2>/dev/null); then
+  rv=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' <<<"$("$resolved" --version 2>&1)" || true)
+  if [ -z "$rv" ]; then
+    echo "[post-create:claude-path] WARN: PATH 上の $resolved の版を読めなかった" >&2
+  elif [ "$(printf '%s\n%s\n' "$claude_min" "$rv" | sort -V | sed -n '1p')" != "$claude_min" ]; then
+    echo "[post-create:claude-path] FAIL: PATH 上の claude は $resolved の $rv で、下限 $claude_min 未満" >&2
+    echo "[post-create:claude-path] PATH の先頭に ~/.local/bin があるか、古い npm 版が残っていないかを見ること（sudo npm -g uninstall @anthropic-ai/claude-code）" >&2
+    claude_fail=1
+  else
+    echo "[post-create:claude-path] ok (PATH 上の claude は $resolved の $rv)"
+  fi
+else
+  echo "[post-create:claude-path] FAIL: PATH 上に claude が無い" >&2
   claude_fail=1
 fi
 

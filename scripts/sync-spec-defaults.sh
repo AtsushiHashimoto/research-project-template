@@ -253,7 +253,7 @@ for name in "${SPEC_DEFAULT_FILES[@]}"; do
   # 除去条件は「新しい既定節に同じ節が含まれる」こと（Step 4-2 検証指摘の修正）。
   # テンプレート全体 ($src) を grep すると、旧世代テンプレートでは固有節側の節にヒットして
   # しまい、既定節に代替が入らないままプロジェクト側の節だけが消える（silent-wrong）
-  if spec_extract_default "$src" | grep -q "$SPEC_AUTOREVIEWER_RE" \
+  if [ "$(spec_extract_default "$src" | grep -c "$SPEC_AUTOREVIEWER_RE")" -gt 0 ] \
      && grep -q "$SPEC_AUTOREVIEWER_RE" "$tail_raw"; then
     # 退避してから除去する（下流が旧節を独自加筆していた場合に備える。R3 と同じ思想）
     if ! $DRY_RUN; then

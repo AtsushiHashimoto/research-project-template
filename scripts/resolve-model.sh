@@ -42,6 +42,9 @@ fi
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 POLICY="$REPO_ROOT/.claude/model-policy.json"
 LOCAL_POLICY="$REPO_ROOT/.claude/model-policy.local.json"
+# In a worktree this is a symlink to the main repository's file (setup-worktree.sh).
+# Write through to the target: `mv tmp "$LOCAL_POLICY"` would replace the link itself.
+[ -L "$LOCAL_POLICY" ] && LOCAL_POLICY=$(readlink -f "$LOCAL_POLICY")
 
 [ -f "$POLICY" ] || { echo "inherit"; exit 0; }   # ポリシーが無ければセッションのモデルを継承
 command -v jq >/dev/null 2>&1 || { echo "inherit"; exit 0; }
@@ -63,7 +66,7 @@ disabled_list() {
 
 is_disabled() {
   local m="$1"
-  echo ",$(disabled_list)," | grep -q ",${m},"
+  [ "$(echo ",$(disabled_list)," | grep -c ",${m},")" -gt 0 ]
 }
 
 # role に適用される override を返す（$comment などのメタキーは除外）

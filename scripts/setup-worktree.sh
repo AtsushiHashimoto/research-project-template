@@ -164,7 +164,7 @@ fi
 cd "$CURRENT_DIR"
 
 # Check if in a worktree
-if ! git worktree list --porcelain 2>/dev/null | grep -qxF "worktree $CURRENT_DIR"; then
+if [ "$(git worktree list --porcelain 2>/dev/null | grep -cxF "worktree $CURRENT_DIR")" -eq 0 ]; then
     error "$(msg not_worktree): $CURRENT_DIR
 $(msg run_in_worktree)"
 fi
@@ -180,32 +180,52 @@ CONFIG_FILE="$MAIN_REPO/.claude/worktree-config.json"
 info "$(msg main_repo): $MAIN_REPO"
 echo ""
 
+# .claude/model-policy.local.json
+# The local policy (`resolve-model.sh --disable <model>`) is gitignored, so a fresh
+# worktree has none and subagents launched there resolve to the very model the user
+# disabled.  Link it to the main repository's file -- relative, like data/shared --
+# so both read and write the same file.  Done before the data/shared section so that
+# an error there cannot leave this unlinked.  A real file already in the worktree is
+# the user's own; never overwrite it.  Nothing in main -> nothing to link.
+LOCAL_POLICY_MAIN="$MAIN_REPO/.claude/model-policy.local.json"
+LOCAL_POLICY_WT="$CURRENT_DIR/.claude/model-policy.local.json"
+if [[ -f "$LOCAL_POLICY_MAIN" ]]; then
+    if [[ -e "$LOCAL_POLICY_WT" && ! -L "$LOCAL_POLICY_WT" ]]; then
+        warn ".claude/model-policy.local.json is a real file in this worktree; leaving it as is"
+    else
+        mkdir -p "$CURRENT_DIR/.claude"
+        if ! LOCAL_POLICY_TARGET=$(realpath --relative-to="$CURRENT_DIR/.claude" "$LOCAL_POLICY_MAIN" 2>/dev/null); then
+            warn "cannot compute a relative path to $LOCAL_POLICY_MAIN; falling back to absolute"
+            LOCAL_POLICY_TARGET="$LOCAL_POLICY_MAIN"
+        fi
+        ln -sfn "$LOCAL_POLICY_TARGET" "$LOCAL_POLICY_WT"
+        success "linked: .claude/model-policy.local.json -> $LOCAL_POLICY_TARGET"
+    fi
+fi
+
 # Check configuration
 if [[ ! -f "$CONFIG_FILE" ]]; then
     error "$(msg config_not_found): $CONFIG_FILE
 $(msg run_init_first): ./scripts/init-data.sh"
 fi
 
-# Read configuration
+# Only path_type is read here.  Where the store lives is answered by shared_store_path()
+# (scripts/lib/shared-store.sh), so this script and safe-remove-worktree.sh cannot disagree.
+# The store is addressed absolutely for the checks below; the *link target* may be relative.
 if command -v jq &>/dev/null; then
-    SHARED_DATA_PATH=$(jq -r '.shared_data_path' "$CONFIG_FILE")
     PATH_TYPE=$(jq -r '.path_type // "absolute"' "$CONFIG_FILE")
 else
-    SHARED_DATA_PATH=$(grep '"shared_data_path"' "$CONFIG_FILE" | cut -d'"' -f4)
     PATH_TYPE=$(grep '"path_type"' "$CONFIG_FILE" | cut -d'"' -f4 || echo "absolute")
 fi
 
-# The store is always addressed absolutely for the checks below; the *link target*
-# may be relative.  Overwriting SHARED_DATA_PATH with the absolute form is what
-# silently defeated path_type=relative: the config asked for a relative link and got
-# an absolute one, which breaks when the repository is mounted at another path.
-STORE_ABS="$MAIN_REPO/$SHARED_DATA_PATH"
-SHARED_DATA_PATH="$STORE_ABS"
+# Loaded from this script's own directory, so a main checkout at an older commit still works
+# shellcheck source=scripts/lib/shared-store.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/shared-store.sh"
+STORE_ABS=$(shared_store_path "$MAIN_REPO") || error "cannot resolve the shared store"
+SHARED_DATA_PATH="$STORE_ABS"   # the name the checks below use
 
-if [[ ! -d "$STORE_ABS" ]]; then
-    error "shared store does not exist: $STORE_ABS
-Run ./scripts/init-data.sh in the main repository first."
-fi
+# A store that is missing or has become a symlink makes every check below meaningless
+assert_store_intact "$STORE_ABS" || error "aborting: the shared store is not usable."
 
 # Link target: relative when the config asks for it.  Computed with realpath, never
 # hardcoded -- a wrong depth points the link at a directory that does not exist and
@@ -360,6 +380,9 @@ if [ -e "data/shared" ] && [ ! -L "data/shared" ]; then
         echo "    git rm --cached data/shared/.gitkeep   # この worktree でも実行する" >&2
     fi
 
+    # Re-check right before deleting: the cwd and the store can drift after the checks above
+    assert_safe_to_delete "data/shared" "$STORE_ABS" "$CURRENT_DIR" "$MAIN_REPO" \
+        || error "aborting before rm -rf data/shared"
     if ! rm -rf data/shared; then
         echo -e "${RED}[ERROR]${NC} $(msg dir_remove_failed)" >&2
         exit 1

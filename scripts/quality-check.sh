@@ -200,6 +200,14 @@ scope_setup() {
   echo "対象範囲: 変更ファイルのみ ${changed_n} 件（shellcheck / ruff）— 全件は QUALITY_FULL_SCAN=1"
 }
 
+# changed_any <ERE>: 限定走査で、変更ファイルのどれかが ERE に一致するか（全件走査では常に真）
+#   重い回帰テストを「関係するファイルが変わったときだけ」走らせ、ゲートの所要時間を抑えるために使う。
+#   一致を見落とすと検査が黙って外れるので、ERE にはテスト自身と、テストが読む実体を全て並べること。
+changed_any() {
+  [ "$SCOPE_MODE" = "changed" ] || return 0
+  [ "$(grep -cE -- "$1" <<<"$CHANGED_FILES")" -gt 0 ]
+}
+
 echo "=== Running quality checks ==="
 
 SCOPE="${QUALITY_SCOPE:-all}"
@@ -330,8 +338,8 @@ collect_sh_files() {
     case "$f" in
       *.sh) SH_FILES+=("$f"); continue ;;
     esac
-    if head -n 1 "$f" 2>/dev/null \
-      | LC_ALL=C grep -Eq '^#![[:space:]]*[^[:space:]]*/(env[[:space:]]+)?(ba|da|k)?sh([[:space:]]|$)'; then
+    if LC_ALL=C grep -Eq '^#![[:space:]]*[^[:space:]]*/(env[[:space:]]+)?(ba|da|k)?sh([[:space:]]|$)' \
+      <<<"$(head -n 1 "$f" 2>/dev/null)"; then
       SH_FILES+=("$f")
     fi
   done
@@ -367,6 +375,23 @@ EOF
     if [ "$SCOPE_MODE" = "changed" ]; then
       echo "    （変更された ${#SH_FILES[@]} 件と参照する helper を検査。他は未検査 — 全件は QUALITY_FULL_SCAN=1）"
     fi
+  fi
+fi
+
+# pipefail のスクリプトで早期終了する読み手（| grep -q / 置換の中の | head）を使わない
+#   書き手が SIGPIPE（141）で死に、条件が黙って偽になる。追跡中の全 *.sh を走査して約 2 秒なので、
+#   限定走査ではシェルスクリプトが変わったときだけ走らせる（ゲートの所要時間を増やさない）。
+if [ "$SCOPE" = "docs" ]; then
+  skip "pipefail の読み手の検査（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_pipefail_grep_q.sh ]; then
+  skip "pipefail の読み手の検査（tests/test_pipefail_grep_q.sh が無い）"
+else
+  SH_FILES=()
+  [ "$SCOPE_MODE" = "changed" ] && collect_sh_files <<<"$CHANGED_FILES"
+  if [ "$SCOPE_MODE" = "changed" ] && [ ${#SH_FILES[@]} -eq 0 ]; then
+    skip "pipefail の読み手の検査（変更されたシェルスクリプトが無い vs ${BASE_REF:-?}）"
+  else
+    run_check "pipefail の読み手の検査" bash tests/test_pipefail_grep_q.sh
   fi
 fi
 
@@ -451,6 +476,34 @@ else
   run_check "worktree 相対化の回帰テスト" bash tests/test_worktree_relative.sh --quiet
 fi
 
+# setup-worktree.sh の回帰テスト（data/shared のリンク・共有ストアの保護・model-policy.local.json）
+#   一時リポジトリで worktree を作るので約 9 秒かかる。関係するファイルが変わったときだけ走らせる。
+SETUP_WT_FILES='^(scripts/(setup-worktree|resolve-model)\.sh|scripts/lib/shared-store\.sh|\.claude/model-policy\.json|tests/test_setup_worktree_shared\.sh)$'
+if [ "$SCOPE" = "docs" ]; then
+  skip "setup-worktree の回帰テスト（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_setup_worktree_shared.sh ]; then
+  skip "setup-worktree の回帰テスト（tests/test_setup_worktree_shared.sh が無い）"
+elif ! changed_any "$SETUP_WT_FILES"; then
+  skip "setup-worktree の回帰テスト（関係するファイルの変更なし vs ${BASE_REF:-?}）"
+else
+  run_check "setup-worktree の回帰テスト" bash tests/test_setup_worktree_shared.sh
+fi
+
+# 共有ストアの所在と削除前の再確認（scripts/lib/shared-store.sh）と、それを使う削除の経路
+#   所在をスクリプトごとに別の基準で解釈すると、削除の判断を誤る。lock した worktree の削除・
+#   init-data.sh の拒否も含めて一時リポジトリで数秒。関係するファイルが変わったときだけ走らせる。
+STORE_FILES='^(scripts/(safe-remove-worktree|init-data|worktree-relative)\.sh|scripts/lib/shared-store\.sh|tests/test_(shared_store_lib|safe_remove_worktree)\.sh)$'
+if [ "$SCOPE" = "docs" ]; then
+  skip "共有ストアと削除の経路（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_shared_store_lib.sh ] || [ ! -f tests/test_safe_remove_worktree.sh ]; then
+  skip "共有ストアと削除の経路（tests/test_shared_store_lib.sh か tests/test_safe_remove_worktree.sh が無い）"
+elif ! changed_any "$STORE_FILES"; then
+  skip "共有ストアと削除の経路（関係するファイルの変更なし vs ${BASE_REF:-?}）"
+else
+  run_check "共有ストアの判定" bash tests/test_shared_store_lib.sh
+  run_check "共有ストアと削除の経路" bash tests/test_safe_remove_worktree.sh --quiet
+fi
+
 # commit-merge.sh の merge 前チェックの回帰テスト
 #   未コミット・未 push・detached HEAD・存在しない worktree で gh pr merge を呼ばずに止まること、
 #   クリーンなら後始末まで完走すること（パスに空白を含む）を pin する。偽 gh とローカル remote で数秒。
@@ -481,6 +534,18 @@ elif [ ! -f tests/test_install_claude_native.sh ]; then
   skip "claude native 導入の回帰テスト（tests/test_install_claude_native.sh が無い）"
 else
   run_check "claude native 導入の回帰テスト" bash tests/test_install_claude_native.sh --quiet
+fi
+
+# post-create.sh が PATH 上で実際に起動する claude の版を確かめること
+#   偽の claude を PATH に置いて判定を確かめる。1 秒程度。関係するファイルが変わったときだけ走らせる。
+if [ "$SCOPE" = "docs" ]; then
+  skip "claude の版の検査（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_devcontainer_claude_path.sh ]; then
+  skip "claude の版の検査（tests/test_devcontainer_claude_path.sh が無い）"
+elif ! changed_any '^(\.devcontainer/(post-create|install-claude-native)\.sh|tests/test_devcontainer_claude_path\.sh)$'; then
+  skip "claude の版の検査（関係するファイルの変更なし vs ${BASE_REF:-?}）"
+else
+  run_check "claude の版の検査" bash tests/test_devcontainer_claude_path.sh --quiet
 fi
 
 # devcontainer の PID 1 が init（tini）であること（由来: delta-clip-dev #165）

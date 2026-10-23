@@ -36,6 +36,8 @@ setup_fixture() {
 {"version":"1.1","shared_data_path":"data/shared","path_type":"relative"}
 JSON
         cp "$SETUP" scripts/setup-worktree.sh
+        mkdir -p scripts/lib
+        cp "$REPO_ROOT/scripts/lib/shared-store.sh" scripts/lib/shared-store.sh
         chmod +x scripts/setup-worktree.sh
         # data/shared is deliberately NOT tracked -- that is the fix under test.
         printf 'data/shared\nworktrees/\n' > .gitignore
@@ -48,6 +50,7 @@ JSON
     STORE="$FIX/main/data/shared"
 }
 teardown_fixture() { [[ -n "${FIX:-}" ]] && rm -rf "$FIX"; }
+trap teardown_fixture EXIT
 
 run_setup() { (cd "$WT" && bash scripts/setup-worktree.sh >/dev/null 2>&1); }
 
@@ -104,6 +107,24 @@ check "T6 store NOT deleted" "$(store_intact)" "yes"
 check "T6 still resolves to store" "$(resolved)" "$(readlink -f "$STORE")"
 teardown_fixture
 
+# T6b: the last-moment check stands right before every `rm -rf data/shared`.
+# F-1 above already skips the store, so this second line of defense cannot be reached
+# by a fixture; pin its position instead (the store was lost once despite earlier guards).
+unguarded=$(awk '/assert_safe_to_delete "data\/shared"/{g = NR} /^[[:space:]]*(if ! )?rm -rf data\/shared/{if (!g || NR - g > 3) print NR}' "$SETUP")
+check "T6b every rm -rf data/shared is preceded by assert_safe_to_delete" "${unguarded:-none}" "none"
+# ...and its failure stops the script (a `|| true` would leave the guard in place but toothless)
+check "T6b the guard's failure stops the script" \
+    "$(grep -A1 'assert_safe_to_delete "data/shared"' "$SETUP" | grep -c '|| error')" "1"
+check "T6b (control) rm -rf data/shared exists" "$(grep -cE '^[[:space:]]*(if ! )?rm -rf data/shared' "$SETUP")" "1"
+
+# T6c: a store that has become a symlink stops the script before anything is touched
+setup_fixture
+mv "$STORE" "$FIX/elsewhere" && ln -s "$FIX/elsewhere" "$STORE"
+run_setup
+check "T6c symlinked store -> non-zero exit" "$?" "1"
+check "T6c worktree data/shared is not created" "$([[ -e "$WT/data/shared" || -L "$WT/data/shared" ]] && echo yes || echo no)" "no"
+teardown_fixture
+
 # T7: refuses to run in the main repository (data/shared is the store there)
 setup_fixture
 (cd "$FIX/main" && bash scripts/setup-worktree.sh >/dev/null 2>&1)
@@ -124,6 +145,77 @@ setup_fixture
 rm -rf "$WT/data/shared" "$STORE"
 run_setup
 check "T9 missing store -> non-zero exit" "$?" "1"
+teardown_fixture
+
+echo "=== setup-worktree.sh: .claude/model-policy.local.json ==="
+
+# The bug: the local policy (`resolve-model.sh --disable <model>`) is gitignored, so a
+# fresh worktree had none and resolve-model.sh there returned the model the user had
+# disabled in main.  The fixture gets the real
+# resolve-model.sh and model-policy.json so the check is end-to-end, not "a link exists".
+setup_policy_fixture() {
+    setup_fixture
+    cp "$REPO_ROOT/scripts/resolve-model.sh" "$FIX/main/scripts/resolve-model.sh"
+    cp "$REPO_ROOT/.claude/model-policy.json" "$FIX/main/.claude/model-policy.json"
+    cp "$REPO_ROOT/scripts/resolve-model.sh" "$WT/scripts/resolve-model.sh"
+    mkdir -p "$WT/.claude"
+    cp "$REPO_ROOT/.claude/model-policy.json" "$WT/.claude/model-policy.json"
+    PRIMARY=$(jq -r '.roles["abstract-review"].primary' "$FIX/main/.claude/model-policy.json")
+}
+MAIN_LP() { echo "$FIX/main/.claude/model-policy.local.json"; }
+WT_LP()   { echo "$WT/.claude/model-policy.local.json"; }
+resolve_in_wt() { (cd "$WT" && bash scripts/resolve-model.sh abstract-review 2>/dev/null); }
+
+# T13: main has a local policy -> the worktree gets a RELATIVE symlink to it
+setup_policy_fixture
+echo '{"disabled":["'"$PRIMARY"'"]}' > "$(MAIN_LP)"
+run_setup
+check "T13 worktree local policy is a symlink" "$([[ -L "$(WT_LP)" ]] && echo yes || echo no)" "yes"
+check "T13 link is relative" "$(readlink "$(WT_LP)")" "../../../.claude/model-policy.local.json"
+check "T13 link resolves to main's file" "$(readlink -f "$(WT_LP)")" "$(readlink -f "$(MAIN_LP)")"
+
+# T14: resolve-model.sh in the worktree honours main's disabled list.
+# Positive control first: with the link removed, the worktree resolves to the primary
+# (the reported symptom) -- otherwise "not the primary" could pass for another reason.
+rm -f "$(WT_LP)"
+check "T14 control: without the link, worktree resolves to primary" "$(resolve_in_wt)" "$PRIMARY"
+run_setup
+WT_RESOLVED=$(resolve_in_wt)
+check "T14 with the link, worktree does not resolve to disabled primary" \
+    "$([[ -n "$WT_RESOLVED" && "$WT_RESOLVED" != "$PRIMARY" ]] && echo yes || echo no)" "yes"
+check "T14 worktree and main resolve the same" "$WT_RESOLVED" \
+    "$(cd "$FIX/main" && bash scripts/resolve-model.sh abstract-review 2>/dev/null)"
+
+# T15: --disable / --enable from the worktree write through to main and keep the link
+(cd "$WT" && bash scripts/resolve-model.sh --disable sonnet >/dev/null 2>&1)
+check "T15 --disable in worktree keeps the symlink" "$([[ -L "$(WT_LP)" ]] && echo yes || echo no)" "yes"
+check "T15 --disable in worktree reaches main" \
+    "$(jq -r '.disabled | index("sonnet") != null' "$(MAIN_LP)")" "true"
+(cd "$WT" && bash scripts/resolve-model.sh --enable sonnet >/dev/null 2>&1)
+check "T15 --enable in worktree keeps the symlink" "$([[ -L "$(WT_LP)" ]] && echo yes || echo no)" "yes"
+check "T15 --enable in worktree reaches main" \
+    "$(jq -r '.disabled | index("sonnet") != null' "$(MAIN_LP)")" "false"
+
+# T16: idempotent -- a second run leaves the same relative link
+run_setup
+check "T16 idempotent" "$(readlink "$(WT_LP)")" "../../../.claude/model-policy.local.json"
+teardown_fixture
+
+# T17: main has no local policy -> nothing is created in the worktree
+setup_policy_fixture
+run_setup
+check "T17 no main policy -> exit 0" "$?" "0"
+check "T17 no main policy -> nothing in worktree" \
+    "$([[ -e "$(WT_LP)" || -L "$(WT_LP)" ]] && echo yes || echo no)" "no"
+teardown_fixture
+
+# T18: a real file already in the worktree is the user's own -- never overwritten
+setup_policy_fixture
+echo '{"disabled":["opus"]}' > "$(MAIN_LP)"
+echo '{"disabled":["mine"]}' > "$(WT_LP)"
+run_setup
+check "T18 real file is not replaced by a link" "$([[ -L "$(WT_LP)" ]] && echo yes || echo no)" "no"
+check "T18 real file content kept" "$(jq -r '.disabled[0]' "$(WT_LP)")" "mine"
 teardown_fixture
 
 echo ""

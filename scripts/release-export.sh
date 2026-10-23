@@ -129,7 +129,7 @@ echo "=== release-export ==="
 echo "ref: $REF"
 echo "除外（開発ハーネス。${excluded_count} ファイル）:"
 for e in "${EXCLUDES[@]}"; do
-  if git ls-tree -r --name-only "$REF" -- "$e" 2>/dev/null | grep -q .; then
+  if [ -n "$(git ls-tree -r --name-only "$REF" -- "$e" 2>/dev/null)" ]; then
     echo "  - $e"
   else
     echo "  - $e （ref に存在しないためスキップ）"
@@ -165,7 +165,9 @@ tar -czf "$OUT" -C "$TMP" "$PREFIX" || {
 echo ""
 echo "生成: $OUT"
 echo "検証（開発ハーネスが含まれていないこと）:"
-if tar -tzf "$OUT" | grep -E "/(\.claude|\.spec|\.dev|\.devcontainer|worktrees)/" | head -5 | grep -q .; then
+# tar が読めなければ「含まれていない」と言わない（空の一覧を合格扱いにしない）
+LISTING=$(tar -tzf "$OUT") || { echo "  ❌ 生成物を読めません: $OUT" >&2; exit 2; }
+if [ "$(grep -cE "/(\.claude|\.spec|\.dev|\.devcontainer|worktrees)/" <<<"$LISTING")" -gt 0 ]; then
   # --keep で意図的に残した場合のみここに来る
   echo "  ⚠ 開発ハーネスのパスが含まれています（--keep 指定を確認）"
 else

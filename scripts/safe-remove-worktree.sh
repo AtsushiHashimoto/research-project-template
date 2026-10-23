@@ -4,6 +4,7 @@
 # Check for important files before removing worktree
 
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # 後で cd するので先に絶対パスにする
 
 # Color output
 GREEN='\033[0;32m'
@@ -44,11 +45,19 @@ if [ -z "$MAIN_REPO" ] || [ ! -d "$MAIN_REPO" ]; then echo "Error: main reposito
 CONFIG_FILE="$MAIN_REPO/.claude/worktree-config.json"
 
 # Read shared data path
+#   共有ストアの所在は scripts/lib/shared-store.sh の 1 箇所で決める（main 基準。cwd 基準で読むと
+#   setup-worktree.sh と食い違う）。ライブラリはこのスクリプトと同じ版を読む。
+#   ストアが symlink なら止める。まだ作っていない（init-data.sh 未実行）なら退避先なしで続ける。
+# shellcheck source=scripts/lib/shared-store.sh
+. "$SCRIPT_DIR/lib/shared-store.sh"
+SHARED_DATA_PATH=""
 if [ -f "$CONFIG_FILE" ]; then
-    if command -v jq &> /dev/null; then
-        SHARED_DATA_PATH=$(jq -r '.shared_data_path' "$CONFIG_FILE")
-    else
-        SHARED_DATA_PATH=$(grep '"shared_data_path"' "$CONFIG_FILE" | cut -d'"' -f4)
+    SHARED_DATA_PATH=$(shared_store_path "$MAIN_REPO") || exit 1
+    if [ -L "$SHARED_DATA_PATH" ]; then
+        assert_store_intact "$SHARED_DATA_PATH" || exit 1
+    elif [ ! -d "$SHARED_DATA_PATH" ]; then
+        echo -e "${YELLOW}⚠ 共有ストアがまだありません（$SHARED_DATA_PATH）。退避先なしで続けます${NC}"
+        SHARED_DATA_PATH=""
     fi
 fi
 
@@ -176,7 +185,15 @@ echo -e "${BLUE}Removing worktree...${NC}"
 # ★ Must cd to main repo BEFORE removing worktree
 # Otherwise the shell's cwd becomes invalid after removal
 cd "$MAIN_REPO" || { echo -e "${RED}❌ Failed to cd to main repo: $MAIN_REPO${NC}"; exit 1; }
-git worktree remove "$WORKTREE_PATH"
+# worktree-relative.sh add は worktree を lock するので、unlock してから消す（失敗したら lock し直す）
+bash "$SCRIPT_DIR/worktree-relative.sh" remove "$WORKTREE_PATH"
+# 共有ストアが削除で巻き込まれていないこと（ストアへ解決するリンクがあっても）
+if [ -n "$SHARED_DATA_PATH" ]; then
+    assert_store_intact "$SHARED_DATA_PATH" || {
+        echo -e "${RED}❌ worktree の削除の後、共有ストアが壊れています${NC}"
+        exit 1
+    }
+fi
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
