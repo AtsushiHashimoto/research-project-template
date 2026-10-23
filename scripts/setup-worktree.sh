@@ -199,13 +199,13 @@ fi
 # may be relative.  Overwriting SHARED_DATA_PATH with the absolute form is what
 # silently defeated path_type=relative: the config asked for a relative link and got
 # an absolute one, which breaks when the repository is mounted at another path.
-STORE_ABS="$MAIN_REPO/$SHARED_DATA_PATH"
+# shellcheck source=scripts/lib/shared-store.sh
+. "$MAIN_REPO/scripts/lib/shared-store.sh"
+STORE_ABS=$(shared_store_path "$MAIN_REPO") || error "cannot resolve the shared store"
 SHARED_DATA_PATH="$STORE_ABS"
 
-if [[ ! -d "$STORE_ABS" ]]; then
-    error "shared store does not exist: $STORE_ABS
-Run ./scripts/init-data.sh in the main repository first."
-fi
+# A store that is missing or has become a symlink makes every check below meaningless
+assert_store_intact "$STORE_ABS" || error "aborting: the shared store is not usable."
 
 # Link target: relative when the config asks for it.  Computed with realpath, never
 # hardcoded -- a wrong depth points the link at a directory that does not exist and
@@ -360,6 +360,9 @@ if [ -e "data/shared" ] && [ ! -L "data/shared" ]; then
         echo "    git rm --cached data/shared/.gitkeep   # この worktree でも実行する" >&2
     fi
 
+    # Re-check right before deleting: the cwd and the store can drift after the checks above
+    assert_safe_to_delete "data/shared" "$STORE_ABS" "$CURRENT_DIR" "$MAIN_REPO" \
+        || error "aborting before rm -rf data/shared"
     if ! rm -rf data/shared; then
         echo -e "${RED}[ERROR]${NC} $(msg dir_remove_failed)" >&2
         exit 1

@@ -44,12 +44,14 @@ if [ -z "$MAIN_REPO" ] || [ ! -d "$MAIN_REPO" ]; then echo "Error: main reposito
 CONFIG_FILE="$MAIN_REPO/.claude/worktree-config.json"
 
 # Read shared data path
+#   Always resolved against the main repository (scripts/lib/shared-store.sh). Reading the
+#   raw value here made it relative to the *current directory*, unlike setup-worktree.sh.
+SHARED_DATA_PATH=""
 if [ -f "$CONFIG_FILE" ]; then
-    if command -v jq &> /dev/null; then
-        SHARED_DATA_PATH=$(jq -r '.shared_data_path' "$CONFIG_FILE")
-    else
-        SHARED_DATA_PATH=$(grep '"shared_data_path"' "$CONFIG_FILE" | cut -d'"' -f4)
-    fi
+    # shellcheck source=scripts/lib/shared-store.sh
+    . "$MAIN_REPO/scripts/lib/shared-store.sh"
+    SHARED_DATA_PATH=$(shared_store_path "$MAIN_REPO") || exit 1
+    assert_store_intact "$SHARED_DATA_PATH" || exit 1
 fi
 
 # Check data/local for potentially important files
@@ -177,6 +179,13 @@ echo -e "${BLUE}Removing worktree...${NC}"
 # Otherwise the shell's cwd becomes invalid after removal
 cd "$MAIN_REPO" || { echo -e "${RED}❌ Failed to cd to main repo: $MAIN_REPO${NC}"; exit 1; }
 git worktree remove "$WORKTREE_PATH"
+# The store must have survived the removal (a link that resolved into it must not take it along)
+if [ -n "$SHARED_DATA_PATH" ]; then
+    assert_store_intact "$SHARED_DATA_PATH" || {
+        echo -e "${RED}❌ The shared store is no longer intact after removing the worktree${NC}"
+        exit 1
+    }
+fi
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

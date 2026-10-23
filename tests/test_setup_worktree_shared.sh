@@ -36,6 +36,8 @@ setup_fixture() {
 {"version":"1.1","shared_data_path":"data/shared","path_type":"relative"}
 JSON
         cp "$SETUP" scripts/setup-worktree.sh
+        mkdir -p scripts/lib
+        cp "$REPO_ROOT/scripts/lib/shared-store.sh" scripts/lib/shared-store.sh
         chmod +x scripts/setup-worktree.sh
         # data/shared is deliberately NOT tracked -- that is the fix under test.
         printf 'data/shared\nworktrees/\n' > .gitignore

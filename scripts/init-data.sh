@@ -237,6 +237,16 @@ else
     NOTE="Default configuration (auto-initialized)"
 fi
 
+# A broken store must be surfaced, not built around: in the main repository the
+# store is a real directory, and a symlink here is the shape a past data loss left
+# behind. Reporting success over it would make "re-initialised" mean "still broken".
+if [ -L "$SHARED_DATA_PATH_ABSOLUTE" ]; then
+    error "$SHARED_DATA_PATH_ABSOLUTE is a symlink, not a directory:
+    -> $(readlink "$SHARED_DATA_PATH_ABSOLUTE")
+  Remove the link and re-run:
+    rm '$SHARED_DATA_PATH_ABSOLUTE'"
+fi
+
 # Create directories
 info "$(msg creating_dirs)"
 mkdir -p "$SHARED_DATA_PATH_ABSOLUTE"/{datasets,results,models}

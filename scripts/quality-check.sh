@@ -468,6 +468,14 @@ else
   run_check "worktree 相対化の回帰テスト" bash tests/test_worktree_relative.sh --quiet
 fi
 
+# 共有ストアの所在と削除前の再確認（scripts/lib/shared-store.sh）
+#   所在をスクリプトごとに別の基準で解釈すると、削除の判断を誤る。一時ディレクトリで 1 秒未満。
+if [ ! -f tests/test_shared_store_lib.sh ]; then
+  skip "共有ストアの判定（tests/test_shared_store_lib.sh が無い）"
+else
+  run_check "共有ストアの判定" bash tests/test_shared_store_lib.sh
+fi
+
 # commit-merge.sh の merge 前チェックの回帰テスト
 #   未コミット・未 push・detached HEAD・存在しない worktree で gh pr merge を呼ばずに止まること、
 #   クリーンなら後始末まで完走すること（パスに空白を含む）を pin する。偽 gh とローカル remote で数秒。
