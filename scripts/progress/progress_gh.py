@@ -5,7 +5,8 @@
 """
 
 import json
-import subprocess
+
+from progress_cmd import FetchError, run
 
 QUERY = """
 query($owner: String!, $name: String!, $endCursor: String) {
@@ -27,25 +28,12 @@ query($owner: String!, $name: String!, $endCursor: String) {
 """
 
 
-class FetchError(Exception):
-    """取得の失敗。メッセージは画面の帯とログにそのまま出す。"""
-
-
-def run(argv):
-    """コマンドを実行して stdout を返す。失敗は FetchError（終了コードと stderr の先頭を添える）。"""
-    try:
-        done = subprocess.run(argv, capture_output=True, text=True, timeout=120, check=False)
-    except (OSError, subprocess.TimeoutExpired) as e:
-        raise FetchError(f"{argv[0]} を実行できない: {e}") from e
-    if done.returncode != 0:
-        head = done.stderr.strip().splitlines()[:3]
-        raise FetchError(f"{' '.join(argv[:3])} が終了コード {done.returncode}: {' / '.join(head)}")
-    return done.stdout
-
-
 def current_repo(runner=run):
     """cwd の repo（OWNER/NAME）。"""
-    return runner(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
+    repo = runner(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
+    if "/" not in repo:
+        raise FetchError(f"cwd の repo 名を読めない（gh repo view の出力: {repo!r}）")
+    return repo
 
 
 def fetch_issues(repo, runner=run):
@@ -62,8 +50,8 @@ def fetch_issues(repo, runner=run):
 
 def collect(pages):
     """--slurp の出力（ページの list）を検査して node の list にする。"""
-    if not isinstance(pages, list) or not pages:
-        raise FetchError("ページが 1 つも無い")
+    if not isinstance(pages, list) or not pages or not all(isinstance(p, dict) for p in pages):
+        raise FetchError("gh の出力がページの list になっていない")
     by_number = {}
     total = None
     for page in pages:

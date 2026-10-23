@@ -4,7 +4,7 @@ GitHub の取得とは失敗の仕方が違うので別にしてある。ここ�
 「作業中」の列だけを不明にする（.spec/issues/176-progress-server.md §3-2）。
 """
 
-from github import run
+from progress_cmd import run
 
 
 def read_branches(runner=run):

@@ -5,32 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Progress</title>
 <style>
-:root { --bg:#fff; --fg:#1f2328; --muted:#656d76; --line:#d0d7de; --card:#f6f8fa;
+:root { color-scheme:light dark; --bg:#fff; --fg:#1f2328; --muted:#656d76; --line:#d0d7de; --card:#f6f8fa;
         --warn-bg:#fff1f0; --warn:#cf222e; --ok:#1a7f37; --work:#0969da; --need:#9a6700; }
 @media (prefers-color-scheme: dark) {
   :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8d96a0; --line:#30363d; --card:#161b22;
           --warn-bg:#2d1214; --warn:#ff7b72; --ok:#3fb950; --work:#58a6ff; --need:#d29922; }
 }
 * { box-sizing: border-box; }
-body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
-       font:14px/1.5 system-ui, sans-serif; max-width:1100px; margin-inline:auto; }
+body { margin:0 auto; padding:16px; background:var(--bg); color:var(--fg);
+       font:14px/1.5 system-ui, sans-serif; max-width:1100px; }
 a { color:var(--work); }
 header { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; }
 h1 { font-size:18px; margin:0; }
 .muted { color:var(--muted); font-size:12px; }
-#banner { display:none; border:2px solid var(--warn); background:var(--warn-bg); color:var(--warn);
+#banner { border:2px solid var(--warn); background:var(--warn-bg); color:var(--warn);
           padding:8px 12px; border-radius:6px; margin:12px 0; }
-#summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin:12px 0; }
+#summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin:12px 0; }
 .group { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:8px 12px; }
-.group h2 { font-size:14px; margin:0 0 4px; }
-.group ul { margin:0; padding-left:18px; max-height:180px; overflow:auto; }
-form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
-input[type=search] { flex:1 1 200px; padding:4px 8px; background:var(--bg); color:var(--fg);
-                     border:1px solid var(--line); border-radius:6px; }
-details { margin-left:16px; }
-details > summary { cursor:pointer; list-style-position:outside; }
-.row { padding:2px 0; }
-.num { color:var(--muted); }
+.group summary { font-weight:600; }
+.group ul { margin:4px 0 0; padding-left:18px; max-height:200px; overflow:auto; }
+#filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+input[type=search], select, button { padding:4px 8px; background:var(--bg); color:var(--fg);
+       border:1px solid var(--line); border-radius:6px; font:inherit; }
+input[type=search] { flex:1 1 200px; }
+button:disabled { opacity:.6; }
+#tree details, #tree .leaf { margin-left:16px; }
+details > summary { cursor:pointer; }
 .badge { display:inline-block; font-size:11px; padding:0 6px; border-radius:10px; margin-left:4px;
          border:1px solid var(--line); color:var(--muted); }
 .b-work { border-color:var(--work); color:var(--work); }
@@ -38,114 +38,191 @@ details > summary { cursor:pointer; list-style-position:outside; }
 .b-done { border-color:var(--ok); color:var(--ok); }
 .b-mark { border-color:var(--warn); color:var(--warn); }
 .side { color:var(--muted); font-size:12px; margin-left:4px; }
+.kind { color:var(--muted); }
 </style>
 </head>
 <body>
 <header>
   <h1 id="title">Progress</h1>
-  <span class="muted" id="when"></span>
+  <span class="muted" id="when">取得中…</span>
 </header>
-<div id="banner" role="alert"></div>
+<div id="banner" role="status" hidden></div>
 <section id="summary" aria-label="要約"></section>
-<form id="filters">
+<div id="filters" role="search">
   <label><input type="checkbox" name="closed"> closed も表示</label>
-  <label><input type="checkbox" name="marks"> 逸脱の印を表示</label>
-  <input type="search" name="q" placeholder="タイトル・番号・ラベルで絞り込み">
+  <label><input type="checkbox" name="marks"> 逸脱の印と注記を表示</label>
+  <select name="label" aria-label="ラベルで絞り込み"><option value="">ラベル: すべて</option></select>
+  <input type="search" name="q" aria-label="タイトルか番号で絞り込み" placeholder="タイトル・#番号で絞り込み">
   <button type="button" id="refresh">取り直す</button>
-</form>
-<p class="muted">作業中 = open かつブランチか worktree がある（手元の git。fetch はしない）。PR は closing keyword で紐づいたものだけ。</p>
+</div>
+<p class="muted">作業中 = open かつブランチか worktree がある（手元の git。fetch はしない）。次の候補 = 作業中の子が無い open な task の、既定の順（survey → spec → feature → validation → experiment）で先頭の子。PR は closing keyword で紐づいたものだけ。</p>
 <main id="tree"></main>
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
-const el = (tag, text, cls) => { const e = document.createElement(tag);
-  if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+const field = (name) => $("filters").querySelector(`[name=${name}]`);
+const el = (tag, text, cls) => {
+  const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+};
+const badge = (text, cls, title) => { const b = el("span", text, "badge " + (cls || "")); if (title) b.title = title; return b; };
 let data = null;
+const toggled = new Map();   // 利用者が開け閉めした details（再描画で戻さない）
 
-function params() { return new URLSearchParams(location.search); }
+function options() {
+  const p = new URLSearchParams(location.search);
+  return { closed: p.get("closed") === "1", marks: p.get("marks") === "1", label: p.get("label") || "", q: p.get("q") || "" };
+}
 function syncForm() {
-  const p = params(), f = $("filters");
-  f.closed.checked = p.get("closed") === "1"; f.marks.checked = p.get("marks") === "1"; f.q.value = p.get("q") || "";
+  const o = options();
+  field("closed").checked = o.closed; field("marks").checked = o.marks; field("q").value = o.q;
+  field("label").dataset.want = o.label;
 }
+let timer = null;
 function writeParams() {
-  const f = $("filters"), p = new URLSearchParams();
-  if (f.closed.checked) p.set("closed", "1"); if (f.marks.checked) p.set("marks", "1"); if (f.q.value) p.set("q", f.q.value);
-  history.replaceState(null, "", "?" + p.toString()); render();
+  const p = new URLSearchParams();
+  if (field("closed").checked) p.set("closed", "1");
+  if (field("marks").checked) p.set("marks", "1");
+  if (field("label").value) p.set("label", field("label").value);
+  if (field("q").value) p.set("q", field("q").value);
+  const qs = p.toString();
+  history.replaceState(null, "", qs ? "?" + qs : location.pathname);
+  clearTimeout(timer); timer = setTimeout(render, 150);
 }
 
-function link(n) { const a = el("a", "#" + n.number + " " + n.title); a.href = n.url; a.target = "_blank"; a.rel = "noopener"; return a; }
-function badges(n, showMarks) {
+function link(n) {
+  const a = el("a", "#" + n.number + " " + n.title);
+  a.href = n.url; a.target = "_blank"; a.rel = "noopener";
+  return a;
+}
+function shortNote(note) { return note.split("（")[0].split(":")[0]; }
+function badges(n, opt) {
   const out = [];
-  if (n.state === "CLOSED") out.push(el("span", n.stateReason === "NOT_PLANNED" ? "見送り" : "完了", "badge b-done"));
-  if (n.labels.includes("user-action")) out.push(el("span", "要対応", "badge b-need"));
-  if (n.labels.includes("blocked")) out.push(el("span", "blocked", "badge b-need"));
-  if (n.working) out.push(el("span", "作業中", "badge b-work"));
-  if (n.working === null && n.state === "OPEN") out.push(el("span", "作業中: 不明", "badge"));
-  if (n.taskBranches.length && n.state === "OPEN") out.push(el("span", "配下で作業中", "badge b-work"));
-  if (n.progress) out.push(el("span", `${n.progress.completed}/${n.progress.total}` +
-      (n.progress.notPlanned ? ` (見送り ${n.progress.notPlanned})` : ""), "badge"));
-  for (const pr of n.prs) out.push(el("span", `PR #${pr.number} ${pr.state.toLowerCase()}`, "badge"));
-  for (const note of n.notes) out.push(el("span", note, "badge"));
-  if (showMarks) for (const m of n.marks) out.push(el("span", "⚠ " + m, "badge b-mark"));
+  if (n.state === "CLOSED") out.push(badge(["NOT_PLANNED", "DUPLICATE"].includes(n.stateReason) ? "見送り" : "完了", "b-done"));
+  if (n.labels.includes("user-action")) out.push(badge("要対応", "b-need"));
+  if (n.labels.includes("blocked")) out.push(badge("blocked", "b-need"));
+  if (n.working) out.push(badge("作業中", "b-work", n.branches.join(", ")));
+  if (n.working === null && n.state === "OPEN") out.push(badge("作業中: 不明"));
+  if (n.taskBranches.length && n.state === "OPEN") out.push(badge("配下で作業中", "b-work", n.taskBranches.join(", ")));
+  if (n.progress) out.push(badge(`${n.progress.completed}/${n.progress.total}` +
+      (n.progress.notPlanned ? ` 見送り ${n.progress.notPlanned}` : ""), "", "完了 / （全数 − 見送り）"));
+  for (const pr of n.prs) out.push(badge(`PR #${pr.number} ${pr.state.toLowerCase()}`));
+  if (opt.marks) {
+    for (const note of n.notes) out.push(badge(shortNote(note), "", note));
+    for (const m of n.marks) out.push(badge("⚠ " + m, "b-mark"));
+  }
   return out;
 }
-function matches(n, q) {
-  if (!q) return true; q = q.toLowerCase();
-  return ("#" + n.number + " " + n.title + " " + n.labels.join(" ")).toLowerCase().includes(q);
+function rowOf(n, opt) {
+  const row = el("span"); row.append(link(n), ...badges(n, opt));
+  if (n.worktrees.length) row.append(el("span", n.worktrees.map((w) => w.split("/").pop()).join(", "), "side"));
+  return row;
 }
+function matches(n, opt) {
+  if (opt.label && !n.labels.includes(opt.label)) return false;
+  if (!opt.q) return true;
+  const q = opt.q.trim().toLowerCase();
+  if (/^#\d+$/.test(q)) return "#" + n.number === q;
+  return n.title.toLowerCase().includes(q);
+}
+const filtering = (opt) => Boolean(opt.q || opt.label);
+// closed は、見える子孫があるときだけ出す（open の子が closed の親の下に隠れないように）
 function visible(num, opt) {
   const n = data.nodes[num];
-  if (!opt.closed && n.state === "CLOSED") return false;
-  if (matches(n, opt.q)) return true;
-  return n.children.some((c) => visible(c, opt));
+  const kidVisible = n.children.some((c) => visible(c, opt));
+  if (!opt.closed && n.state === "CLOSED") return kidVisible;
+  return matches(n, opt) || kidVisible;
 }
-function rowOf(n, opt) {
-  const row = el("span", undefined, "row"); row.append(link(n), ...badges(n, opt.marks));
-  if (n.worktrees.length) row.append(el("span", n.worktrees.join(", "), "side"));
-  return row;
+function folder(key, summary, defaultOpen) {
+  const d = el("details");
+  d.open = toggled.has(key) ? toggled.get(key) : defaultOpen;
+  d.addEventListener("toggle", () => toggled.set(key, d.open));
+  d.append(summary);
+  return d;
 }
 function nodeEl(num, opt) {
   const n = data.nodes[num];
+  if (!n.children.length) { const d = el("div", undefined, "leaf"); d.append(rowOf(n, opt)); return d; }
+  const s = el("summary"); s.append(el("span", n.kind + " ", "kind"), rowOf(n, opt));
+  const d = folder(num, s, filtering(opt) || (n.kind !== "issue" && n.state === "OPEN"));
   const kids = n.children.filter((c) => visible(c, opt));
-  if (!n.children.length) { const d = el("div"); d.style.marginLeft = "16px"; d.append(rowOf(n, opt)); return d; }
-  const d = el("details"); d.open = n.kind !== "issue" && n.state === "OPEN";
-  const s = el("summary"); s.append(el("span", n.kind + " ", "num"), rowOf(n, opt)); d.append(s);
   for (const c of kids) d.append(nodeEl(c, opt));
-  const hidden = n.children.length - kids.length;
-  if (hidden && !opt.closed && !opt.q) d.append(el("div", `+${hidden} closed`, "muted"));
+  const hidden = n.children.filter((c) => data.nodes[c].state === "CLOSED" && !kids.includes(c)).length;
+  if (hidden && !opt.closed) {
+    const a = el("a", `+${hidden} closed`, "muted leaf");
+    a.href = "?" + new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(location.search)), closed: "1" });
+    d.append(a);
+  }
   return d;
 }
-function summaryGroup(title, nums, hint) {
-  const g = el("div", undefined, "group"); g.append(el("h2", `${title} (${nums === null ? "不明" : nums.length})`));
-  if (nums === null) { g.append(el("p", hint, "muted")); return g; }
-  const ul = el("ul"); for (const num of nums) { const li = el("li"); li.append(link(data.nodes[num])); ul.append(li); }
-  g.append(ul); return g;
+function summaryGroup(title, nums, why) {
+  const s = el("summary", `${title} (${nums === null ? "不明" : nums.length})`);
+  const g = folder("sum:" + title, s, window.innerWidth >= 600); g.className = "group";
+  if (nums === null) { g.append(el("p", why, "muted")); return g; }
+  const ul = el("ul");
+  for (const num of nums) { const li = el("li"); li.append(rowOf(data.nodes[num], { marks: false })); ul.append(li); }
+  g.append(ul);
+  return g;
+}
+function showBanner(text) {
+  const b = $("banner");
+  if (b.textContent !== text) b.textContent = text;
+  b.hidden = !text;
+}
+function fillLabels() {
+  const sel = field("label"), want = sel.dataset.want || sel.value;
+  const names = [...new Set(Object.values(data.nodes).flatMap((n) => n.labels))].sort();
+  sel.replaceChildren(el("option", "ラベル: すべて"));
+  sel.firstChild.value = "";
+  for (const name of names) { const o = el("option", name); o.value = name; sel.append(o); }
+  sel.value = names.includes(want) ? want : "";
 }
 function render() {
   if (!data) return;
-  const p = params(), opt = { closed: p.get("closed") === "1", marks: p.get("marks") === "1", q: p.get("q") || "" };
+  const opt = options();
   $("title").textContent = "Progress — " + data.repo;
   $("when").textContent = `取得 ${data.fetchedAt}（ttl ${data.ttl} 秒）`;
-  const b = $("banner");
   const msgs = [];
   if (data.error) msgs.push(`取得失敗 ${data.errorAt} — 表示は ${data.fetchedAt} 時点（${data.error}）`);
-  if (data.gitError) msgs.push(`手元の git を読めない — 作業中は不明（${data.gitError}）`);
-  b.style.display = msgs.length ? "block" : "none"; b.textContent = msgs.join(" / ");
-  const s = data.summary; $("summary").replaceChildren(
-    summaryGroup("要対応", s.needsUser), summaryGroup("作業中", s.working, data.gitError || ""), summaryGroup("次の候補", s.next));
+  if (data.gitError) msgs.push(`手元の git を読めない — 作業中・次の候補は不明（${data.gitError}）`);
+  if (data.labelsError) msgs.push(`ラベルの検査をしていない（${data.labelsError}）`);
+  showBanner(msgs.join(" / "));
+  const s = data.summary;
+  $("summary").replaceChildren(summaryGroup("要対応", s.needsUser),
+    summaryGroup("作業中", s.working, data.gitError || ""), summaryGroup("次の候補", s.next, data.gitError || ""));
   const roots = data.roots.filter((r) => visible(r, opt));
-  const lone = roots.filter((r) => data.nodes[r].kind === "issue" && !data.nodes[r].children.length);
+  const lone = roots.filter((r) => !data.nodes[r].children.length);
   const main = $("tree"); main.replaceChildren();
   for (const r of roots) if (!lone.includes(r)) main.append(nodeEl(r, opt));
-  if (lone.length) { const d = el("details"); d.append(el("summary", `親なし (${lone.length})`));
-    for (const r of lone) d.append(nodeEl(r, opt)); main.append(d); }
+  if (lone.length) {
+    const d = folder("lone", el("summary", `親なし (${lone.length})`), filtering(opt));
+    for (const r of lone) d.append(nodeEl(r, opt));
+    main.append(d);
+  }
 }
 async function load(refresh) {
-  const res = await fetch("/api/tree.json" + (refresh ? "?refresh=1" : ""));
-  const body = await res.json();
-  if (!res.ok) { const b = $("banner"); b.style.display = "block";
-    b.textContent = `取得失敗 ${body.errorAt || ""} — 表示できるデータがありません（${body.error || res.status}）`; return; }
-  data = body; render();
+  const btn = $("refresh");
+  btn.disabled = true; btn.textContent = "取得中…";
+  try {
+    const res = await fetch("/api/tree.json" + (refresh ? "?refresh=1" : ""),
+                            { headers: refresh ? { "X-Progress-Refresh": "1" } : {} });
+    const text = await res.text();
+    let body = null;
+    try { body = JSON.parse(text); } catch { /* 403・404 は text/plain */ }
+    if (!res.ok || !body) {
+      const why = (body && body.error) || text.trim() || res.status;
+      showBanner(data ? `取得失敗 — 表示は ${data.fetchedAt} 時点（${why}）` : `取得失敗 — 表示できるデータがありません（${why}）`);
+      if (!data) $("when").textContent = "";
+      return;
+    }
+    data = body; fillLabels(); render();
+  } catch (e) {
+    showBanner(`サーバーに繋がらない — ${data ? `表示は ${data.fetchedAt} 時点` : "表示できるデータがありません"}（${e.message}）`);
+  } finally {
+    btn.disabled = false; btn.textContent = "取り直す";
+  }
 }
 syncForm();
 $("filters").addEventListener("input", writeParams);
