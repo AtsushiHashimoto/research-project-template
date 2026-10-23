@@ -8,6 +8,7 @@
 #   check-discipline.sh goal      <TASK>             goal の空欄・判定・未確定の担当と再照合
 #   check-discipline.sh verdict-task <TASK>          task を閉じる前の判定コメントの形
 #   check-discipline.sh merged    <N>                #N の作業が既に main に入っているか
+#   check-discipline.sh reentry   <N> <kind>         再入: #N のマージ済みの PR の /review・仕様整合と成果物
 #   check-discipline.sh epic      <EPIC>             issue に紐づかないコミットを数える
 #   check-discipline.sh verdict   <EPIC>             達成判定コメントと完了条件の照合（全部 negative の確認を含む）
 #
@@ -105,6 +106,25 @@ mode_merged() {
   check_merged_commit "$1"
 }
 
+# 再入（マージ済み・issue は open）: #N のコミットに結びつくマージ済みの PR の本文で、
+# /review と仕様整合を、成果物で種類の要件を見る（マージの確認だけで close しない）
+mode_reentry() {
+  local n="$1" kind="$2" base sha pr
+  info "再入の検査 (#$n [$kind]。マージ済みの PR の本文と成果物)"
+  base="$(resolve_base)" || { fail "再入: base ref を解決できない"; return; }
+  sha="$(git log "$base" --format=%H --extended-regexp -n 1 --grep="(Refs|Fixes)[[:space:]]*#${n}([^0-9]|\$)")" \
+    || { fail "再入: git log $base が失敗した"; return; }
+  [ -n "$sha" ] || { fail "再入: $base に #$n のコミットが無い"; return; }
+  pr="$(gh api "repos/{owner}/{repo}/commits/$sha/pulls" --jq '.[] | select(.merged_at != null) | .number')" \
+    || { fail "再入: コミット ${sha:0:8} の PR を引けない（gh の失敗）"; return; }
+  pr="${pr%%$'\n'*}"
+  [ -n "$pr" ] || { fail "再入: コミット ${sha:0:8} に結びつくマージ済みの PR が無い（PR を通らずに入った作業は完了にしない）"; return; }
+  pass "マージ済みの PR #$pr（コミット ${sha:0:8}）"
+  check_pr_review "$pr"
+  gates conformance "$n" "$kind" "$pr"
+  mode_artifacts "$n" "$kind"
+}
+
 mode_merge() {
   local n="$1" kind="$2" branch_n="${3:-}"
   [ -n "$branch_n" ] || branch_n="$n"
@@ -142,7 +162,10 @@ mode_epic() {
   #   ★ サブプロセスを 1 回にする（旧実装は 245×N 回で 8.4 秒かかっていた）
   # ★ **コミット本文は複数行になる。** `-z` で NUL 区切りにして 1 コミット 1 エントリにする
   #   （改行で読むと本文の途中で切れ、実測で 0/0 件になった）
-  local entry
+  # ★ プロセス置換は git の終了コードを捨てる。一時ファイルを経由して失敗を FAIL にする
+  local entry log; log="$(mktemp)" || { fail "epic: 一時ファイルを作れない"; return; }
+  git log "$base" --no-merges --since="$since" -z --format=$'%H\t%s %b' > "$log" 2>/dev/null \
+    || { rm -f "$log"; fail "epic: git log $base が失敗した（0 件と読まない）"; return; }
   while IFS= read -r -d '' entry; do
     [ -n "$entry" ] || continue
     sha="${entry%%$'\t'*}"; subj="${entry#*$'\t'}"
@@ -150,8 +173,8 @@ mode_epic() {
     [[ "$subj" =~ (Refs|Fixes)[[:space:]]*\#[0-9]+ ]] && continue
     orphan=$((orphan + 1))
     printf '    紐づかない: %s %s\n' "${sha:0:8}" "${subj%%$'\n'*}"
-  done < <(git log "$base" --no-merges --since="$since" -z \
-             --format=$'%H\t%s %b' 2>/dev/null || true)
+  done < "$log"
+  rm -f "$log"
   RAN_ANY=1
   printf '  issue に紐づかないコミット: %d / %d 件\n' "$orphan" "$total"
 }
@@ -200,6 +223,7 @@ case "$1" in
   goal)      [ $# -eq 2 ] || usage; info "goal の検査 (task #$2)"; gates goal "$2";;
   verdict-task) [ $# -eq 2 ] || usage; info "task の判定の形 (task #$2)"; gates verdict-task "$2";;
   merged)    [ $# -eq 2 ] || usage; mode_merged "$2";;
+  reentry)   [ $# -eq 3 ] || usage; mode_reentry "$2" "$3";;
   epic)      [ $# -eq 2 ] || usage; mode_epic "$2";;
   verdict)   [ $# -eq 2 ] || usage; mode_verdict "$2";;
   *) usage;;

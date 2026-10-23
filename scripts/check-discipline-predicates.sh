@@ -113,8 +113,9 @@ closing_re() { printf '(^|[^a-z])(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space
 check_no_closes() {
   local n="$1" base sha
   base="$(resolve_base)" || { fail "Closes: base ref を解決できない"; return 1; }
+  # ★ git の失敗を「見つからない」と読まない
   sha="$(git log "$base"..HEAD --format='%h' --extended-regexp --regexp-ignore-case -n 1 \
-          --grep="$(closing_re "$n")" 2>/dev/null || true)"
+          --grep="$(closing_re "$n")" 2>/dev/null)" || { fail "Closes: git log $base..HEAD が失敗した"; return 1; }
   if [ -z "$sha" ]; then pass "閉じるキーワード（Closes/Fixes/Resolves #$n）のコミットが無い"; return 0; fi
   fail "コミット $sha が閉じるキーワード（Closes/Fixes/Resolves #$n）を持つ（squash で GitHub が先に閉じ、完了コメントが付かない）
      直し方: git commit --amend（または git rebase で該当コミットの本文を直す）で
@@ -123,10 +124,12 @@ check_no_closes() {
 
 # 4'''. PR 本文の閉じるキーワードを止める（理由はコミットと同じ）
 check_pr_no_closes() {
-  local n="$1" body re rc=1
+  local n="$1" body re st rc=1
+  # ★ gh の失敗（PR が無い場合を含む）を「キーワードが無い」と読まない
+  st="$(gh pr view --json state -q .state 2>/dev/null)" || { fail "PR 本文の閉じるキーワード: gh pr view が失敗した（PR が無いか gh の失敗）"; return 1; }
   # マージ済みの PR（再入）はもう閉じる時点を過ぎているので見ない
-  [ "$(gh pr view --json state -q .state 2>/dev/null || true)" = MERGED ] && { pass "PR はマージ済み（閉じるキーワードは見ない）"; return 0; }
-  body="$(gh pr view --json body -q .body 2>/dev/null || true)"
+  [ "$st" = MERGED ] && { pass "PR はマージ済み（閉じるキーワードは見ない）"; return 0; }
+  body="$(gh pr view --json body -q .body 2>/dev/null)" || { fail "PR 本文の閉じるキーワード: gh pr view が失敗した"; return 1; }
   re="$(closing_re "$n")"
   shopt -s nocasematch
   while IFS= read -r line; do [[ "$line" =~ $re ]] && { rc=0; break; }; done <<<"$body"
@@ -152,10 +155,11 @@ check_merged_commit() {
 }
 
 # 5. PR 本文の /review 結果（★ CRLF を落としてから見る）
-check_pr_review() {
+check_pr_review() {  # check_pr_review [<PR番号>]（省くと現在のブランチの PR）
   local body
-  body="$(gh pr view --json body -q .body 2>/dev/null || true)"
-  [ -n "$body" ] || { fail "PR: 現在のブランチに PR が無い、または本文が空"; return 1; }
+  body="$(gh pr view ${1:+"$1"} --json body -q .body 2>/dev/null || true)"
+  [ -n "$body" ] || { fail "PR: ${1:+#$1 の}${1:-現在のブランチに} PR が無い、または本文が空
+     書く行: gh pr create --body-file <本文ファイル>（本文に '## /review 結果' と各サブエージェントの判定）"; return 1; }
   if printf '%s' "$body" | awk '
       { sub(/\r$/, "") }
       /^#+[[:space:]]*\/review[[:space:]]*結果/ { seen=1; next }

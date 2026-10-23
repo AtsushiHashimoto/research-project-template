@@ -20,17 +20,21 @@ gate_stop() {
 - 足りないもの（書く行つき）:
 $missing
 - 再実行: \`$rerun\`"
+  # ★ 先に 3 点を出す（記録の投稿が落ちても、止まった理由は失わない）。サブシェルで出して戻る
+  ( next_fail "止まった理由: $what" "" "足りないもの（書く行つき。<…> は中身に置き換える）:" "$missing" "" \
+    "$@" "再実行: $rerun" ) || true
   # ★ 直前のコメントと同じ中身（時刻の行を除く）なら書かない。再実行のたびに同じ停止が積もるのを防ぐ
-  last="$(gh_json "#$task のコメント取得" gh issue view "$task" --json body,comments,createdAt \
-           | python3 -c 'import json,sys; c=json.load(sys.stdin)["comments"]; print(c[-1]["body"] if c else "")')"
-  if [ "$(printf '%s' "$last" | grep -v '^- 時刻: ')" = "$(printf '%s' "$body" | grep -v '^- 時刻: ')" ]; then
+  if ! last="$(gh issue view "$task" --json body,comments,createdAt 2>/dev/null \
+           | python3 -c 'import json,sys; c=json.load(sys.stdin)["comments"]; print(c[-1]["body"] if c else "")')"; then
+    say "!!! 警告: #$task のコメントを読めず、停止の記録を書いていない（止まった理由は上のとおり）"
+  elif [ "$(printf '%s' "$last" | grep -v '^- 時刻: ')" = "$(printf '%s' "$body" | grep -v '^- 時刻: ')" ]; then
     say "  --   #$task の直前のコメントが同じ停止なので、記録は書き足さない"
-  else
-    gh_json "#$task への停止の記録" gh issue comment "$task" --body "$body" >/dev/null
+  elif gh issue comment "$task" --body "$body" >/dev/null 2>&1; then
     say "  ..   止まった理由を #$task にコメントした"
+  else
+    say "!!! 警告: #$task への停止の記録を書けなかった（止まった理由は上のとおり）"
   fi
-  next_fail "止まった理由: $what" "" "足りないもの（書く行つき。<…> は中身に置き換える）:" "$missing" "" \
-    "$@" "再実行: $rerun"
+  exit 1
 }
 
 # goal の中身の判定は、ワーカーではなく verification のサブエージェントが書く（自己申告にしない）

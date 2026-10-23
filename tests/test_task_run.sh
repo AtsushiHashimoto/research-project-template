@@ -310,7 +310,8 @@ make_gh_stub() {
 # ★ §4 のゲートが使う呼び出し（本文・コメント・コメントの追加）は
 #   issue ごとの状態を持つ tests/lib/fake_gh.py に回す
 case "$*" in "issue view "*" --json body,comments,createdAt"*) exec python3 -B "$FAKE_GH" "$@";; esac
-if [ "$1 $2" = "issue comment" ]; then python3 -B "$FAKE_GH" "$@" || exit 1; exit 0; fi
+if [ "$1 $2" = "issue comment" ]; then [ -z "${GH_COMMENT_FAIL:-}" ] || { echo "boom" >&2; exit 1; }
+  python3 -B "$FAKE_GH" "$@" || exit 1; exit 0; fi
 # 偽の gh。issues.txt を引いて必要な JSON だけ返す
 f="$SANDBOX/issues.txt"
 row() { grep -E "^$1:" "$f" || true; }
@@ -337,7 +338,8 @@ if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
   esac
   exit 0
 fi
-if [ "$1" = pr ] && [ "$2" = view ]; then cat "$SANDBOX/pr_body.txt" 2>/dev/null; exit 0; fi
+if [ "$1" = pr ] && [ "$2" = view ]; then [ -z "${GH_PR_VIEW_FAIL:-}" ] || { echo "boom" >&2; exit 1; }
+  cat "$SANDBOX/pr_body.txt" 2>/dev/null; exit 0; fi
 if [ "$1" = "api" ]; then
   # ★ epic-cycle の「直近に closed になった task の closed_at」照会は**空**を返す
   #   （epic の createdAt へ落ちる経路を通す。#555）
@@ -1082,6 +1084,31 @@ Closes #901"
 fin; stop3 "Closes: PR 本文の Closes #N も止める" "$rc" "$out" "PR 本文が閉じるキーワード" "Refs #901" "bash scripts/flow/issue-finish.sh 901 900"
 pr "$CONF_OK"
 rcheck 0 "Closes: Refs だけなら通る" merge 901 experiment 900
+
+# ★ git・gh の失敗を「見つからない」と読まない（閉じるキーワード・epic の数え上げ）
+mkdir -p "$SANDBOX/gitfail"
+# shellcheck disable=SC2016  # 偽 git の中身なので展開させない
+printf '#!/usr/bin/env bash\ncase " $* " in *"$GIT_FAIL_ON"*) echo "git: boom" >&2; exit 128;; esac\nexec %q "$@"\n' \
+  "$(command -v git)" > "$SANDBOX/gitfail/git"; chmod +x "$SANDBOX/gitfail/git"
+fcheck() {  # fcheck <説明> <出力に要る語> <環境 NAME=VAL> <check-discipline の引数...>
+  local what="$1" want="$2" envv="$3"; shift 3; local o r
+  o="$(env "$envv" PATH="$SANDBOX/gitfail:$SANDBOX/bin:$PATH" bash "$CHECK" "$@" 2>&1)"; r=$?
+  if [ "$r" -eq 1 ] && has "$o" "$want"; then ok "$what"; else ng "$what（rc=$r）"; printf '%s\n' "$o" | grep FAILED | sed 's/^/        /'; fi
+}
+fcheck "★ Closes: コミットの git log が失敗したら FAIL（キーワードが無いと読まない）" \
+  "Closes: git log" GIT_FAIL_ON=--regexp-ignore-case merge 901 experiment 900
+fcheck "★ Closes: PR の gh pr view が失敗したら FAIL（キーワードが無いと読まない）" \
+  "PR 本文の閉じるキーワード: gh pr view が失敗した" GH_PR_VIEW_FAIL=1 merge 901 experiment 900
+fcheck "★ epic: git log が失敗したら FAIL（0 件と読まない）" \
+  "が失敗した（0 件と読まない）" GIT_FAIL_ON=--since= epic 800
+
+# ★ 停止の記録を書けなくても、止まった理由（3 点）は先に出ている
+pr "${CONF_OK/- goal 書き換え: なし/- goal 書き換え: あり}"
+out="$(GH_COMMENT_FAIL=1 PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/issue-finish.sh" 901 900 2>&1)"; rc=$?
+stop3 "★ 停止の記録の投稿が落ちても 3 点を出す" "$rc" "$out" "「goal 書き換え: なし」の行が無い" "- goal 書き換え: なし" "bash scripts/flow/issue-finish.sh 901 900"
+if has "$out" "警告: #900 への停止の記録を書けなかった"; then ok "→ 記録を書けなかったことを警告として出す"
+else ng "記録を書けなかったことを出していない"; fi
+pr "$CONF_OK"
 
 cd "$REPO_ROOT" || exit 1
 echo

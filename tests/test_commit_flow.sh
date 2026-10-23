@@ -104,6 +104,28 @@ if [ "$(count_in_code "$REPO_ROOT/scripts/quality-check.sh" 'scripts/commit-merg
   ok "quality-check.sh に commit-merge の検査ブロックが残っていない"
 else ng "quality-check.sh が削除した commit-merge を指したまま"; fi
 
+# ★ quality-check.sh の flow のブロックを切り出して走らせる（関係時は 4 本を run_check に渡す・
+#   tests/ に無いものは黙らずに skip する・関係しなければ走らせない）
+flow_block() {  # flow_block <changed_any の終了コード> <置くテスト...>
+  local R="$SANDBOX/qcblock" rc_changed="$1"; shift
+  rm -rf "$R"; mkdir -p "$R/tests"
+  for t in "$@"; do : > "$R/tests/test_$t.sh"; done
+  awk '/^FLOW_FILES=/{p=1} p{print} p&&/^fi$/{exit}' "$REPO_ROOT/scripts/quality-check.sh" > "$R/block.sh"
+  ( cd "$R" && SCOPE=all RC="$rc_changed" bash -c 'changed_any() { return "$RC"; }
+    skip() { echo "skip: $*"; }; run_check() { echo "run: $*"; }; . ./block.sh' )
+}
+out="$(flow_block 0 issue_flow commit_flow quick_flow task_run)"
+if [ "$(printf '%s\n' "$out" | grep -cE '^run: flow の回帰テスト \((issue_flow|commit_flow|quick_flow|task_run)\) env -u BASH_ENV -u ENV bash tests/test_\1\.sh$' || true)" -eq 4 ]; then
+  ok "★ quality-check.sh: 関係するファイルが変われば flow の 4 本を run_check で走らせる"
+else ng "quality-check.sh の flow のブロックが 4 本を run_check に渡していない: $(printf '%s' "$out" | tr '\n' '|')"; fi
+out="$(flow_block 0 issue_flow)"
+if [ "$(printf '%s\n' "$out" | grep -c '^run: ' || true)" -eq 1 ] && [ "$(printf '%s\n' "$out" | grep -c '^skip: .*test_task_run\.sh が無い' || true)" -eq 1 ]; then
+  ok "★ quality-check.sh: tests/ に無い flow のテストは skip と出して飛ばす（下流は tests/ を sync しない）"
+else ng "quality-check.sh: 無いテストの扱いが違う: $(printf '%s' "$out" | tr '\n' '|')"; fi
+out="$(flow_block 1 issue_flow commit_flow quick_flow task_run)"
+if [ "$(printf '%s\n' "$out" | grep -c '^run: ' || true)" -eq 0 ]; then ok "quality-check.sh: 関係しなければ flow のテストは走らせない"
+else ng "quality-check.sh: 関係しないのに flow のテストを走らせた"; fi
+
 # ★ stage は名指し（git add -A / git add . を commit.sh / quick.sh のコードに書かない）
 for f in commit.sh quick.sh; do
   if [ "$(count_in_code "$FLOW/$f" 'git add (-A|--all|\.)([[:space:]]|$)')" -eq 0 ]; then
@@ -694,6 +716,30 @@ out="$(cd "$SANDBOX/repo" && PATH="$SANDBOX/bin:$PATH" QUALITY_FULL_SCAN=1 bash 
       '. scripts/flow/lib.sh; run_quality feature' 2>&1)" || true
 if has_call "quality scope=all"; then ok "★ QUALITY_FULL_SCAN が記録と違えば省かない"
 else ng "QUALITY_FULL_SCAN=1 なのに QUALITY_FULL_SCAN=0 の記録で省いた"; fi
+
+# ★ 記録の鍵に走らせた quality-check.sh の hash を入れる（検査そのものが変わったら省かない）
+rm -f "$SANDBOX/calls.log"
+qc_hash="$(git -C "$SANDBOX/repo" hash-object scripts/quality-check.sh)"
+printf '%s all full=0 qc=%s\n' "$(git -C "$SANDBOX/repo" rev-parse HEAD)" "$qc_hash" > "$(rec_file)"
+q 0 "（対照）HEAD・scope・全走査・quality-check.sh の hash が一致すれば省く" feature
+if has_call "quality scope="; then ng "（対照）全部一致しているのに走った（鍵の形が違う）"; else ok "→ 省いた"; fi
+printf '%s all full=0 qc=%s\n' "$(git -C "$SANDBOX/repo" rev-parse HEAD)" 0000000000000000000000000000000000000000 > "$(rec_file)"
+q 0 "★ quality-check.sh の hash が記録と違えば省かない" feature
+if has_call "quality scope=all"; then ok "→ 走った"; else ng "quality-check.sh が変わったのに省いた"; fi
+
+# ★ 文書の段でも、差分にコードがあれば all（docs だとコード検査が飛ぶ）
+scope_of() { (cd "$SANDBOX/repo" && bash -c '. scripts/flow/lib.sh; scope_for "$1"' _ "$1"); }
+if [ "$(scope_of spec)" = docs ]; then ok "（対照）spec 段・コードの差分なし → docs"
+else ng "（対照）spec 段でコードの差分が無いのに $(scope_of spec)"; fi
+for f in scripts/x.sh tests/t.txt tool.py; do
+  ( cd "$SANDBOX/repo" && mkdir -p "$(dirname "$f")" && echo x > "$f" && git add "$f" && git commit -qm "$f" ) >/dev/null
+  if [ "$(scope_of spec)" = all ]; then ok "★ spec 段でも差分に $f があれば all"
+  else ng "spec 段で差分に $f があるのに docs（コード検査が飛ぶ）"; fi
+  ( cd "$SANDBOX/repo" && git reset -q --hard HEAD~1 ) >/dev/null
+done
+( cd "$SANDBOX/repo" && echo x > untracked.sh )
+if [ "$(scope_of survey)" = all ]; then ok "★ 未追跡の *.sh も数える"; else ng "未追跡の *.sh を数えていない"; fi
+rm -f "$SANDBOX/repo/untracked.sh"
 
 rm -f "$SANDBOX/calls.log"; echo 1 > "$SANDBOX/quality_rc"; rm -f "$(rec_file)"
 q 1 "品質チェックが落ちたら非ゼロ" feature

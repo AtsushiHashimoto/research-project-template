@@ -221,24 +221,26 @@ start_point() {
 #   枝を task 単位で使い回すと、1 回目の squash 以降、枝側のコミットは
 #   「main に入っていない」ままになり **2 番目以降の子で必ず衝突する**（実測）。
 #   ★ **呼ぶのはマージの後**。ここで失敗しても「マージが失敗した」ではない。
-#   ★ 触ってよいのは「汚れておらず、内容が origin/<既定> と同じ」ときだけ。
-realign_branch() {  # realign_branch <worktree> <ブランチ> → 0 成功 / 1 触らなかった（理由を出力）
-  local wt="$1" br="$2" base
+#   ★ 触ってよいのは「汚れておらず、枝の先頭がマージした PR の head」のときだけ。
+realign_branch() {  # realign_branch <worktree> <ブランチ> <マージした PR の head> → 0 成功 / 1 触らなかった
+  local wt="$1" br="$2" pr_head="${3:-}" base
   base="$(start_point_or_empty)"; base="${base#origin/}"
   [ -n "$base" ] || { say "!!! 既定ブランチを解決できず、合わせ直していない"; return 1; }
   # ★ reset --hard は未コミットの変更を消す。汚れていたら触らない
   [ -z "$(git -C "$wt" status --porcelain)" ] \
     || { say "!!! worktree が汚れているので合わせ直していない"; return 1; }
+  # ★ 枝の先頭がマージした PR の head と同じときだけ触る（PR に入っていないコミットを消さない）。
+  #   内容の一致では見ない: 既定ブランチは他の PR で進むので、squash 済みでも差分が出る
+  [ -n "$pr_head" ] || { say "!!! マージした PR の head を取れず、合わせ直していない"; return 1; }
+  [ "$(git -C "$wt" rev-parse HEAD)" = "$pr_head" ] \
+    || { say "!!! 枝にマージした PR（head ${pr_head:0:8}）に入っていないコミットが残っているので合わせ直していない"; return 1; }
   git -C "$wt" fetch -q origin "$base" \
     || { say "!!! origin/$base を取得できず、合わせ直していない"; return 1; }
-  # ★ 内容が違うなら触らない（squash 済みなら差分は無いはず）
-  git -C "$wt" diff --quiet "origin/$base" HEAD \
-    || { say "!!! 枝に origin/$base と違う内容が残っているので合わせ直していない"; return 1; }
   git -C "$wt" reset --hard -q "origin/$base" \
     || { say "!!! reset --hard に失敗した"; return 1; }
   git -C "$wt" push -q --force-with-lease origin "$br" \
     || { say "!!! origin/$br を更新できなかった（force-with-lease が拒否された）"; return 1; }
-  say "  ok   $br を origin/$base に合わせた（内容は同じ。履歴だけ揃えた）"
+  say "  ok   $br を origin/$base に合わせた（PR の head ${pr_head:0:8} は squash で入っている）"
 }
 
 # ── 既定順（.claude/rules/template/issue-hierarchy.md）────────────

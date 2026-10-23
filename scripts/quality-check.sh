@@ -514,6 +514,8 @@ elif ! changed_any "$FLOW_FILES"; then
   skip "flow の回帰テスト（関係するファイルの変更なし vs ${BASE_REF:-?}）"
 else
   for t in issue_flow commit_flow quick_flow task_run; do
+    # ★ tests/ は /template-sync の対象外なので、下流には無いことがある（無いことは黙らない）
+    if [ ! -f "tests/test_$t.sh" ]; then skip "flow の回帰テスト（tests/test_$t.sh が無い。tests/ は /template-sync の対象外）"; continue; fi
     run_check "flow の回帰テスト ($t)" env -u BASH_ENV -u ENV bash "tests/test_$t.sh"
   done
 fi

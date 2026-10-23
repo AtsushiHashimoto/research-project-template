@@ -50,13 +50,10 @@ fi
 readonly MERGE_CMD
 
 # ── 段 1.5. ★ 再入だけを許す経路（マージ後に close が落ちた場合）────
-# worktree とブランチが消えた後は main で実行することになる。そのとき段 5 の
-# check_branch は必ず落ちるので、**段 5 より前**にこの分岐を置かないと
-# 「マージ済み・issue は open」から抜け出せない（/review で実測指摘）。
+# worktree が消えた後は main で実行する。段 2 の check_branch は必ず落ちるので、その前に置く。
 BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
 [ -n "$BRANCH" ] || die "detached HEAD では実行できない"
-# ★ `case "$BRANCH" in $PROTECTED_BRANCHES)` とは書けない。`case` のパターンに変数を置いても
-#   `|` は選択肢として解釈されず、`main|master` という 1 つの文字列と比較される
+# ★ `case` のパターンに変数を置くと `|` が選択肢にならない（`main|master` という 1 つの文字列になる）
 if [[ "$BRANCH" =~ ^($PROTECTED_BRANCHES)$ ]]; then
     head2 "既定ブランチ（$BRANCH）で実行された。再入かどうかを見る"
     check merged "$N" || next_fail \
@@ -68,9 +65,14 @@ if [[ "$BRANCH" =~ ^($PROTECTED_BRANCHES)$ ]]; then
     if [ "$(issue_state "$N")" = CLOSED ]; then
       say "  --   #$N も既に closed。やることは無い"; exit 0
     fi
+    # ★ マージの確認だけで close しない。マージ済みの PR の本文（/review・仕様整合）と成果物を見る
+    rrc=0; rout="$(check reentry "$N" "$kind" 2>&1)" || rrc=$?
+    printf '%s\n' "$rout"
+    [ "$rrc" = 0 ] || gate_stop "$TASK" "#$N [$kind] の再入（マージ済みの PR の /review・仕様整合・成果物）が揃っていない" \
+      "$rout" "bash scripts/flow/issue-finish.sh $N $TASK" "$(merge_check_hints "$N" "$TASK")" ""
     gh issue comment "$N" --body "## 完了（再入）
 
-マージは既に済んでおり、close だけが残っていた（\`bash scripts/check-discipline.sh merged $N\` が PASS）。" \
+マージは既に済んでおり、close だけが残っていた（\`bash scripts/check-discipline.sh reentry $N $kind\` が PASS）。" \
       >/dev/null || die "gh issue comment が失敗した"
     gh issue close "$N" --reason completed >/dev/null || die "gh issue close が失敗した"
     finish_next "#$N を close した（再入経路）。"
@@ -248,10 +250,12 @@ fi
 if [ "$MERGED_DONE" = 0 ] && [ "$merge_rc" = 0 ] \
    && [ -z "$PASS_WT" ] && [ "$WORKTREE" != "$MAIN" ]; then
   head2 "枝を既定ブランチに合わせ直す（次の子が衝突しないように）"
-  realign_branch "$WORKTREE" "$BRANCH" || {
+  pr_head="$(gh pr view "$PR" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+  realign_branch "$WORKTREE" "$BRANCH" "$pr_head" || {
     say "  ..   **マージは済んでいる。** 次の子で squash merge が衝突する可能性がある"
-    say "  ..   手で直す: git -C $WORKTREE reset --hard origin/$DEFAULT_BRANCH \\"
-    say "  ..             && git -C $WORKTREE push --force-with-lease origin $BRANCH"
+    say "  ..   手で直す: まず git -C $WORKTREE diff origin/$DEFAULT_BRANCH HEAD --stat と"
+    say "  ..     git -C $WORKTREE log --oneline ${pr_head:-<PR の head>}..HEAD で、PR に入っていないコミットが無いことを確かめる。"
+    say "  ..     無いときだけ git -C $WORKTREE reset --hard origin/$DEFAULT_BRANCH && git -C $WORKTREE push --force-with-lease origin $BRANCH"
   }
 fi
 

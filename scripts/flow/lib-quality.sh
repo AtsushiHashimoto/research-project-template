@@ -12,20 +12,27 @@
 # ★ `QUALITY_SCOPE=docs` はコード検査を丸ごと飛ばす
 #   （scripts/quality-check.sh の QUALITY_SCOPE=docs の分岐）。継承すると
 #   `QUALITY_SCOPE=docs bash scripts/flow/task-run.sh N` の 1 行で無害化される。
+# ★ 文書の段でも、差分にコード（scripts/・tests/・*.sh・*.py）があれば全部を検査する。
+#   git が失敗したら安全側（all）に倒す
 scope_for() {
-  case "$1" in
-    survey|spec|docs) printf 'docs';;
-    *)                printf 'all';;
-  esac
+  case "$1" in survey|spec|docs) ;; *) printf 'all'; return;; esac
+  local base mb files
+  base="$(start_point_or_empty)"; [ -n "$base" ] || { printf 'all'; return; }
+  mb="$(git merge-base "$base" HEAD 2>/dev/null)" || { printf 'all'; return; }
+  files="$(git diff --name-only "$mb" 2>/dev/null)" || { printf 'all'; return; }
+  files="$files
+$(git ls-files --others --exclude-standard 2>/dev/null)" || { printf 'all'; return; }
+  if [[ "$files" =~ (^|$'\n')(scripts/|tests/)|\.(sh|py)($|$'\n') ]]; then printf 'all'; else printf 'docs'; fi
 }
 
 # ★ 「直前に同じ内容で通った」かを見る述語。
-#   記録は `HEAD scope QUALITY_FULL_SCAN` の 3 つ。**3 つとも一致したときだけ省く**
+#   記録は `HEAD scope QUALITY_FULL_SCAN` と走らせた quality-check.sh の hash。**全部一致したときだけ省く**
 #   （全走査の指示で回した記録が無いのに、差分だけの記録で全走査を省かないため）。
 #   **判定はここ 1 箇所。** 呼び出し側（issue-finish.sh / commit.sh）は run_quality を呼ぶだけ。
 #   記録は .git/ の中に置く（worktree ごとに分かれ、git clean でも消えず、追跡対象にもならない）。
 quality_record_key() {  # quality_record_key <scope> → 記録する 1 行
-  printf '%s %s full=%s' "$(git rev-parse HEAD 2>/dev/null)" "$1" "${QUALITY_FULL_SCAN:-0}"
+  printf '%s %s full=%s qc=%s' "$(git rev-parse HEAD 2>/dev/null)" "$1" "${QUALITY_FULL_SCAN:-0}" \
+    "$(git hash-object "$QUALITY" 2>/dev/null)"
 }
 quality_record_matches() {  # quality_record_matches <scope>
   local scope="$1" f rec

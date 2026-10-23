@@ -33,6 +33,8 @@
 #   gh pr view --json body            → `## /review 結果` 付き本文。$GH_PR_NO_REVIEW=1 で見出しを消す。
 #                                        末尾に PR ごとの $GH_PR_CLOSES_<番号>、無ければ $GH_PR_CLOSES の行
 #                                        （既定 `Refs #901`）を足す（#715。番号を無視すると 1 本目だけ見る実装が素通りする）
+#   gh pr view --json headRefOid     → $GH_PR_HEAD_OID（既定は空）
+#   gh api …/commits/<sha>/pulls      → $GH_COMMIT_PR（既定 77。空なら PR 無し）
 #   GH_NOISE=1                        → すべての呼び出しで stderr に 1 行出す（本物の更新通知の再現）
 
 set -uo pipefail
@@ -238,7 +240,8 @@ if [ "$1" = pr ] && [ "$2" = list ]; then
   exit 0
 fi
 if [ "$1" = pr ] && [ "$2" = view ]; then
-  case "$*" in *"--json state"*) [ "${GH_PR_STATE:-open}" = merged ] && echo MERGED || echo OPEN; exit 0;; esac
+  case "$*" in *"--json state"*) [ "${GH_PR_STATE:-open}" = merged ] && echo MERGED || echo OPEN; exit 0;;
+    *"--json headRefOid"*) echo "${GH_PR_HEAD_OID-}"; exit 0;; esac
   if [ -n "${GH_PR_NO_REVIEW:-}" ]; then echo "## 変更概要"; else
     echo "## /review 結果"; echo ""; echo "| x | ok |"; fi
   printf '%s\n' "${GH_PR_CONFORM-$'## 仕様整合\n\n- goal 書き換え: なし\n- positive control: 砂場で検出できた\n- matched-engineering: 揃えた\n- 格付け: verified-negative'}"
@@ -256,6 +259,7 @@ if [ "$1" = api ]; then
         printf '%s\n' "$n"
       done < "$f"
       exit 0;;
+    *"/commits/"*"/pulls") echo "${GH_COMMIT_PR-77}"; exit 0;;   # 再入: コミットのマージ済み PR（jq 済みの形）
     *) echo "999888"; exit 0;;   # 内部 id
   esac
 fi
@@ -647,6 +651,11 @@ Refs #901" \
     && git merge -q --squash "spec/900-i901" && git commit -qm "squash 済み" \
     && git push -q origin main \
     && git checkout -q "spec/900-i901" ) >/dev/null 2>&1
+  git -C "$R" rev-parse HEAD > "$SANDBOX/rb-head"   # マージした PR の head（headRefOid）
+}
+rb_run() {  # rb_run <PR の head> → realign_branch の出力（第 3 引数を渡す）
+  ( cd "$SANDBOX/rb" && bash -c '. "$1/lib.sh"; realign_branch "$2" "$3" "$4"' _ \
+      "$FLOW" "$SANDBOX/rb" "spec/900-i901" "$1" 2>&1 )
 }
 
 # ★ **前提**: 合わせ直す前は、2 回目の squash merge が衝突する
@@ -663,8 +672,7 @@ else ok "★（前提）合わせ直さないと 2 回目の squash merge が衝
 
 # ★ 合わせ直すと衝突しない
 rb_setup
-out="$(cd "$SANDBOX/rb" && bash -c '. "$1/lib.sh"; realign_branch "$2" "$3"' _ \
-        "$FLOW" "$SANDBOX/rb" "spec/900-i901" 2>&1)"; rc=$?
+out="$(rb_run "$(cat "$SANDBOX/rb-head")")"; rc=$?
 if [ "$rc" -eq 0 ]; then ok "realign_branch が 0 で終わる"
 else ng "realign_branch が $rc で終わった: $(printf '%s' "$out" | tail -2)"; fi
 if [ "$(git -C "$SANDBOX/rb" rev-parse HEAD)" = "$(git -C "$SANDBOX/rb" rev-parse origin/main)" ]; then
@@ -686,8 +694,7 @@ else ng "合わせ直しても 2 回目の squash merge が衝突する"; fi
 rb_setup
 ( cd "$SANDBOX/rb" && echo dirty > dirty.txt ) >/dev/null 2>&1
 before="$(git -C "$SANDBOX/rb" rev-parse HEAD)"
-out="$(cd "$SANDBOX/rb" && bash -c '. "$1/lib.sh"; realign_branch "$2" "$3"' _ \
-        "$FLOW" "$SANDBOX/rb" "spec/900-i901" 2>&1)"; rc=$?
+out="$(rb_run "$(cat "$SANDBOX/rb-head")")"; rc=$?
 if [ "$rc" -ne 0 ] && [ "$(printf '%s' "$out" | grep -c '汚れている' || true)" -gt 0 ]; then
   ok "★ worktree が汚れていたら触らない（理由も出す）"
 else ng "汚れているのに触った（rc=$rc）"; fi
@@ -701,13 +708,28 @@ rb_setup
 
 Refs #902" ) >/dev/null 2>&1
 before="$(git -C "$SANDBOX/rb" rev-parse HEAD)"
-out="$(cd "$SANDBOX/rb" && bash -c '. "$1/lib.sh"; realign_branch "$2" "$3"' _ \
-        "$FLOW" "$SANDBOX/rb" "spec/900-i901" 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && [ "$(printf '%s' "$out" | grep -c '違う内容が残っている' || true)" -gt 0 ]; then
-  ok "★ origin/main と違う内容が残っていたら触らない（マージしていない変更を消さない）"
+out="$(rb_run "$(cat "$SANDBOX/rb-head")")"; rc=$?
+if [ "$rc" -ne 0 ] && [ "$(printf '%s' "$out" | grep -c '入っていないコミットが残っている' || true)" -gt 0 ]; then
+  ok "★ 枝の先頭が PR の head と違えば触らない（マージしていないコミットを消さない）"
 else ng "未マージの変更があるのに触った（rc=$rc）"; fi
 if [ "$(git -C "$SANDBOX/rb" rev-parse HEAD)" = "$before" ]; then ok "→ 枝はそのまま"
 else ng "枝を動かしてしまった"; fi
+
+# ★ PR の head を取れなければ触らない
+rb_setup
+out="$(rb_run "")"; rc=$?
+if [ "$rc" -ne 0 ] && [ "$(git -C "$SANDBOX/rb" rev-parse HEAD)" = "$(cat "$SANDBOX/rb-head")" ]; then
+  ok "★ PR の head が空なら触らない"
+else ng "PR の head が無いのに触った（rc=$rc）"; fi
+
+# ★ 既定ブランチが他の PR で進んでいても（内容が違っても）、head が一致すれば合わせる
+rb_setup
+( cd "$SANDBOX/rb" && git checkout -q main && echo other > other.txt && git add other.txt \
+  && git commit -qm "他の PR" && git push -q origin main && git checkout -q "spec/900-i901" ) >/dev/null 2>&1
+out="$(rb_run "$(cat "$SANDBOX/rb-head")")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$(git -C "$SANDBOX/rb" rev-parse HEAD)" = "$(git -C "$SANDBOX/rb" rev-parse origin/main)" ]; then
+  ok "★ main が進んでいても、枝の先頭が PR の head なら合わせ直す"
+else ng "main が進んだだけで合わせ直さなかった（rc=$rc）: $(printf '%s' "$out" | tail -1)"; fi
 
 # ══════════════════════════════════════════════════════════════════
 # §7-6 issue-finish.sh
@@ -769,6 +791,13 @@ else ng "worktree パスを渡してしまった（次の段が続けられな�
 if [ "$(printf '%s' "$LAST_OUT" | grep -cF '枝を既定ブランチに合わせ直す' || true)" -gt 0 ]; then
   ok "★ 枝を残すときは段 9b（枝の合わせ直し）を通る（#565）"
 else ng "段 9b を通っていない（次の子で squash merge が衝突する）"; fi
+# ★ 段 9b はマージした PR の head（headRefOid）を渡し、合わないなら先に差分を見せる案内を出す
+prepare_finish
+GH_PR_HEAD_OID=deadbeefcafe0000 fin 0 "PR の head が枝の先頭と違う → 合わせ直さずに 0 で終わる"
+if [ "$(n_out 'head deadbeef')" -gt 0 ] && [ "$(n_out 'diff origin/main HEAD --stat')" -gt 0 ] \
+   && [ "$(n_out 'log --oneline deadbeefcafe0000\.\.HEAD')" -gt 0 ]; then
+  ok "★ 段 9b は PR の head で判定し、手で直す前に diff --stat と log <head>..HEAD を見せる"
+else ng "段 9b が PR の head を使っていない、または手で直す案内が差分の確認から始まらない"; fi
 # ★ 最後の子なら worktree パスを**渡す**（#N 自身は数に入れない）
 prepare_finish
 fixture "${DEFAULT_FIXTURE//902:feature:OPEN/902:feature:CLOSED}"
@@ -936,12 +965,18 @@ if has_call "merge args"; then ok "→ \$MERGE_CMD は呼ばれている（呼�
 else ng "\$MERGE_CMD を呼んでいない"; fi
 rm -f "$SANDBOX/merge_rc"
 
-# ★ 再入（main で実行。worktree もブランチも消えた後）
-prepare_finish
-( cd "$SANDBOX/repo" && git merge --squash --no-commit "spec/900-i901" >/dev/null 2>&1
-  git -C "$SANDBOX/repo" commit -qm "merged
+# ★ 再入（main で実行。worktree もブランチも消えた後）。spec 段の成果物（判断ログ）も main に入れる
+reentry_prepare() {
+  prepare_finish
+  ( cd "$SANDBOX/repo" && git merge --squash --no-commit "spec/900-i901" >/dev/null 2>&1
+    printf 'Issue #901\n停止条件: 該当なし\n' > "$SANDBOX/repo/.spec/issues/901-auto-decisions.md"
+    git -C "$SANDBOX/repo" add .spec/issues/901-auto-decisions.md
+    git -C "$SANDBOX/repo" commit -qm "merged
 
 Refs #901" && git -C "$SANDBOX/repo" update-ref refs/remotes/origin/main HEAD ) >/dev/null
+  : > "$SANDBOX/gh.log"
+}
+reentry_prepare
 flow 0 "再入（main で実行・作業は main に入っている）→ 0 で close する" issue-finish.sh 901 900
 assert_task_next "親 task あり（再入経路）"
 if has_call "merge args"; then ng "再入でマージを呼んでいる"
@@ -951,6 +986,21 @@ else ng "close していない"; fi
 if [ "$(grep -cF '削除した' "$SANDBOX/gh-body.log" 2>/dev/null || true)" -eq 0 ]; then ok "再入の完了コメントに「削除した」と書かない（実際には消していない）"
 else ng "再入なのに worktree を削除したと記録している"; fi
 flow 1 "main で実行・作業が main に入っていない → 非ゼロ（issue-start を促す）" issue-finish.sh 902 900
+# ★ 再入でもマージ済みの PR の /review・仕様整合を見る（マージの確認だけで close しない）
+reentry_prepare
+GH_COMMIT_PR="" flow 1 "再入: #901 のコミットにマージ済みの PR が無い → 止まる" issue-finish.sh 901 900
+if [ "$(n_out 'マージ済みの PR が無い')" -gt 0 ] && [ "$(grep -cF 'close 901' "$SANDBOX/gh.log" || true)" -eq 0 ]; then
+  ok "★ 再入: PR を通らずに入った作業は close しない（理由を出す）"
+else ng "再入: PR が無いのに close した、または理由が無い"; fi
+reentry_prepare
+GH_PR_NO_REVIEW=1 flow 1 "再入: マージ済みの PR に /review 結果が無い → 止まる" issue-finish.sh 901 900
+if [ "$(n_out '/review 結果')" -gt 0 ] && [ "$(grep -cF 'close 901' "$SANDBOX/gh.log" || true)" -eq 0 ]; then
+  ok "★ 再入: /review の無い PR では close しない"
+else ng "再入: /review の無い PR で close した"; fi
+reentry_prepare
+GH_PR_CONFORM="" flow 1 "再入: マージ済みの PR に仕様整合が無い → 止まる" issue-finish.sh 901 900
+if [ "$(grep -cF 'close 901' "$SANDBOX/gh.log" || true)" -eq 0 ]; then ok "★ 再入: 仕様整合の無い PR では close しない"
+else ng "再入: 仕様整合の無い PR で close した"; fi
 
 # ══════════════════════════════════════════════════════════════════
 # #668 V2: 親 task を持たない issue（910 bug）と、その小タスク（911。親 910 は通常の issue）
