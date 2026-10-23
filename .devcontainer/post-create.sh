@@ -73,6 +73,30 @@ if ! bash .devcontainer/install-claude-native.sh; then
   claude_fail=1
 fi
 
+# PATH 上で実際に起動する claude の版を確かめる
+#   導入が「ok」でも、PATH の先に古い npm 版などが居ると古い claude が起動する（下流で実際に起きた）。
+#   下限は install-claude-native.sh の MIN_VERSION_DEFAULT から読む（書き写すと上げたときに古いまま緑になる）。
+#   行全体の形を検証し、崩れていたら空になって下で明示的に落ちる。パイプと早期終了する読み手は使わない。
+claude_min=$(awk -F= '/^MIN_VERSION_DEFAULT=[0-9.]+$/{print $2; exit}' .devcontainer/install-claude-native.sh)
+if [ -z "$claude_min" ]; then
+  echo "[post-create:claude-path] FAIL: install-claude-native.sh から下限を読めなかった（MIN_VERSION_DEFAULT の行が変わった？）" >&2
+  claude_fail=1
+elif resolved=$(command -v claude 2>/dev/null); then
+  rv=$("$resolved" --version 2>&1 | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+  if [ -z "$rv" ]; then
+    echo "[post-create:claude-path] WARN: PATH 上の $resolved の版を読めなかった" >&2
+  elif [ "$(printf '%s\n%s\n' "$claude_min" "$rv" | sort -V | sed -n '1p')" != "$claude_min" ]; then
+    echo "[post-create:claude-path] FAIL: PATH 上の claude は $resolved の $rv で、下限 $claude_min 未満" >&2
+    echo "[post-create:claude-path] PATH の先頭に ~/.local/bin があるか、古い npm 版が残っていないかを見ること（sudo npm -g uninstall @anthropic-ai/claude-code）" >&2
+    claude_fail=1
+  else
+    echo "[post-create:claude-path] ok (PATH 上の claude は $resolved の $rv)"
+  fi
+else
+  echo "[post-create:claude-path] FAIL: PATH 上に claude が無い" >&2
+  claude_fail=1
+fi
+
 # --- [Project] プロジェクト固有の post-create 処理は、この行より下・下の claude_fail 判定より上に追記 ---
 
 # claude 導入の失敗を最後に明示する（まとめは EXIT trap が出す）

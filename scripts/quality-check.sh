@@ -529,6 +529,18 @@ else
   run_check "claude native 導入の回帰テスト" bash tests/test_install_claude_native.sh --quiet
 fi
 
+# post-create.sh が PATH 上で実際に起動する claude の版を確かめること
+#   偽の claude を PATH に置いて判定を確かめる。1 秒程度。関係するファイルが変わったときだけ走らせる。
+if [ "$SCOPE" = "docs" ]; then
+  skip "claude の版の検査（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_devcontainer_claude_path.sh ]; then
+  skip "claude の版の検査（tests/test_devcontainer_claude_path.sh が無い）"
+elif ! changed_any '^(\.devcontainer/(post-create|install-claude-native)\.sh|tests/test_devcontainer_claude_path\.sh)$'; then
+  skip "claude の版の検査（関係するファイルの変更なし vs ${BASE_REF:-?}）"
+else
+  run_check "claude の版の検査" bash tests/test_devcontainer_claude_path.sh --quiet
+fi
+
 # devcontainer の PID 1 が init（tini）であること（由来: delta-clip-dev #165）
 #   PID 1 が sleep のままだと孤児プロセスを reap できず、shutdownAction: none と
 #   相まってゾンビが際限なく溜まる（実測: 連続稼働 5 日で 246 プロセス中 217 ゾンビ、
