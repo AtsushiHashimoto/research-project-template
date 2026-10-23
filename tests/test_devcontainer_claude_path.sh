@@ -52,12 +52,13 @@ expect "下限 $min を書き写していない" "$(grep -cF "$min" <<<"$BLOCK")
 
 # 偽の claude を PATH の先頭に置いてブロックを実行し、claude_fail を返す
 TMPD=$(mktemp -d)
+BASE_PATH=$PATH   # 偽の claude を前に足すときの元の PATH（変更は各サブシェルの中だけ）
 trap 'rm -rf "$TMPD"' EXIT
 run_block() {
   mkdir -p "$TMPD/bin"
   printf '#!/bin/sh\necho "%s (Claude Code)"\n' "$1" > "$TMPD/bin/claude"
   chmod +x "$TMPD/bin/claude"
-  (PATH="$TMPD/bin:$PATH"; claude_fail=0; eval "$BLOCK" >/dev/null 2>&1; echo "$claude_fail")
+  (PATH="$TMPD/bin:$BASE_PATH"; claude_fail=0; eval "$BLOCK" >/dev/null 2>&1; echo "$claude_fail")
 }
 older=0.0.0   # 下限が x.y.0 でも常に下限未満（1 を引くと x.y.-1 になり読めない）
 newer=$(awk -F. '{printf "%d.%d.%d", $1, $2, $3 + 1}' <<<"$min")
@@ -78,6 +79,6 @@ fi
 mkdir -p "$TMPD/repo/.devcontainer"
 echo 'MIN_VERSION_DEFAULT="2.1.280"' > "$TMPD/repo/.devcontainer/install-claude-native.sh"
 expect "下限を読めないとき FAIL にする" \
-  "$(cd "$TMPD/repo" && PATH="$TMPD/bin:$PATH" && claude_fail=0 && eval "$BLOCK" >/dev/null 2>&1; echo "$claude_fail")" 1
+  "$(cd "$TMPD/repo" && PATH="$TMPD/bin:$BASE_PATH" && claude_fail=0 && eval "$BLOCK" >/dev/null 2>&1; echo "$claude_fail")" 1
 
 finish
