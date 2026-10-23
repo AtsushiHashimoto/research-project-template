@@ -256,9 +256,11 @@ kind_of() {
   printf ''
 }
 
-# ── 品質チェック（lib-quality.sh）────────────────────────────────
+# ── 品質チェック（lib-quality.sh）と判断ゲートの停止（lib-gate.sh）──────
 # shellcheck source=scripts/flow/lib-quality.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-quality.sh"
+# shellcheck source=scripts/flow/lib-gate.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-gate.sh"
 
 # ★ **マージは済んでいる**ことを必ず言ってから抜ける。
 #   `next_fail` は使えない。末尾に「もう一度同じ引数で呼ぶこと」を必ず付けるが、
@@ -272,15 +274,6 @@ post_merge_fail() {  # post_merge_fail <何が失敗したか> [<後片付けの
     for line in "$@"; do printf '     %s\n' "$line"; done
   } >&2
   exit "$POST_MERGE_FAILED"
-}
-
-# ★ `check merge` が落ちたときの案内。**2 箇所に書くと内容がずれる**
-merge_check_hints() {  # merge_check_hints <N> <TASK>
-  printf '%s\n' \
-    "  1. ブランチ <type>/$2-* に居ること" \
-    "  2. 'Refs #$1' を持つコミットがあること" \
-    "  3. PR があり、本文に '## /review 結果' とその中身があること" \
-    "     （/review を回し、各サブエージェントの判定を書く。要約で済ませない）"
 }
 
 check() { bash "$CHECK" "$@"; }

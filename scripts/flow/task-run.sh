@@ -26,6 +26,13 @@ if [ "$(issue_state "$TASK")" = "CLOSED" ]; then
     "次の task は /epic-cycle で選ぶ（ここでは作らない）。"
 fi
 
+# ── 0b. goal の検査（★ 毎回呼ぶ。各 issue の後の再照合＝未確定の解消の確認もこれが兼ねる）──
+grc=0; gout="$(check goal "$TASK" 2>&1)" || grc=$?
+printf '%s\n' "$gout"
+[ "$grc" = 0 ] || gate_stop "$TASK" \
+  "task #$TASK の goal が判定できる形になっていない（空欄・goal の中身の判定・未確定の担当・解消の記録のどれか）" \
+  "$gout" "bash scripts/flow/task-run.sh $TASK" "$(goal_gate_launch "$TASK")" ""
+
 # ── 1. 子 issue を既定順に並べる ─────────────────────────────────
 kids="$(sub_issues "$TASK")"
 [ -n "$kids" ] || die "#$TASK に子 issue が無い。/task-start で作ること"
@@ -95,17 +102,21 @@ if [ -z "$current" ] && [ "${#skipped[@]}" -gt 0 ]; then
     "  - ★ ラベルを外さずに task を閉じない（完了判定は全ての子が closed になってから）"
 fi
 if [ -z "$current" ]; then
-  head2 "全ての子 issue が closed"
+  head2 "全ての子 issue が closed。task の判定の形を検査する"
+  vrc=0; vout="$(check verdict-task "$TASK" 2>&1)" || vrc=$?
+  printf '%s\n' "$vout"
+  [ "$vrc" = 0 ] || gate_stop "$TASK" \
+    "task #$TASK を閉じる前の判定コメント（結果: の行と、成功条件の 1 項目ずつの引用）が揃っていない" \
+    "$vout" "bash scripts/flow/task-run.sh $TASK" \
+    "  task の完了判定を行い、gh issue comment $TASK で『## 判定』の見出しのコメントに書く:" \
+    "    1. 本文の「目標の状態」の成功条件を 1 項目ずつ引用して照合する（未充足が 1 つでもあれば達成としない）" \
+    "    2. 「negative の意味」と「未確定」節に残る項目も照合する" \
+    "    3. 結果を 1 行: 結果: positive | 結果: negative | 結果: 未達成" \
+    "  ★ goal を書き換えて「達成」にしない。goal を小さく読んで「達成」にしない。" ""
   next_final \
-    "task #$TASK の完了判定を行う。" \
+    "task #$TASK の判定は記録されている（結果: の行と成功条件の引用がある）。" \
     "" \
-    "  1. 本文の「目標の状態」の**成功条件を 1 項目ずつ照合する**" \
-    "     （未充足が 1 つでもあれば「達成」としない）" \
-    "  2. 「negative の意味」も照合対象に含める" \
-    "  3. 「未確定」節に残る項目を 1 つずつ照合する" \
-    "  4. 結果を gh issue comment で #$TASK に記録し、達成なら close する" \
-    "" \
-    "★ goal を書き換えて「達成」にしない。goal を小さく読んで「達成」にしない。" \
+    "  1. gh issue close $TASK で task を閉じる" \
     "★ 次の task は**ここでは作らない**（結果駆動の task 生成は epic-cycle が統括する）。" \
     "" \
     "$(handoff_steps "$TASK")"
@@ -125,6 +136,9 @@ if check issue "$current" "$kind" "$TASK"; then
     "  1. /issue-report で進捗を #$current に記録する" \
     "  2. spec 段なら .spec/issues/$current-*.md の「ステータス:」を completed にする" \
     "  3. /review を回し、結果を PR 本文の「## /review 結果」に書く" \
+    "  3b. verification のサブエージェントに仕様整合を照合させ、PR 本文の「## 仕様整合」に貼る" \
+    "      （起動文に task #$TASK の goal と bash scripts/read-premises.sh $TASK の出力を原文で貼る。" \
+    "       節に書く行は issue-finish.sh が止まったときにも出る: - goal 書き換え: なし ほか）" \
     "  4. git add <ファイル名> で入れるものを**名前で** stage し、" \
     "     bash scripts/flow/commit.sh push --issue $current --message <題>" \
     "     gh pr create で PR を作る（本文に 'Refs #$current'。Closes は書かない。close は issue-finish.sh が行う）" \
@@ -154,6 +168,8 @@ case "$kind" in
       "     .spec/issues/$current-auto-decisions.md を書き出させる" \
       "     **本文に 'Issue #$current' と '停止条件' を含めること**" \
       "     モデルは bash scripts/resolve-model.sh abstract-review で解決する" \
+      "     起動文に前提 bash scripts/read-premises.sh $TASK の出力を原文で貼る" \
+      "     判断ログの停止条件の行は「停止条件: 該当なし」の形（該当したら S1〜S8 の欠落を書く）" \
       "  4. 停止条件に該当したら**進まずに報告する**" ;;
   *)
     next_fail \

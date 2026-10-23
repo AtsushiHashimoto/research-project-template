@@ -140,7 +140,7 @@ do_merge() {
   say "  ..   マージ直前の検査は issue-finish.sh 経由なら 2 回目（単独で叩けるよう commit.sh 側でも見る）"
 
   # ── 段 2. マージ直前の検査（★ 品質チェックより先。規律違反に品質チェックの時間を払わせない）──
-  check merge "$N" "$TASK" || next_fail \
+  check merge "$N" "$kind" "$TASK" || next_fail \
     "#$N: マージ直前の検査が通らない（上の FAILED を見ること）。" \
     "" \
     "$(merge_check_hints "$N" "$TASK")"

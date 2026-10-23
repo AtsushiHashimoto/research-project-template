@@ -33,7 +33,24 @@ check_auto_decisions() {
     body="$(cat "$f")"
     [[ "$body" =~ Issue[[:space:]]*\#$n([^0-9]|$) ]] || continue
     [[ "$body" == *停止条件* ]] || continue
-    pass "auto-reviewer の判断ログ ($f)"; return 0
+    # ★ 停止条件（S1〜S8 の具体的な欠落）に当たっていたら進めない。
+    #   「停止条件: …」の行が 1 本以上あり、**すべて**「該当なし」であること
+    local line n_lines=0 hit=""
+    while IFS= read -r line; do
+      [[ "$line" =~ 停止条件[^:：]*[:：][[:space:]]*(.*)$ ]] || continue
+      n_lines=$((n_lines + 1))
+      [[ "${BASH_REMATCH[1]}" =~ ^[*\`[:space:]]*該当なし ]] || hit="$hit
+     $line"
+    done <<< "$body"
+    if [ "$n_lines" = 0 ]; then
+      fail "判断ログ $f に「停止条件: 該当なし」の形の行が無い（auto-reviewer が停止条件を判定していない）
+     書く行: 停止条件: 該当なし（S1〜S8 のどれにも当たらないときだけ）"
+    elif [ -n "$hit" ]; then
+      fail "判断ログ $f が停止条件に該当している（仕様の欠落。進まずにユーザーへ報告する）:$hit"
+    else
+      pass "auto-reviewer の判断ログ ($f。停止条件: 該当なし)"
+    fi
+    return 0
   done
   fail "判断ログ: .spec/issues/$n-auto-decisions*.md が無い / 空 / 'Issue #$n' または '停止条件' を含まない"
 }
@@ -77,6 +94,19 @@ check_commit_link() {
   else
     fail "コミット: 'Refs #$n' / 'Fixes #$n' を持ちファイル変更を伴うコミットが $base..HEAD に無い"
   fi
+}
+
+# 4''. Closes #N のコミットを止める（GitHub が squash の時点で閉じ、issue-finish.sh の
+#   完了コメントが付かない。close は issue-finish.sh だけが行う）
+check_no_closes() {
+  local n="$1" base sha
+  base="$(resolve_base)" || { fail "Closes: base ref を解決できない"; return 1; }
+  sha="$(git log "$base"..HEAD --format='%h' --extended-regexp --regexp-ignore-case -n 1 \
+          --grep="(^|[^a-z])close[sd]?:?[[:space:]]*#${n}([^0-9]|\$)" 2>/dev/null || true)"
+  if [ -z "$sha" ]; then pass "Closes #$n のコミットが無い"; return 0; fi
+  fail "コミット $sha が 'Closes #$n' を持つ（squash で GitHub が先に閉じ、完了コメントが付かない）
+     直し方: git commit --amend（または git rebase で該当コミットの本文を直す）で
+     書く行: Refs #$n"
 }
 
 # マージ済みのコミットに紐づいているか（closed の feature/validation 等）

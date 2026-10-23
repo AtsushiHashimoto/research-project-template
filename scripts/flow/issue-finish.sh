@@ -76,10 +76,10 @@ if [[ "$BRANCH" =~ ^($PROTECTED_BRANCHES)$ ]]; then
 fi
 
 # ── 段 2. マージ直前の検査（★ 品質チェックより先。述語は check-discipline.sh が単一情報源）──
-check merge "$N" "$TASK" || next_fail \
-  "#$N: マージ直前の検査が通らない（上の FAILED を見ること）。" \
-  "" \
-  "$(merge_check_hints "$N" "$TASK")"
+mrc=0; mout="$(check merge "$N" "$kind" "$TASK" 2>&1)" || mrc=$?
+printf '%s\n' "$mout"
+[ "$mrc" = 0 ] || gate_stop "$TASK" "#$N [$kind] のマージ直前の検査（ブランチ・Refs・/review・仕様整合）が通らない" \
+  "$mout" "bash scripts/flow/issue-finish.sh $N $TASK" "$(merge_check_hints "$N" "$TASK")" ""
 
 # ── 段 3. 未回答の QA ─────────────────────────────────────────
 head2 "未回答の QA"

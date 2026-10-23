@@ -48,6 +48,7 @@ count_in_code() {
 SANDBOX="$(mktemp -d)" || { echo "mktemp -d が失敗した" >&2; exit 1; }
 [ -n "$SANDBOX" ] && [ -d "$SANDBOX" ] || { echo "砂場を作れない" >&2; exit 1; }
 export SB="$SANDBOX"
+export FAKE_GH="$REPO_ROOT/tests/lib/fake_gh.py" FAKE_GH_DIR="$SANDBOX/gh" FAKE_GH_ROWS="$SANDBOX/issues.txt"
 trap 'rm -rf "${SANDBOX:?}"' EXIT
 mkdir -p "${SANDBOX:?}/bin"
 
@@ -133,6 +134,10 @@ check_filter 0 "★ set -e が無ければ対象外のまま（拡張が恒真�
 make_gh() {
   cat > "$SANDBOX/bin/gh" <<'STUB'
 #!/usr/bin/env bash
+# ★ §4 のゲートが使う呼び出し（本文・コメント・lastEditedAt・コメントの追加）は
+#   issue ごとの状態を持つ tests/lib/fake_gh.py に回す
+case "$*" in "issue view "*" --json body,comments,createdAt"*|"api graphql"*) exec python3 -B "$FAKE_GH" "$@";; esac
+if [ "$1 $2" = "issue comment" ]; then python3 -B "$FAKE_GH" "$@" || exit 1; fi
 f="$SB/issues.txt"
 row() { grep -E "^$1:" "$f" || true; }
 case "$1 $2" in
@@ -163,6 +168,7 @@ fi
 if [ "$1" = pr ] && [ "$2" = view ]; then
   if [ -n "${GH_PR_NO_REVIEW:-}" ]; then echo "## 変更概要"; else
     echo "## /review 結果"; echo ""; echo "| x | ok |"; fi
+  printf '%s\n' "${GH_PR_CONFORM-$'## 仕様整合\n\n- goal 書き換え: なし\n- positive control: 砂場で検出できた\n- matched-engineering: 揃えた\n- 格付け: verified-negative'}"
   exit 0
 fi
 if [ "$1" = pr ] && [ "$2" = merge ]; then
@@ -207,7 +213,7 @@ setup_sandbox() {
   local R="$SANDBOX/repo"
   rm -rf "$R"; mkdir -p "$R/scripts/flow"
   cp "$FLOW"/*.sh "$R/scripts/flow/"
-  cp "$REPO_ROOT/scripts/check-discipline.sh" "$REPO_ROOT/scripts/check-discipline-predicates.sh" \
+  cp "$REPO_ROOT/scripts/check-discipline.sh" "$REPO_ROOT/scripts/check-discipline-predicates.sh" "$REPO_ROOT/scripts/check-discipline-gates.py" "$REPO_ROOT/scripts/check_discipline_md.py" \
      "$REPO_ROOT/scripts/worktree-relative.sh" "$R/scripts/"
   # 偽の品質チェック（本物は readonly で差し替え不可なので、コピーで置き換える）
   cat > "$R/scripts/quality-check.sh" <<'SH'

@@ -103,18 +103,20 @@ check epic "$EPIC" || die "epic の計数が失敗した"
 
 # ★ 達成判定コメントがあるなら、完了条件との照合をここで掛ける
 head2 "達成判定の照合"
-if check verdict "$EPIC"; then
+vrc=0; vout="$(check verdict "$EPIC" 2>&1)" || vrc=$?
+printf '%s\n' "$vout"
+if [ "$vrc" = 0 ]; then
   say "  ok   達成判定コメントが完了条件を 1 項目ずつ引用している"
 else
-  next_fail \
-    "epic #$EPIC の達成判定コメントが揃っていない（上の FAILED を見ること）。" \
-    "" \
-    "  gh issue comment $EPIC で次を含むコメントを書く:" \
-    "    ★ '## 判定' の見出し" \
+  gate_stop "$EPIC" "epic #$EPIC の達成判定コメント（完了条件の引用・全部 negative のときの確認）が揃っていない" \
+    "$vout" "bash scripts/flow/epic-cycle.sh $EPIC" \
+    "  gh issue comment $EPIC で『## 判定』の見出しのコメントを書く:" \
     "    ★ **完了条件を 1 項目ずつ引用**（チェックボックスを除いた本文をそのまま）" \
-    "" \
+    "    ★ 閉じた task の結果がすべて negative なら『## 全部 negative の確認』節を足し、" \
+    "      効くはずの状況で検出できること（positive control）を確かめ直した記述を書く" \
+    "      （全部 negative は、まず検出力の不足か実装の誤りを疑う）" \
     "★ 次の task が必要なら、判定の前に /task-start で作ること" \
-    "  （結果駆動。投機禁止。2 周目以降も survey を skip しない）。"
+    "  （結果駆動。投機禁止。2 周目以降も survey を skip しない）。" ""
 fi
 
 next_final \

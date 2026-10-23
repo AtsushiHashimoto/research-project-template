@@ -64,6 +64,7 @@ count_in_code() {  # count_in_code <ファイル> <ERE>
 SANDBOX="$(mktemp -d)" || { echo "mktemp -d が失敗した" >&2; exit 1; }
 [ -n "$SANDBOX" ] && [ -d "$SANDBOX" ] || { echo "砂場を作れない" >&2; exit 1; }
 export SB="$SANDBOX"
+export FAKE_GH="$REPO_ROOT/tests/lib/fake_gh.py" FAKE_GH_DIR="$SANDBOX/gh" FAKE_GH_ROWS="$SANDBOX/issues.txt"
 trap 'rm -rf "${SANDBOX:?}"' EXIT
 mkdir -p "${SANDBOX:?}/bin"
 
@@ -168,6 +169,10 @@ else ng "表に無い種類に接頭辞を返している"; fi
 make_gh() {
   cat > "$SANDBOX/bin/gh" <<'STUB'
 #!/usr/bin/env bash
+# ★ §4 のゲートが使う呼び出し（本文・コメント・lastEditedAt・コメントの追加）は
+#   issue ごとの状態を持つ tests/lib/fake_gh.py に回す
+case "$*" in "issue view "*" --json body,comments,createdAt"*|"api graphql"*) exec python3 -B "$FAKE_GH" "$@";; esac
+if [ "$1 $2" = "issue comment" ]; then python3 -B "$FAKE_GH" "$@" || exit 1; fi
 # 偽の gh。$SB/issues.txt を引く。行の形: 番号:ラベル列:状態:題名:parent=<番号|空>
 f="$SB/issues.txt"
 row() { grep -E "^$1:" "$f" || true; }
@@ -214,6 +219,7 @@ fi
 if [ "$1" = pr ] && [ "$2" = view ]; then
   if [ -n "${GH_PR_NO_REVIEW:-}" ]; then echo "## 変更概要"; else
     echo "## /review 結果"; echo ""; echo "| x | ok |"; fi
+  printf '%s\n' "${GH_PR_CONFORM-$'## 仕様整合\n\n- goal 書き換え: なし\n- positive control: 砂場で検出できた\n- matched-engineering: 揃えた\n- 格付け: verified-negative'}"
   v="GH_PR_CLOSES_${3:-}"; v="${v//[^A-Za-z0-9_]/_}"; echo "${!v-${GH_PR_CLOSES-Refs #901}}"
   exit 0
 fi
@@ -236,7 +242,7 @@ STUB
   chmod +x "$SANDBOX/bin/gh"
 }
 
-fixture() { printf '%s' "$1" > "$SANDBOX/issues.txt"; }
+fixture() { rm -rf "${FAKE_GH_DIR:?}"; printf '%s' "$1" > "$SANDBOX/issues.txt"; }
 
 # 既定の fixture:
 #   800 epic / 801 sub-epic(親 800) / 900 task(親 800)
@@ -254,7 +260,7 @@ setup_sandbox() {
   local R="$SANDBOX/repo"
   rm -rf "$R"; mkdir -p "$R/scripts/flow" "$R/.spec/issues" "$R/data/shared"
   cp "$FLOW"/*.sh "$R/scripts/flow/"
-  cp "$REPO_ROOT/scripts/check-discipline.sh" "$REPO_ROOT/scripts/check-discipline-predicates.sh" "$R/scripts/"
+  cp "$REPO_ROOT/scripts/check-discipline.sh" "$REPO_ROOT/scripts/check-discipline-predicates.sh" "$REPO_ROOT/scripts/check-discipline-gates.py" "$REPO_ROOT/scripts/check_discipline_md.py" "$R/scripts/"
   # ★ worktree の作成はこれを通す（偽物を置かない。実物で動かす）
   cp "$REPO_ROOT/scripts/worktree-relative.sh" "$R/scripts/"
   # ★ 偽物: 呼ばれたことと渡された worktree を記録する（実物は agent-skills.py 等を走らせる）
@@ -772,7 +778,7 @@ else ng "QA の置き場所が残っている"; fi
 fin 0 "QA の置き場所が無くても落ちない（恒偽でない）"
 
 prepare_finish; rm -f "$WT/.spec/issues/901-x.md"
-printf 'Issue #901\n停止条件: なし\n' > "$WT/.spec/issues/901-auto-decisions.md"
+printf 'Issue #901\n停止条件: 該当なし\n' > "$WT/.spec/issues/901-auto-decisions.md"
 ( cd "$WT" && git add -A && git commit -qm "auto-decisions only
 
 Refs #901" ) >/dev/null

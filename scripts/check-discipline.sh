@@ -4,10 +4,12 @@
 #
 #   check-discipline.sh issue     <N> <kind> [TASK]  いまの段
 #   check-discipline.sh artifacts <N> <kind>         closed の先行段（成果物だけ）
-#   check-discipline.sh merge     <N> [TASK]         マージ直前
+#   check-discipline.sh merge     <N> <kind> [TASK]  マージ直前（PR 本文の ## 仕様整合 を含む）
+#   check-discipline.sh goal      <TASK>             goal の空欄・判定・未確定の担当と再照合
+#   check-discipline.sh verdict-task <TASK>          task を閉じる前の判定コメントの形
 #   check-discipline.sh merged    <N>                #N の作業が既に main に入っているか
 #   check-discipline.sh epic      <EPIC>             issue に紐づかないコミットを数える
-#   check-discipline.sh verdict   <EPIC>             達成判定コメントと完了条件の照合
+#   check-discipline.sh verdict   <EPIC>             達成判定コメントと完了条件の照合（全部 negative の確認を含む）
 #
 # 終了コード: 0 全て PASS / 1 いずれか FAIL / 2 使い方の誤り
 #
@@ -103,12 +105,27 @@ mode_merged() {
 }
 
 mode_merge() {
-  local n="$1" branch_n="${2:-}"
+  local n="$1" kind="$2" branch_n="${3:-}"
   [ -n "$branch_n" ] || branch_n="$n"
-  info "マージ直前の検査 (#$n。ブランチは #$branch_n で見る)"
+  info "マージ直前の検査 (#$n [$kind]。ブランチは #$branch_n で見る)"
   check_branch "$branch_n"
   check_commit_link "$n"
+  check_no_closes "$n"
   check_pr_review
+  gates conformance "$n" "$kind"
+}
+
+# markdown を読むゲート（goal・判定の形・仕様整合・全部 negative）は python 側が単一情報源。
+# ★ 終了コード 2（gh・git の失敗）を FAIL と区別して出す
+gates() {
+  local rc=0
+  python3 -B "$(dirname "${BASH_SOURCE[0]}")/check-discipline-gates.py" "$@" || rc=$?
+  RAN_ANY=1
+  case "$rc" in
+    0) ;;
+    1) FAILED=1;;
+    *) FAILED=1; printf '!!! FAILED: %s の検査そのものが失敗した（exit %s。上の出力を見ること）\n' "$1" "$rc";;
+  esac
 }
 
 # ★ 「この epic に紐づかない」ではなく「**どの issue にも紐づかない**」を数える。
@@ -166,6 +183,7 @@ mode_verdict() {
         sub(/^(-[[:space:]]*\[[ xX]\]|[0-9]+\.)[[:space:]]*/, ""); if (length($0)) print }')
   # ★ 0 項目は「照合できない」。通さない
   [ "$n_items" -gt 0 ] || fail "verdict: #$epic の完了条件が 0 項目（照合できないので通さない）"
+  gates all-negative "$epic"
 }
 
 # ══════════════════════════════════════════════════════════════════
@@ -174,7 +192,9 @@ mode_verdict() {
 case "$1" in
   artifacts) [ $# -eq 3 ] || usage; mode_artifacts "$2" "$3";;
   issue)     [ $# -ge 3 ] && [ $# -le 4 ] || usage; mode_issue "$2" "$3" "${4:-}";;
-  merge)     [ $# -ge 2 ] && [ $# -le 3 ] || usage; mode_merge "$2" "${3:-}";;
+  merge)     [ $# -ge 3 ] && [ $# -le 4 ] || usage; mode_merge "$2" "$3" "${4:-}";;
+  goal)      [ $# -eq 2 ] || usage; info "goal の検査 (task #$2)"; gates goal "$2";;
+  verdict-task) [ $# -eq 2 ] || usage; info "task の判定の形 (task #$2)"; gates verdict-task "$2";;
   merged)    [ $# -eq 2 ] || usage; mode_merged "$2";;
   epic)      [ $# -eq 2 ] || usage; mode_epic "$2";;
   verdict)   [ $# -eq 2 ] || usage; mode_verdict "$2";;

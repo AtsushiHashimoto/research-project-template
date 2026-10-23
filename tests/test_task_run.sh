@@ -34,6 +34,7 @@ ng() { FAILED=$((FAILED + 1)); printf '  FAIL %s\n' "$1"; }
 # ── 砂場 ────────────────────────────────────────────────────────
 SANDBOX="$(mktemp -d)"
 export SANDBOX   # 偽の gh が読む
+export FAKE_GH="$REPO_ROOT/tests/lib/fake_gh.py" FAKE_GH_DIR="$SANDBOX/gh" FAKE_GH_ROWS="$SANDBOX/issues.txt"
 trap 'rm -rf "$SANDBOX"' EXIT
 
 setup_sandbox() {
@@ -297,10 +298,14 @@ run_check 2 "issue に段の種類が無いと使い方の誤り" issue 901
 # ══════════════════════════════════════════════════════════════════
 make_gh_stub() {
   # make_gh_stub <spec>   spec は "番号:ラベル:状態:題名" を改行で並べたもの
-  mkdir -p "$SANDBOX/bin"
+  mkdir -p "$SANDBOX/bin"; rm -rf "${FAKE_GH_DIR:?}"
   printf '%s' "$1" > "$SANDBOX/issues.txt"
   cat > "$SANDBOX/bin/gh" <<'STUB'
 #!/usr/bin/env bash
+# ★ §4 のゲートが使う呼び出し（本文・コメント・lastEditedAt・コメントの追加）は
+#   issue ごとの状態を持つ tests/lib/fake_gh.py に回す
+case "$*" in "issue view "*" --json body,comments,createdAt"*|"api graphql"*) exec python3 -B "$FAKE_GH" "$@";; esac
+if [ "$1 $2" = "issue comment" ]; then python3 -B "$FAKE_GH" "$@" || exit 1; exit 0; fi
 # 偽の gh。issues.txt を引いて必要な JSON だけ返す
 f="$SANDBOX/issues.txt"
 row() { grep -E "^$1:" "$f" || true; }
@@ -380,7 +385,7 @@ run_flow 1 "task-run: 成果物が無い spec 段では非ゼロ終了（★ exi
 
 # 成果物を揃えると品質チェックへ進む（このサンドボックスには無いので die）
 printf '# Issue #901: x\n\n中身\n' > .spec/issues/901-x.md
-printf 'Issue #901\n停止条件: なし\n'  > .spec/issues/901-auto-decisions.md
+printf 'Issue #901\n停止条件: 該当なし\n'  > .spec/issues/901-auto-decisions.md
 out="$(PATH="$SANDBOX/bin:$PATH" \
        bash "$REPO_ROOT/scripts/flow/task-run.sh" 900 2>&1)"; rc=$?
 if [ "$(printf '%s' "$out" | grep -c '前提は揃っている' || true)" -gt 0 ]; then
@@ -393,7 +398,7 @@ fi
 # ★ closed の子（401 spec・402 feature）の成果物を揃えて、全 closed の分岐に届かせる
 #   spec は仕様ファイルと判断ログ、feature は main 上の 'Refs #402' のコミット
 printf '# Issue #401: x\n' > .spec/issues/401-x.md
-printf 'Issue #401\n停止条件: なし\n' > .spec/issues/401-auto-decisions.md
+printf 'Issue #401\n停止条件: 該当なし\n' > .spec/issues/401-auto-decisions.md
 git checkout -q main && git commit -q --allow-empty -m "feature 段
 
 Refs #402" && git checkout -q -
