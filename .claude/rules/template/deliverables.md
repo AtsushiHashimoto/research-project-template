@@ -43,9 +43,8 @@ data/shared/experiments/
   欠けるとスクリプトが投稿を拒む）。
   次のセッションがこれだけで再開できるように書く。書き先は続きの作業がある issue（マージ後なら親 task）。
   ユーザーが確定した前提は引き継ぎではなく `premises.md` の置き場所に書く。
-- **ユーザーに 1 行で伝える**: 「区切りです。/clear をどうぞ（同じ流れの続きなら /compact）。」
-- 次のセッションでは SessionStart フック（`scripts/session-context.sh`）が最新の引き継ぎと epic 前提を読み込む。
-  別の issue を続けるときは `bash scripts/session-context.sh <issue番号>`。
+- **ユーザーに 1 行で伝える**: 文言は `scripts/flow/lib.sh` の `handoff_steps` が出す（/compact を勧める）。
+- 再開時は `bash scripts/session-context.sh <issue番号>` が引き継ぎと epic 前提を読む（SessionStart フック登録時は自動）。
 - /compact の要約はサブエージェントにも別のセッションにも見えない。残すべきことは要約に頼らず引き継ぎに書く。
 
 
