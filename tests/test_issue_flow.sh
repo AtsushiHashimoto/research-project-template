@@ -75,6 +75,25 @@ echo "=== flow/issue-*.sh の自己検証（#506）==="
 # ══════════════════════════════════════════════════════════════════
 echo "--- §7-1 静的な性質 ---"
 
+# ★ 品質ゲートの範囲（quality-check.sh の FLOW_FILES）に、flow が呼ぶ scripts/ のファイルが全部入っているか。
+#   漏れていると、そのファイルだけを変えた PR で flow のテストが走らず、配線切れがマージされる
+flow_files="$(sed -n "s/^FLOW_FILES='\(.*\)'$/\1/p" "$REPO_ROOT/scripts/quality-check.sh")"
+if [ -z "$flow_files" ]; then ng "quality-check.sh に FLOW_FILES が無い（flow のテストが品質ゲートに登録されていない）"
+else
+  missing=""
+  for ref in $(grep -ohE 'scripts/[A-Za-z0-9_./-]+\.(sh|py)' "$FLOW"/*.sh "$REPO_ROOT"/scripts/check-discipline* | sort -u); do
+    [ -e "$REPO_ROOT/$ref" ] || continue
+    [[ "$ref" =~ $flow_files ]] || missing="$missing $ref"
+  done
+  if [ -z "$missing" ]; then ok "flow が呼ぶ scripts/ のファイルは全部 FLOW_FILES に入っている"
+  else ng "FLOW_FILES に無い:$missing"; fi
+  for t in issue_flow commit_flow quick_flow task_run; do
+    if [ "$(grep -cF "for t in issue_flow commit_flow quick_flow task_run" "$REPO_ROOT/scripts/quality-check.sh")" -gt 0 ] \
+       && [[ "tests/test_$t.sh" =~ $flow_files ]]; then ok "quality-check.sh が test_$t.sh を走らせる"
+    else ng "quality-check.sh が test_$t.sh を走らせていない"; fi
+  done
+fi
+
 for f in "$FLOW"/*.sh; do
   n="$(wc -l <"$f")"
   if [ "$n" -le 300 ]; then ok "$(basename "$f") は $n 行（上限 300）"

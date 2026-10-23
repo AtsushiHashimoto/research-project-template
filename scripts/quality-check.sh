@@ -504,6 +504,20 @@ else
   run_check "共有ストアと削除の経路" bash tests/test_safe_remove_worktree.sh --quiet
 fi
 
+# scripts/flow/ の回帰テスト（task 単位の worktree・判断ゲート・commit・quick）
+#   一時リポジトリと偽の gh で筋書きを回すので合計 1 分以上かかる。関係するファイルが変わったときだけ走らせる。
+#   ★ flow のスクリプトが呼ぶ scripts/ のファイルは全部ここに入れる（漏れは tests/test_issue_flow.sh が落とす）
+FLOW_FILES='^(scripts/flow/|scripts/check[-_]discipline|scripts/(worktree-relative|setup-worktree|handoff|read-premises|configure-agent-workflow|template-contribute-detect|quality-check|check-skill-labels|resolve-model|setup-labels)\.sh$|scripts/lib/shared-store\.sh$|scripts/qa/|tests/lib/|tests/test_(issue|commit|quick)_flow\.sh$|tests/test_(task_run|pipefail_grep_q)\.sh$|\.claude/skills/(issue-create|issue-start|issue-branch|issue-finish|commit|commit-only|commit-push|commit-merge|task-run|epic-cycle|task-start)/|\.claude/rules/template/(issue-hierarchy|deliverables|git-workflow|agent-runtime)\.md$)'
+if [ "$SCOPE" = "docs" ]; then
+  skip "flow の回帰テスト（QUALITY_SCOPE=docs）"
+elif ! changed_any "$FLOW_FILES"; then
+  skip "flow の回帰テスト（関係するファイルの変更なし vs ${BASE_REF:-?}）"
+else
+  for t in issue_flow commit_flow quick_flow task_run; do
+    run_check "flow の回帰テスト ($t)" env -u BASH_ENV -u ENV bash "tests/test_$t.sh"
+  done
+fi
+
 # quality-check 自身の検査範囲の回帰テスト（#135 D6）
 #   「限定が壊れて全件走査に戻る」「限定しすぎて検出漏れになる」のどちらも
 #   通常運用では気づけず、下流でしか顕在化しない。ゲート自身で pin する
