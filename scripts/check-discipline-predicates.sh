@@ -88,24 +88,41 @@ check_commit_link() {
   base="$(resolve_base)" || { fail "コミット: base ref を解決できない"; return 1; }
   # ★ パイプを使わず git 側で 1 件に絞る
   sha="$(git log "$base"..HEAD --format='%H' --extended-regexp -n 1 \
-          --grep="(Refs|Fixes)[[:space:]]*#${n}([^0-9]|\$)" 2>/dev/null || true)"
+          --grep="Refs[[:space:]]*#${n}([^0-9]|\$)" 2>/dev/null || true)"
   if [ -n "$sha" ] && [ -n "$(git show --stat --format= "$sha" 2>/dev/null || true)" ]; then
-    pass "コミット (${sha:0:8} が Refs/Fixes #$n を持ち、ファイル変更を伴う)"
+    pass "コミット (${sha:0:8} が Refs #$n を持ち、ファイル変更を伴う)"
   else
-    fail "コミット: 'Refs #$n' / 'Fixes #$n' を持ちファイル変更を伴うコミットが $base..HEAD に無い"
+    fail "コミット: 'Refs #$n' を持ちファイル変更を伴うコミットが $base..HEAD に無い"
   fi
 }
 
-# 4''. Closes #N のコミットを止める（GitHub が squash の時点で閉じ、issue-finish.sh の
-#   完了コメントが付かない。close は issue-finish.sh だけが行う）
+# GitHub が issue を自動で閉じるキーワード（close / fix / resolve の活用形）。squash の時点で閉じられ、
+# issue-finish.sh の完了コメントが付かないので、コミットにも PR 本文にも書かせない
+closing_re() { printf '(^|[^a-z])(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]*#%s([^0-9]|$)' "$1"; }
+
+# 4''. 閉じるキーワードを持つコミットを止める
 check_no_closes() {
   local n="$1" base sha
   base="$(resolve_base)" || { fail "Closes: base ref を解決できない"; return 1; }
   sha="$(git log "$base"..HEAD --format='%h' --extended-regexp --regexp-ignore-case -n 1 \
-          --grep="(^|[^a-z])close[sd]?:?[[:space:]]*#${n}([^0-9]|\$)" 2>/dev/null || true)"
-  if [ -z "$sha" ]; then pass "Closes #$n のコミットが無い"; return 0; fi
-  fail "コミット $sha が 'Closes #$n' を持つ（squash で GitHub が先に閉じ、完了コメントが付かない）
+          --grep="$(closing_re "$n")" 2>/dev/null || true)"
+  if [ -z "$sha" ]; then pass "閉じるキーワード（Closes/Fixes/Resolves #$n）のコミットが無い"; return 0; fi
+  fail "コミット $sha が閉じるキーワード（Closes/Fixes/Resolves #$n）を持つ（squash で GitHub が先に閉じ、完了コメントが付かない）
      直し方: git commit --amend（または git rebase で該当コミットの本文を直す）で
+     書く行: Refs #$n"
+}
+
+# 4'''. PR 本文の閉じるキーワードを止める（理由はコミットと同じ）
+check_pr_no_closes() {
+  local n="$1" body re rc=1
+  body="$(gh pr view --json body -q .body 2>/dev/null || true)"
+  re="$(closing_re "$n")"
+  shopt -s nocasematch
+  while IFS= read -r line; do [[ "$line" =~ $re ]] && { rc=0; break; }; done <<<"$body"
+  shopt -u nocasematch
+  if [ "$rc" = 1 ]; then pass "PR 本文に閉じるキーワードが無い"; return 0; fi
+  fail "PR 本文が閉じるキーワード（Closes/Fixes/Resolves #$n）を持つ（squash で GitHub が先に閉じ、完了コメントが付かない）
+     直し方: gh pr edit --body-file <ファイル> で本文を直す
      書く行: Refs #$n"
 }
 

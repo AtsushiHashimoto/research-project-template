@@ -111,6 +111,7 @@ mode_merge() {
   check_branch "$branch_n"
   check_commit_link "$n"
   check_no_closes "$n"
+  check_pr_no_closes "$n"
   check_pr_review
   gates conformance "$n" "$kind"
 }

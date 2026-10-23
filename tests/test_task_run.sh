@@ -943,9 +943,19 @@ pr "$CONF_OK"
 git commit -q --allow-empty -m "z
 
 Closes #901"
-fin; stop3 "Closes: Closes #N のコミットがあると直し方つきで止まる" "$rc" "$out" "'Closes #901' を持つ" "Refs #901" "bash scripts/flow/issue-finish.sh 901 900"
+fin; stop3 "Closes: Closes #N のコミットがあると直し方つきで止まる" "$rc" "$out" "閉じるキーワード（Closes/Fixes/Resolves #901）を持つ" "Refs #901" "bash scripts/flow/issue-finish.sh 901 900"
 if has "$out" "git commit --amend"; then ok "Closes: 直し方（amend / rebase）を出す"; else ng "Closes: 直し方を出していない"; fi
 git reset -q --hard HEAD~1
+git commit -q --allow-empty -m "z
+
+Fixes #901"
+rcheck 1 "Closes: Fixes #N のコミットも止める" merge 901 experiment 900
+git reset -q --hard HEAD~1
+pr "$CONF_OK
+
+Closes #901"
+fin; stop3 "Closes: PR 本文の Closes #N も止める" "$rc" "$out" "PR 本文が閉じるキーワード" "Refs #901" "bash scripts/flow/issue-finish.sh 901 900"
+pr "$CONF_OK"
 rcheck 0 "Closes: Refs だけなら通る" merge 901 experiment 900
 
 cd "$REPO_ROOT" || exit 1
