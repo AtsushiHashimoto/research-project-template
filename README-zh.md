@@ -118,6 +118,9 @@ my-project/
 （epic / task / issue 各层、提交、审查、QA、模板管理、Worktree、规格）。
 列表只存放于该文件，本 README 不再重复。
 
+**进度一览（只读）**: 运行 `python3 scripts/progress/server.py` 后打开 http://127.0.0.1:8765/ ——
+显示当前仓库的 epic / task / issue 树，以及需处理、进行中和下一步的候选（通过 `gh` 读取 GitHub 与本地 git，不写入任何内容）。
+
 ---
 
 ## 自定义
