@@ -15,7 +15,7 @@ G=(git -c user.name=t -c user.email=t@t)
 WR="$ROOT/scripts/worktree-relative.sh"
 newrepo() { "${G[@]}" init -q -b main "$1" && "${G[@]}" -C "$1" commit -q --allow-empty -m init && mkdir -p "$1/worktrees"; }
 relative() { [[ "$(cat "$1/.git")" == "gitdir: ../"* ]]; }
-prunable() { git -C "$1" worktree list --porcelain | grep -q '^prunable'; }
+prunable() { [ "$(git -C "$1" worktree list --porcelain | grep -c '^prunable')" -gt 0 ]; }
 
 # 1: add（パスに空白を含む）
 B="$TMP/mount a"; R="$B/repo"; newrepo "$R"

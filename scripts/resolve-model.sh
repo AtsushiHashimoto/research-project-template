@@ -63,7 +63,7 @@ disabled_list() {
 
 is_disabled() {
   local m="$1"
-  echo ",$(disabled_list)," | grep -q ",${m},"
+  [ "$(echo ",$(disabled_list)," | grep -c ",${m},")" -gt 0 ]
 }
 
 # role に適用される override を返す（$comment などのメタキーは除外）

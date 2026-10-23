@@ -110,7 +110,7 @@ done
 # 未定義ラベルの検出
 if [ -s "$TMP" ]; then
   while IFS=$'\t' read -r label file; do
-    if ! printf '%s\n' "$DEFINED" | grep -qx -- "$label"; then
+    if [ "$(printf '%s\n' "$DEFINED" | grep -cx -- "$label")" -eq 0 ]; then
       echo "[skill-labels] 未定義ラベル '${label}' の使用: ${file}"
       grep -n -- "$label" "$file" | head -2 | sed 's/^/    /'
       FOUND=1

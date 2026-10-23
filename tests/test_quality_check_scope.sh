@@ -65,8 +65,8 @@ else
 fi
 
 # コメント行は除く（「mapfile は使わない」という注意書き自体に反応しないため）
-if grep -vE '^[[:space:]]*#' "$GATE" \
-  | grep -qE '(^|[^[:alnum:]_])(mapfile|readarray)([^[:alnum:]_]|$)'; then
+if [ "$(grep -vE '^[[:space:]]*#' "$GATE" \
+  | grep -cE '(^|[^[:alnum:]_])(mapfile|readarray)([^[:alnum:]_]|$)')" -gt 0 ]; then
   ng "mapfile/readarray を使っている（macOS の bash 3.2 で動かない。#121 D1）"
 else
   ok "bash 3.2 互換（mapfile/readarray 不使用）"

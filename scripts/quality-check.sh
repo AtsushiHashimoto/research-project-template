@@ -370,6 +370,23 @@ EOF
   fi
 fi
 
+# pipefail のスクリプトで早期終了する読み手（| grep -q / 置換の中の | head）を使わない
+#   書き手が SIGPIPE（141）で死に、条件が黙って偽になる。追跡中の全 *.sh を走査して約 2 秒なので、
+#   限定走査ではシェルスクリプトが変わったときだけ走らせる（ゲートの所要時間を増やさない）。
+if [ "$SCOPE" = "docs" ]; then
+  skip "pipefail の読み手の検査（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_pipefail_grep_q.sh ]; then
+  skip "pipefail の読み手の検査（tests/test_pipefail_grep_q.sh が無い）"
+else
+  SH_FILES=()
+  [ "$SCOPE_MODE" = "changed" ] && collect_sh_files <<<"$CHANGED_FILES"
+  if [ "$SCOPE_MODE" = "changed" ] && [ ${#SH_FILES[@]} -eq 0 ]; then
+    skip "pipefail の読み手の検査（変更されたシェルスクリプトが無い vs ${BASE_REF:-?}）"
+  else
+    run_check "pipefail の読み手の検査" bash tests/test_pipefail_grep_q.sh
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # プロジェクト固有の検査
 # ---------------------------------------------------------------------------

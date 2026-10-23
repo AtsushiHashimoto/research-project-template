@@ -64,7 +64,7 @@ get_version() {
 
 # $1 >= MIN_VERSION なら真
 version_ok() {
-  [ "$(printf '%s\n' "$MIN_VERSION" "$1" | sort -V | head -n1)" = "$MIN_VERSION" ]
+  [ "$(printf '%s\n' "$MIN_VERSION" "$1" | sort -V | sed -n '1p')" = "$MIN_VERSION" ]
 }
 
 # --- 導入要否 ---

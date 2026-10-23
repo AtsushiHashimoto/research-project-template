@@ -59,7 +59,7 @@ for override in "$DC"/*/docker-compose.override.yml; do
     continue
   fi
 
-  if printf '%s\n' "$svc" | grep -qE '^[[:space:]]+init: true$'; then
+  if grep -qE '^[[:space:]]+init: true$' <<<"$svc"; then
     echo "PASS: $variant → devcontainer.init: true"
   else
     echo "FAIL: $variant の devcontainer サービスに 'init: true' が無い"
@@ -69,7 +69,7 @@ for override in "$DC"/*/docker-compose.override.yml; do
 
   # keep-alive が残っていること。NVIDIA entrypoint は CMD=null にするため、
   # command が消えるとコンテナが即終了する。
-  if printf '%s\n' "$svc" | grep -qE '^[[:space:]]+- sleep$'; then
+  if grep -qE '^[[:space:]]+- sleep$' <<<"$svc"; then
     echo "PASS: $variant → devcontainer.command に keep-alive がある"
   else
     echo "FAIL: $variant の devcontainer.command から keep-alive（sleep）が消えている"

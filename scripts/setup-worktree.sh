@@ -164,7 +164,7 @@ fi
 cd "$CURRENT_DIR"
 
 # Check if in a worktree
-if ! git worktree list --porcelain 2>/dev/null | grep -qxF "worktree $CURRENT_DIR"; then
+if [ "$(git worktree list --porcelain 2>/dev/null | grep -cxF "worktree $CURRENT_DIR")" -eq 0 ]; then
     error "$(msg not_worktree): $CURRENT_DIR
 $(msg run_in_worktree)"
 fi

@@ -104,7 +104,7 @@ echo "[labels] 作成 ${CREATED} 件 / 更新 ${UPDATED} 件"
 # in-progress は意図的に定義しない。
 # 「作業中」はブランチの有無で判定する（同じ状態を2通りに表現しないため）。
 # 詳細は `.claude/rules/template/labels.md`「ラベル運用ルール」を参照。
-if gh label list --limit 100 --json name -q '.[].name' | grep -qx "in-progress"; then
+if [ "$(gh label list --limit 100 --json name -q '.[].name' | grep -cx "in-progress")" -gt 0 ]; then
   echo "[labels] 注意: in-progress ラベルが存在します。"
   echo "[labels]   本テンプレートは作業中の判定をブランチの有無で行うため、このラベルは使いません。"
   echo "[labels]   既存Issueから外したうえで削除を検討してください。"
