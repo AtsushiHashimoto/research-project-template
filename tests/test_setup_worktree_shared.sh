@@ -106,6 +106,13 @@ check "T6 store NOT deleted" "$(store_intact)" "yes"
 check "T6 still resolves to store" "$(resolved)" "$(readlink -f "$STORE")"
 teardown_fixture
 
+# T6b: the last-moment check stands right before every `rm -rf data/shared`.
+# F-1 above already skips the store, so this second line of defense cannot be reached
+# by a fixture; pin its position instead (the store was lost once despite earlier guards).
+unguarded=$(awk '/assert_safe_to_delete "data\/shared"/{g = NR} /^[[:space:]]*(if ! )?rm -rf data\/shared/{if (!g || NR - g > 3) print NR}' "$SETUP")
+check "T6b every rm -rf data/shared is preceded by assert_safe_to_delete" "${unguarded:-none}" "none"
+check "T6b (control) rm -rf data/shared exists" "$(grep -cE '^[[:space:]]*(if ! )?rm -rf data/shared' "$SETUP")" "1"
+
 # T7: refuses to run in the main repository (data/shared is the store there)
 setup_fixture
 (cd "$FIX/main" && bash scripts/setup-worktree.sh >/dev/null 2>&1)
