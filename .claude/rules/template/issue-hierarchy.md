@@ -8,10 +8,11 @@ Issue は **epic / task / issue の3層**。親子は **GitHub ネイティブ�
 |---|---|---|---|---|
 | **epic** | `epic` | ゴール。task をまとめる | 持たない | しない |
 | **task** | `task` | 1つのまとまった仕事 | 持たない | しない |
-| **issue** | 種類ラベル | 実作業 | **1つ持つ** | **個別にマージ** |
+| **issue** | 種類ラベル | 実作業 | **task ごとに1つを共有** | **個別にマージ** |
 | 小タスク | — | 分割不要な粒度 | 親と共有 | 親と一緒 |
 
-worktree を持つのは issue 層だけ。task 内の各 issue を個別にマージし、main との乖離を溜めない。
+task の issue は 1 本のブランチと worktree を共有し、issue ごとにマージして main との乖離を溜めない。
+epic の親は epic でもよい（sub-epic。2 段まで）。`/epic-cycle` は sub-epic を持たない epic だけを回す。
 
 ### 既定の task 構成（必須）
 
@@ -93,5 +94,5 @@ task は「現在地から目的地までの距離」なので、両方を合意
 
 ### Git Worktree の使用（必須）
 
-並行タスクのブランチ混入を防ぐため、issue ごとに **`worktrees/`（ドット無し、`.gitignore` 対象）** に
+並行タスクのブランチ混入を防ぐため、task ごとに **`worktrees/`（ドット無し、`.gitignore` 対象）** に
 `scripts/worktree-relative.sh add` で worktree を作る（`.git` 参照を相対パスにする。`git-workflow.md`）。
