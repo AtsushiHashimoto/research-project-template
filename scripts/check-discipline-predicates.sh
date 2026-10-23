@@ -21,7 +21,8 @@ check_spec_file() {
     refs_n "$first" "$n" || continue
     pass "仕様ファイル ($f)"; return 0
   done
-  fail "仕様ファイル: .spec/issues/$n-*.md が無い / 空 / 1 行目の見出しに #$n が無い"
+  fail "仕様ファイル: .spec/issues/$n-*.md が無い / 空 / 1 行目の見出しに #$n が無い
+     書く行: # Issue #$n: <題>（.spec/issues/$n-<題>.md の 1 行目）"
 }
 
 # 2. auto-reviewer の判断ログ
@@ -52,16 +53,17 @@ check_auto_decisions() {
     done <<< "$body"
     if [ "$n_lines" = 0 ]; then
       fail "判断ログ $f に「停止条件: 該当なし」の形の行が無い（auto-reviewer が停止条件を判定していない）
-     書く行: 停止条件: 該当なし（S1〜S8 のどれにも当たらないときだけ）"
+     書く行: 停止条件: 該当なし（.claude/agents/auto-reviewer.md の停止条件 S1〜S8 のどれにも当たらないときだけ）"
     elif [ -n "$hit" ]; then
-      fail "判断ログ $f が停止条件に該当しているか、値が読めない（該当なし・なし・S1〜S8 のどれでもない）。
+      fail "判断ログ $f が停止条件に該当しているか、値が読めない（該当なし・なし・停止条件 S1〜S8（.claude/agents/auto-reviewer.md）のどれでもない）。
      該当なら仕様の欠落なので進まずにユーザーへ報告する。読めないだけなら値を「該当なし（…）」の形に直す:$hit"
     else
       pass "auto-reviewer の判断ログ ($f。停止条件: 該当なし)"
     fi
     return 0
   done
-  fail "判断ログ: .spec/issues/$n-auto-decisions*.md が無い / 空 / 'Issue #$n' または '停止条件' を含まない"
+  fail "判断ログ: .spec/issues/$n-auto-decisions*.md が無い / 空 / 'Issue #$n' または '停止条件' を含まない
+     書く行: Issue #$n と 停止条件: 該当なし（.spec/issues/$n-auto-decisions.md に auto-reviewer が書く）"
 }
 
 # 3. ブランチ（★ 番号は **task の番号**。親が task でなければ issue 自身の番号）
@@ -70,11 +72,13 @@ check_branch() {
   local n="$1" b
   b="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
   [ -n "$b" ] || { fail "ブランチ: detached HEAD"; return 1; }
-  case "$b" in main|master) fail "ブランチ: $b に居る"; return 1;; esac
+  case "$b" in main|master) fail "ブランチ: $b に居る
+     直し方: bash scripts/flow/issue-start.sh <issue番号> の出力の cd 先（task の worktree）へ移る"; return 1;; esac
   if [[ "$b" =~ ^($BRANCH_TYPES)/$n- ]]; then
     pass "ブランチ ($b)"
   else
-    fail "ブランチ: '$b' が <type>/$n-* の形でない（type は $BRANCH_TYPES）"
+    fail "ブランチ: '$b' が <type>/$n-* の形でない（type は $BRANCH_TYPES）
+     直し方: bash scripts/flow/issue-start.sh <issue番号> の出力の cd 先（task の worktree）へ移る"
   fi
 }
 
@@ -101,7 +105,8 @@ check_commit_link() {
   if [ -n "$sha" ] && [ -n "$(git show --stat --format= "$sha" 2>/dev/null || true)" ]; then
     pass "コミット (${sha:0:8} が Refs #$n を持ち、ファイル変更を伴う)"
   else
-    fail "コミット: 'Refs #$n' を持ちファイル変更を伴うコミットが $base..HEAD に無い"
+    fail "コミット: 'Refs #$n' を持ちファイル変更を伴うコミットが $base..HEAD に無い
+     書く行: Refs #$n（コミット本文に。Closes は使わない。close は issue-finish.sh が行う）"
   fi
 }
 
@@ -168,7 +173,9 @@ check_pr_review() {  # check_pr_review [<PR番号>]（省くと現在のブラ�
       END { exit !found }'; then
     pass "PR 本文の /review 結果"
   else
-    fail "PR 本文: '/review 結果' の見出しが無い、または見出しだけで本文が無い"
+    fail "PR 本文: '/review 結果' の見出しが無い、または見出しだけで本文が無い
+     書く行: ## /review 結果
+       - <観点>: <そのサブエージェントの判定>（サブエージェントごとに 1 行）"
   fi
 }
 

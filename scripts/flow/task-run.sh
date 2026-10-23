@@ -28,13 +28,15 @@ if [ "$(issue_state "$TASK")" = "CLOSED" ]; then
 fi
 
 # ── 0b. goal の検査（★ 毎回呼ぶ。各 issue の後の再照合＝未確定の解消の確認もこれが兼ねる）──
+# ★ 落ちたときは検査の出力を丸ごと出さない（gate_stop が FAILED の行と書く行だけを 1 回出す）
 grc=0; gout="$(check goal "$TASK" 2>&1)" || grc=$?
-printf '%s\n' "$gout"
+[ "$grc" != 0 ] || printf '%s\n' "$gout"
 [ "$grc" = 0 ] || gate_stop "$TASK" \
   "task #$TASK の goal が判定できる形になっていない（空欄・goal の中身の判定・未確定の担当・解消の記録のどれか）" \
-  "$gout" "bash scripts/flow/task-run.sh $TASK" "$(goal_gate_launch "$TASK")" \
-  "  ★ ワーカーが書き換えてよい本文は「## 未確定」節の行だけ。「## 目標の状態」の空欄と goal ゲートの FAIL は" \
-  "    needs-user で返す（goal はユーザーが書く）" ""
+  "$gout" "bash scripts/flow/task-run.sh $TASK" \
+  "  1. 先に上の「足りないもの」を直す。★ ワーカーが書き換えてよい本文は「## 未確定」節の行だけ。" \
+  "     「## 目標の状態」の空欄と goal ゲートの FAIL は needs-user で返す（goal はユーザーが書く）" \
+  "  2. 1 が済んでから $(goal_gate_launch "$TASK")" ""
 
 # ── 1. 子 issue を既定順に並べる ─────────────────────────────────
 kids="$(sub_issues "$TASK")"
@@ -101,13 +103,16 @@ if [ -z "$current" ] && [ "${#skipped[@]}" -gt 0 ]; then
     "task #$TASK: 残っている open な子は状態ラベル付きで飛ばしたものだけ（${skipped[*]}）。" \
     "" \
     "  - ユーザー対応・ブロックの解消を待つ。済んだらラベルを外して再び呼ぶ" \
-    "    （close するなら bash scripts/flow/issue-finish.sh で。直に閉じると段 3 の成果物の検査で落ちる）" \
+    "    （close するなら bash scripts/flow/issue-finish.sh で。直に閉じると、このスクリプトの「closed の先行段の成果物の検査」で落ちる）" \
     "  - ★ ラベルを外さずに task を閉じない（完了判定は全ての子が closed になってから）"
 fi
 if [ -z "$current" ]; then
+  # ★ 親 epic があれば、再開は epic-cycle（次の task を選ぶのは epic-cycle）
+  resume_with="task-run"; resume_n="$TASK"; ep="$(issue_parent "$TASK")"
+  if [ -n "$ep" ] && has_label "$(issue_labels "$ep")" epic; then resume_with=epic-cycle; resume_n="$ep"; fi
   head2 "全ての子 issue が closed。task の判定の形を検査する"
   vrc=0; vout="$(check verdict-task "$TASK" 2>&1)" || vrc=$?
-  printf '%s\n' "$vout"
+  [ "$vrc" != 0 ] || printf '%s\n' "$vout"
   [ "$vrc" = 0 ] || gate_stop "$TASK" \
     "task #$TASK を閉じる前の判定コメント（結果: の行と、成功条件の 1 項目ずつの引用）が揃っていない" \
     "$vout" "bash scripts/flow/task-run.sh $TASK" \
@@ -122,7 +127,7 @@ if [ -z "$current" ]; then
     "  1. gh issue close $TASK で task を閉じる" \
     "★ 次の task は**ここでは作らない**（結果駆動の task 生成は epic-cycle が統括する）。" \
     "" \
-    "$(handoff_steps "$TASK")"
+    "$(handoff_steps "$TASK" "$resume_with" "$resume_n")"
 fi
 
 kind="${kind_of_kid[$current]}"
@@ -174,7 +179,7 @@ case "$kind" in
       "     **本文に 'Issue #$current' と '停止条件' を含めること**" \
       "     モデルは bash scripts/resolve-model.sh abstract-review で解決する" \
       "     起動文に前提 bash scripts/read-premises.sh $TASK の出力を原文で貼る" \
-      "     判断ログの停止条件の行は「停止条件: 該当なし」の形（該当したら S1〜S8 の欠落を書く）" \
+      "     判断ログの停止条件の行は「停止条件: 該当なし」の形（該当したら .claude/agents/auto-reviewer.md の停止条件 S1〜S8 のどれかと、仕様の欠落を書く）" \
       "  4. 停止条件に該当したら**進まずに報告する**" ;;
   *)
     next_fail \

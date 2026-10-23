@@ -97,6 +97,12 @@ else
     else ng "quality-check.sh が test_$t.sh を走らせていない"; fi
   done
 fi
+# ★ 作業場所は task 単位（worktrees/task<TASK>・ブランチ <type>/<TASK>-*）。issue 番号で引く写しを残さない
+gaps="$REPO_ROOT/.claude/skills/issue-gaps/SKILL.md"
+# shellcheck disable=SC2016  # SKILL.md の字面（展開しない）を探す
+if [ "$(grep -cF 'WT="worktrees/task${PARENT}"' "$gaps")" -gt 0 ] && [ "$(grep -cF '/${ISSUE_NUM}-' "$gaps")" -eq 0 ]; then
+  ok "issue-gaps: 作業中の判定は親が task なら task の番号のブランチと worktrees/task<親> で見る"
+else ng "issue-gaps が issue 番号のブランチ・worktrees/issue<N> だけで作業中を判定している"; fi
 
 for f in "$FLOW"/*.sh; do
   n="$(wc -l <"$f")"

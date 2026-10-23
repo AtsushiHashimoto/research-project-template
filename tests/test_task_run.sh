@@ -334,6 +334,7 @@ if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
     comments)   printf '%s\n' "${GH_EPIC_COMMENT:-}";;
     body)       printf '%s\n' "${GH_EPIC_BODY:-}";;
     title,body) printf '%s\n\n%s\n' "$title" "${GH_EPIC_BODY:-}";;
+    parent)     p="${title##*:parent=}"; [ "$p" = "$title" ] || [ "$p" = 0 ] || echo "$p";;
     *)          echo "";;
   esac
   exit 0
@@ -456,6 +457,16 @@ else ng "task-run: 全 closed の出力に /compact か「ワーカーは行わ�
 if [ "$(printf '%s' "$out" | grep -cE '/clear|もう一度このスクリプトを' || true)" -eq 0 ]; then
   ok "★ task-run: 全 closed で /clear も「もう一度このスクリプトを」も出さない（二重書きの防止）"
 else ng "task-run: 全 closed で /clear か再呼び出しを促している"; fi
+# ★ 親 epic があれば、再開は epic-cycle（次の task は epic-cycle が選ぶ）
+if has "$out" "再開は \`bash scripts/flow/epic-cycle.sh 800\`"; then ok "★ task-run: 全 closed・親 epic あり → 再開は epic-cycle.sh 800"
+else ng "task-run: 親 epic があるのに再開を epic-cycle.sh で案内していない"; fi
+make_gh_stub '400:task:OPEN:sandbox task
+401:spec:CLOSED:spec 段:parent=400
+402:feature:CLOSED:feature 段:parent=400
+'
+out2="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 400 2>&1)"
+if has "$out2" "再開は \`bash scripts/flow/task-run.sh 400\`"; then ok "（対照）親 epic が無ければ再開は task-run.sh 400"
+else ng "（対照）親 epic が無いのに task-run.sh 400 で再開を案内していない: $(printf '%s' "$out2" | tail -3)"; fi
 
 # #661: epic-cycle から降りた task-run が全 closed に届いたら、epic-cycle へ戻る案内を足す（終了コードは task-run のまま）
 make_gh_stub '800:epic:OPEN:sandbox epic:parent=0
@@ -754,6 +765,16 @@ done
 if has "$out" "needs-user で返す（goal はユーザーが書く）" && has "$out" "書き換えてよい本文は「## 未確定」節の行だけ"; then
   ok "goal の停止: ワーカーが直してよいのは「## 未確定」だけで、goal の空欄は needs-user と書く"
 else ng "goal の停止に、ワーカーが書き換えてよい範囲（## 未確定 だけ・goal は needs-user）が無い"; fi
+order="$(printf '%s\n' "$out" | awk '/1\. 先に上の「足りないもの」を直す/&&!a{a=NR} /2\. 1 が済んでから goal の中身の判定/&&!b{b=NR} END{print (a&&a<b)?"ok":"ng"}')"
+if [ "$order" = ok ]; then ok "goal の停止: 1. 空欄を直す → 2. その後で判定のサブエージェント の順に書く"
+else ng "goal の停止の手順が「1. 直す → 2. 判定を起動」の順になっていない"; fi
+# ★ 裸の記号を出さない: 停止条件は定義のファイルを名指しする、段の番号では呼ばない
+cic() { local b; b="$(grep -vE '^[[:space:]]*#' "$1")"; printf '%s' "$b" | grep -cE -e "$2" || true; }
+f=task-run.sh
+if [ "$(cic "$REPO_ROOT/scripts/flow/$f" '"[^"]*段 [0-9]')" -eq 0 ] \
+   && [ "$(cic "$REPO_ROOT/scripts/flow/$f" '"[^"]*S1〜S8')" = "$(cic "$REPO_ROOT/scripts/flow/$f" '"[^"]*auto-reviewer\.md の停止条件 S1〜S8')" ]; then
+  ok "$f の案内は「段 N」と裸の S1〜S8 を使わない（定義のファイルを名指しする）"
+else ng "$f の案内に「段 N」か、定義のファイルを添えない S1〜S8 がある"; fi
 gh_put 400 "## 目標の状態
 
 - 成功条件: x" "$GATE_OK" 2020-02-01T00:00:00Z; tr400
@@ -1046,6 +1067,15 @@ fin; stop3 "仕様整合: unverified-negative の停止に 3 点がある（issu
 if has "$out" "bash scripts/read-premises.sh 900 の出力を原文で渡す" && has "$out" "verification"; then
   ok "前提の受け渡し: 仕様整合の起動の案内（マージ直前の停止）に read-premises.sh <TASK> がある"
 else ng "前提の受け渡し: 仕様整合の案内に read-premises.sh が無い"; fi
+if ! has "$out" "サブエージェントごとに 1 行ずつ判定を書く"; then ok "案内は落ちた項目の分だけ（仕様整合だけ落ちたら /review の案内を出さない）"
+else ng "仕様整合だけ落ちたのに /review の案内も出している"; fi
+pr "${CONF_OK/'## /review 結果'/'## 変更概要'}"
+fin; stop3 "/review 結果が無いと書く行つきで止まる" "$rc" "$out" "'/review 結果' の見出しが無い" "## /review 結果" "bash scripts/flow/issue-finish.sh 901 900"
+if has "$out" "サブエージェントごとに 1 行ずつ判定を書く" && ! has "$out" "read-premises.sh 900 の出力を原文で渡す"; then
+  ok "★ 案内は落ちた項目の分だけ（/review だけ落ちたら仕様整合の起動の案内を出さない）"
+else ng "/review だけ落ちたときの案内が違う（/review の案内が無いか、仕様整合の案内も出ている）"; fi
+if [ "$(printf '%s\n' "$out" | grep -c '^  ok   ' || true)" -eq 0 ]; then ok "落ちたときは検査の出力を丸ごと出さない（FAILED の行だけを 1 回）"
+else ng "落ちたのに検査の ok の行まで出している（2 回出している）"; fi
 pr "${CONF_OK/- matched-engineering: 揃えた/}"
 fin; stop3 "仕様整合: experiment で matched-engineering の行が無いと止まる" "$rc" "$out" "「matched-engineering:」の行が無い" "- matched-engineering:" "bash scripts/flow/issue-finish.sh 901 900"
 pr "${CONF_OK/- goal 書き換え: なし/- goal 書き換え: あり}"

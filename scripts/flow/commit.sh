@@ -132,9 +132,7 @@ do_merge() {
   fi
   [ $# -eq 0 ] || { WT="$1"; shift; }
   [ $# -eq 0 ] || die "引数が多い: $*"
-  # ★ 順序: **ローカルで済む検査を先に**（ブランチ）→ 次に gh を叩く。
-  #   `require_open_issue` は `task_of` より前（存在しない番号だと「親取得が失敗した」という
-  #   分かりにくい die が先に出る）
+  # ★ ローカルの検査（ブランチ）→ gh。require_open_issue は task_of より前（無い番号で分かりにくい die を出さない）
   local branch kind; branch="$(current_branch)"
   require_open_issue "$N"   # ★ only/push と揃える（closed な issue はマージまで進めない）
   [ -n "$TASK" ] || TASK="$(task_of "$N")"
@@ -144,10 +142,10 @@ do_merge() {
   say "  ..   マージ直前の検査は issue-finish.sh 経由なら 2 回目（単独で叩けるよう commit.sh 側でも見る）"
 
   # ── 段 2. マージ直前の検査（★ 品質チェックより先。規律違反に品質チェックの時間を払わせない）──
-  check merge "$N" "$kind" "$TASK" || next_fail \
-    "#$N: マージ直前の検査が通らない（上の FAILED を見ること）。" \
-    "" \
-    "$(merge_check_hints "$N" "$TASK")"
+  local mrc=0 mout; mout="$(check merge "$N" "$kind" "$TASK" 2>&1)" || mrc=$?
+  printf '%s\n' "$mout"   # ★ ここは gate_stop を通らないので全部出す
+  [ "$mrc" = 0 ] || next_fail "#$N: マージ直前の検査が通らない（上の FAILED と書く行を見ること）。" "" \
+    "$(merge_check_hints "$N" "$TASK" "$mout")"
 
   # ── 段 2a. ★ コミットしていない変更が無いこと ──
   # 段 8 の `git worktree remove --force` は、**未コミットの変更があっても消す**

@@ -67,9 +67,9 @@ if [[ "$BRANCH" =~ ^($PROTECTED_BRANCHES)$ ]]; then
     fi
     # ★ マージの確認だけで close しない。マージ済みの PR の本文（/review・仕様整合）と成果物を見る
     rrc=0; rout="$(check reentry "$N" "$kind" 2>&1)" || rrc=$?
-    printf '%s\n' "$rout"
+    [ "$rrc" != 0 ] || printf '%s\n' "$rout"
     [ "$rrc" = 0 ] || gate_stop "$TASK" "#$N [$kind] の再入（マージ済みの PR の /review・仕様整合・成果物）が揃っていない" \
-      "$rout" "bash scripts/flow/issue-finish.sh $N $TASK" "$(merge_check_hints "$N" "$TASK")" ""
+      "$rout" "bash scripts/flow/issue-finish.sh $N $TASK" "$(merge_check_hints "$N" "$TASK" "$rout")" ""
     gh issue comment "$N" --body "## 完了（再入）
 
 マージは既に済んでおり、close だけが残っていた（\`bash scripts/check-discipline.sh reentry $N $kind\` が PASS）。" \
@@ -80,9 +80,9 @@ fi
 
 # ── 段 2. マージ直前の検査（★ 品質チェックより先。述語は check-discipline.sh が単一情報源）──
 mrc=0; mout="$(check merge "$N" "$kind" "$TASK" 2>&1)" || mrc=$?
-printf '%s\n' "$mout"
+[ "$mrc" != 0 ] || printf '%s\n' "$mout"
 [ "$mrc" = 0 ] || gate_stop "$TASK" "#$N [$kind] のマージ直前の検査（ブランチ・Refs・/review・仕様整合）が通らない" \
-  "$mout" "bash scripts/flow/issue-finish.sh $N $TASK" "$(merge_check_hints "$N" "$TASK")" ""
+  "$mout" "bash scripts/flow/issue-finish.sh $N $TASK" "$(merge_check_hints "$N" "$TASK" "$mout")" ""
 
 # ── 段 3. 未回答の QA ─────────────────────────────────────────
 head2 "未回答の QA"

@@ -148,18 +148,24 @@ for NEW_ISSUE in $NEW_ISSUE_CANDIDATES; do
   for OPEN_ISSUE in $OPEN_ISSUES; do
     ISSUE_NUM=$(echo "$OPEN_ISSUE" | jq -r '.number')
 
-    # Issue 番号に対応するブランチが存在するか（= 作業中）
+    # ★ 作業場所は task 単位: 親が task なら worktrees/task<親>・ブランチ <type>/<親>-*、そうでなければ issue 自身
+    OWNER="$ISSUE_NUM"; WT="worktrees/issue${ISSUE_NUM}"
+    PARENT=$(gh issue view "$ISSUE_NUM" --json parent -q '.parent.number // empty')
+    if [ -n "$PARENT" ] && gh issue view "$PARENT" --json labels -q '.labels[].name' | grep -qx task; then
+      OWNER="$PARENT"; WT="worktrees/task${PARENT}"
+    fi
+    # その番号のブランチが存在するか（= 作業中）
     BRANCH_NAME=$(git branch -a --format='%(refname:short)' \
-                  | grep -E "(^|/)(feature|fix|survey|spec|experiment|validation|docs|refactor|chore)/${ISSUE_NUM}-" \
+                  | grep -E "(^|/)(feature|fix|bug|survey|spec|experiment|validation|docs|refactor|chore)/${OWNER}-" \
                   | head -1)
     [ -n "$BRANCH_NAME" ] || continue
 
     # そのブランチが main と比べて変更しているファイルを取得
     MODIFIED_FILES=$(git diff --name-only "$(git merge-base "$BRANCH_NAME" main)" "$BRANCH_NAME" 2>/dev/null || echo "")
     # worktree に未コミットの変更があれば加える
-    if [ -d "worktrees/issue${ISSUE_NUM}" ]; then
+    if [ -d "$WT" ]; then
       MODIFIED_FILES="$MODIFIED_FILES
-$(git -C "worktrees/issue${ISSUE_NUM}" diff --name-only 2>/dev/null || echo "")"
+$(git -C "$WT" diff --name-only 2>/dev/null || echo "")"
     fi
 
     # 新規Issueが同じファイルに影響するかチェック
