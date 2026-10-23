@@ -57,6 +57,7 @@ resolve_base() {
 }
 
 # 述語の定義は別ファイル（1 ファイル 300 行の上限）
+# shellcheck source=scripts/check-discipline-predicates.sh
 . "$(dirname "${BASH_SOURCE[0]}")/check-discipline-predicates.sh"
 
 # ══════════════════════════════════════════════════════════════════

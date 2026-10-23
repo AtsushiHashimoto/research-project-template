@@ -19,6 +19,7 @@
 #   **$POST_MERGE_FAILED（=10、lib.sh）マージは済んだが後片付けで失敗**
 #   （呼び元が「マージが失敗した」と嘘を書かないため）
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 [ $# -ge 1 ] || die "使い方: bash scripts/flow/commit.sh <only|push|merge> ..."
@@ -107,7 +108,10 @@ $CO_AUTHOR" || die "git commit が失敗した"
     git push -u origin "$branch" || die "git push が失敗した"
     say "  ok   push した（origin/$branch）"
     next "#$N をコミットして push した。" "" \
-      "  完了なら bash scripts/flow/issue-finish.sh $N"
+      "  1. PR がまだ無ければ gh pr create --body-file <本文ファイル> で作る" \
+      "     （本文に 'Refs #$N'。Closes は書かない。close は issue-finish.sh が行う）" \
+      "  2. /review の結果と仕様整合を本文ファイルに書き、gh pr edit --body-file <本文ファイル> で更新する" \
+      "  3. bash scripts/flow/issue-finish.sh $N"
   fi
   next "#$N をコミットした（push していない）。" "" \
     "  push するなら bash scripts/flow/commit.sh push --issue $N --message <題>" \

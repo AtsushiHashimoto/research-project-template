@@ -23,7 +23,8 @@ Agent(
    <原文>
 2. 前提（`bash scripts/read-premises.sh <N>` の出力を原文で）:
    <原文>
-3. 作業場所: worktree <worktree の絶対パス>、メインリポジトリ <メインリポジトリの絶対パス>。
+3. 作業場所: メインリポジトリ <メインリポジトリの絶対パス>。worktree は `worktrees/task<TASK>`
+   （親が task でない issue は `worktrees/issue<N>`）。まだ無いので、`issue-start.sh` の出力の `cd` 行に従って移る。
    Bash は**絶対パスで**呼ぶ（cwd がメインリポジトリに戻ることがあり、相対パスだと main を書き換える）。
 4. 手順: `bash scripts/flow/task-run.sh <TASK>` を呼び、「次にやること」を行い、同じ引数で呼び直す。
    コミットに入れるファイルは `git add <ファイル名>` で名指しで stage する（`git add -A` / `git add .` は使わない）。
@@ -34,8 +35,9 @@ Agent(
    そのコメントの URL を HANDOFF に書く（止まったときの記録。区切りの引き継ぎはメインが行う）。
 6. してよい取り消せない操作は `issue-finish.sh <N> <TASK>` が行うもの
    （#N の PR のマージ・#N の close・task の最後の子のときの worktree 削除）だけ。
-   task・epic・他の issue の close、他の worktree の削除、issue 本文や goal の編集、force push はしない。
-   必要なら needs-user を返す。
+   task・epic・他の issue の close、他の worktree の削除、force push はしない。
+   書き換えてよい本文は task の `## 未確定` 節の行だけ。task へのコメント（判定・停止の解消）は書いてよい。
+   `## 目標の状態`（goal）と他の issue の本文は編集しない。goal の空欄・goal ゲートの FAIL では needs-user を返す。
 7. 報告は次の形式だけを返す（10 行以内。これ以外を返さない）:
 
 STATUS: done | stopped | needs-user | error

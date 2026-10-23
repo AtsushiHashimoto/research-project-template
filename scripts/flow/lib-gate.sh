@@ -45,7 +45,7 @@ goal_gate_launch() {  # goal_gate_launch <task番号>
     "      前提（bash scripts/read-premises.sh $1 の出力を原文で貼る）に反していないかも見ること。" \
     "      結果を gh issue comment $1 で、見出し『## goal ゲート』の下に" \
     "      『- G1b: PASS — <根拠>』の形で 3 行書け（通らないなら PASS の代わりに FAIL と理由）」" \
-    "  ★ FAIL なら本文を直してからもう一度判定させる。本文を編集したら判定は無効になる（編集時刻より新しい判定だけ数える）"
+    "  ★ FAIL なら「## 目標の状態」の直しをユーザーに頼み、直った本文をもう一度判定させる。本文を編集したら判定は無効になる（編集時刻より新しい判定だけ数える）"
 }
 
 # ★ `check merge` が落ちたときの案内（issue-finish.sh と commit.sh の 2 箇所から使う）

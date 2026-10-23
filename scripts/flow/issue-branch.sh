@@ -8,6 +8,7 @@
 #
 # ★ これが /issue-start との違い: 作成が本体なので、内部で issue-create.sh を呼ぶ。
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 TITLE=""; TYPE="feature"   # 既定は feature（ここが単一情報源）

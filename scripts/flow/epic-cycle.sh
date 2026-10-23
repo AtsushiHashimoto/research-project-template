@@ -6,6 +6,7 @@
 #
 # 判定の実体は scripts/check-discipline.sh。ここには述語を書かない。
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 [ $# -eq 1 ] || die "使い方: bash scripts/flow/epic-cycle.sh <epic番号>"

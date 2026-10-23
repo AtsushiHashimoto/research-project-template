@@ -19,6 +19,8 @@
 set -uo pipefail
 # ★ 起動のたびに読まれる初期化ファイルを切る（bash 1 回の起動が 275 ms → 14 ms）
 unset BASH_ENV ENV
+# ★ 品質ゲートの中から走ると QUALITY_* を継承する。記録の鍵の検査が親の値で変わらないよう切る
+unset QUALITY_FULL_SCAN QUALITY_SCOPE QUALITY_BASE_BRANCH
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT

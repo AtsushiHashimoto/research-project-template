@@ -20,6 +20,8 @@
 set -uo pipefail
 # ★ 起動のたびに読まれる初期化ファイルを切る（bash 1 回の起動が 275 ms → 14 ms）
 unset BASH_ENV ENV
+# ★ 品質ゲートの中から走ると QUALITY_* を継承する。記録の鍵の検査が親の値で変わらないよう切る
+unset QUALITY_FULL_SCAN QUALITY_SCOPE QUALITY_BASE_BRANCH
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
@@ -121,7 +123,10 @@ HANDOFF: なし | <止まったときに書いた引き継ぎコメントの URL
 | メイン自身の `task-run.sh` 呼び出しが `die` で終わった |
 1. 親 task の goal（変更禁止。task 本文の「目標の状態」を原文で）
 2. 前提（`bash scripts/read-premises.sh <N>` の出力を原文で）
-3. 作業場所: worktree <worktree の絶対パス>、メインリポジトリ <メインリポジトリの絶対パス>
+3. 作業場所: メインリポジトリ <メインリポジトリの絶対パス>。worktree は `worktrees/task<TASK>`
+（親が task でない issue は `worktrees/issue<N>`）。まだ無いので、`issue-start.sh` の出力の `cd` 行に従って移る。
+書き換えてよい本文は task の `## 未確定` 節の行だけ。task へのコメント（判定・停止の解消）は書いてよい。
+`## 目標の状態`（goal）と他の issue の本文は編集しない。goal の空欄・goal ゲートの FAIL では needs-user を返す。
 終了条件: `bash scripts/flow/issue-finish.sh <N> <TASK>` が終了コード 0 で終わったら
 5. 止まるとき（stopped・needs-user・error）は `bash scripts/handoff.sh write <N> -` で引き継ぎを書き
 6. してよい取り消せない操作は `issue-finish.sh <N> <TASK>` が行うもの
@@ -394,6 +399,17 @@ if [ "$(printf '%s' "$out" | grep -c '前提は揃っている' || true)" -gt 0 
 else
   ng "task-run: 成果物が揃っても進まない（rc=$rc）"
 fi
+
+# ★ 品質チェックの後の案内は、PR を作ってから本文に書く順（無い PR の本文には書けない）
+git add .spec/issues/901-x.md .spec/issues/901-auto-decisions.md && git commit -qm "spec
+
+Refs #901"
+printf '%s\n' "$(bash -c ". '$LIB'; quality_record_key \"\$(scope_for spec)\"")" > "$(git rev-parse --git-dir)/flow-quality-passed"
+out="$(PATH="$SANDBOX/bin:$PATH" bash "$REPO_ROOT/scripts/flow/task-run.sh" 900 2>&1)"; rc=$?
+order="$(printf '%s\n' "$out" | awk '/commit\.sh push/&&!a{a=NR} /gh pr create/&&!b{b=NR} /## \/review 結果/&&!c{c=NR} /## 仕様整合/&&!d{d=NR} /gh pr edit/&&!e{e=NR} /issue-finish\.sh 901 900/&&!f{f=NR}
+  END{print (a&&a<b&&b<c&&c<d&&d<e&&e<f)?"ok":"ng " a" "b" "c" "d" "e" "f}')"
+if [ "$order" = ok ]; then ok "★ 品質チェックの後: stage・push → gh pr create → /review・仕様整合 → gh pr edit → issue-finish の順"
+else ng "品質チェックの後の案内の順が違う（rc=$rc、行番号 ${order#ng }）"; printf '%s\n' "$out" | tail -15 | sed 's/^/        /'; fi
 
 # ── #668 V1: 全ての子が closed → 完了判定＋区切りの引き継ぎ（終了コード 0）──
 # ★ closed の子（401 spec・402 feature）の成果物を揃えて、全 closed の分岐に届かせる
@@ -713,6 +729,9 @@ for v in '<1 文の述語>' 'TBD' '未定' '   '; do
 - negative の意味: x" "$GATE_OK" 2020-02-01T00:00:00Z; tr400
   stop3 "goal: 成功条件が「$v」なら空とみなして止まる" "$rc" "$out" "「成功条件」が空" "- 成功条件: <1 文の合否の述語>" "$RERUN"
 done
+if has "$out" "needs-user で返す（goal はユーザーが書く）" && has "$out" "書き換えてよい本文は「## 未確定」節の行だけ"; then
+  ok "goal の停止: ワーカーが直してよいのは「## 未確定」だけで、goal の空欄は needs-user と書く"
+else ng "goal の停止に、ワーカーが書き換えてよい範囲（## 未確定 だけ・goal は needs-user）が無い"; fi
 gh_put 400 "## 目標の状態
 
 - 成功条件: x" "$GATE_OK" 2020-02-01T00:00:00Z; tr400

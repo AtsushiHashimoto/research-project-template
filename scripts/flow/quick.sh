@@ -17,6 +17,7 @@
 #
 # ★ `| grep -q` / `| head ` を使わない（pipefail 下の SIGPIPE）。
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # ★ 上限は**ここが唯一の定義**（環境変数で変えない）。
@@ -49,16 +50,18 @@ measure() {  # measure <数えたパスを NUL 区切りで書くファイル> �
   local numstat_file; numstat_file="$(mktemp)" || die "一時ファイルを作れない"
   git -C "$top" diff --no-renames -z --numstat "$base" > "$numstat_file" \
     || { rm -f "$numstat_file"; die "差分を取れない（上限を数えられない）"; }
+  local binary=""
   while IFS= read -r -d '' ent; do
     [ -n "$ent" ] || continue
     IFS=$'\t' read -r add del path <<< "$ent"
     # ★ バイナリは `-` で返る。数値として足すと**黙って 0 行**になる
-    case "$add" in -) rm -f "$numstat_file"; die "バイナリの変更がある（$path）。行数を数えられないので quick では扱わない";; esac
+    case "$add" in -) binary="$path"; break;; esac
     files=$((files + 1))
     lines=$((lines + add + del))
     printf '%s\0' "$path" >> "$list"
   done < "$numstat_file"
   rm -f "$numstat_file"
+  [ -z "$binary" ] || die "バイナリの変更がある（$binary）。行数を数えられないので quick では扱わない"
 
   # ── 追跡外のファイル（`git diff` は見ない。下で名指しで stage する）──
   # ★ **リポジトリのトップレベルから**列挙する（サブディレクトリでは足りない。実測）

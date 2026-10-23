@@ -8,6 +8,7 @@
 # ★ **stdout には `作成: #<N>` の 1 行だけを出す**（機械が読む）。
 #   人間向けの出力は stderr。issue-branch.sh がこの行から子番号を取る。
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # ★ 以後の出力は stderr。fd 3 が本来の stdout（機械向け 1 行だけ流す）

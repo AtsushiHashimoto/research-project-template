@@ -9,6 +9,7 @@
 #   スクリプトが空の PR を作れると「作った側が検査する」＝恒真に近づく。
 # ★ マージの実体は $MERGE_CMD = scripts/flow/commit.sh merge。
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 [ $# -ge 1 ] && [ $# -le 2 ] || die "使い方: bash scripts/flow/issue-finish.sh <issue番号> [<task番号>]"

@@ -3,6 +3,13 @@
 set -euo pipefail
 ROOT="${1:-$(git rev-parse --show-toplevel)}"
 python3 "$ROOT/scripts/agent-skills.py" --root "$ROOT"
-bash "$ROOT/scripts/ensure-claude-hooks.sh" --root "$ROOT"
+# ★ linked worktree では .claude/settings.json に書かない。これはプロジェクトの設定（コミットするもの）で、
+#   main のチェックアウトで登録する。worktree に未追跡で作ると作業ツリーが汚れ、flow の commit.sh が止まる
+dirs="$(git -C "$ROOT" rev-parse --path-format=absolute --git-dir --git-common-dir)"
+if [ "$(printf '%s\n' "$dirs" | sed -n 1p)" = "$(printf '%s\n' "$dirs" | sed -n 2p)" ]; then
+  bash "$ROOT/scripts/ensure-claude-hooks.sh" --root "$ROOT"
+else
+  echo "[agent-workflow] linked worktree: Claude hooks are registered in the main checkout (.claude/settings.json)"
+fi
 python3 "$ROOT/scripts/ensure-codex-hooks.py" --root "$ROOT"
 echo "[agent-workflow] configured; Codex hook trust requires /hooks; new skills require discovery"

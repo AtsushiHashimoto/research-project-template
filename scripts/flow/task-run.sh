@@ -9,6 +9,7 @@
 # 状態はファイルに持たない。GitHub の open/closed と git から導く。
 # 判定の実体は scripts/check-discipline.sh。ここには述語を書かない。
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 [ $# -eq 1 ] || die "使い方: bash scripts/flow/task-run.sh <task番号>"
@@ -31,7 +32,9 @@ grc=0; gout="$(check goal "$TASK" 2>&1)" || grc=$?
 printf '%s\n' "$gout"
 [ "$grc" = 0 ] || gate_stop "$TASK" \
   "task #$TASK の goal が判定できる形になっていない（空欄・goal の中身の判定・未確定の担当・解消の記録のどれか）" \
-  "$gout" "bash scripts/flow/task-run.sh $TASK" "$(goal_gate_launch "$TASK")" ""
+  "$gout" "bash scripts/flow/task-run.sh $TASK" "$(goal_gate_launch "$TASK")" \
+  "  ★ ワーカーが書き換えてよい本文は「## 未確定」節の行だけ。「## 目標の状態」の空欄と goal ゲートの FAIL は" \
+  "    needs-user で返す（goal はユーザーが書く）" ""
 
 # ── 1. 子 issue を既定順に並べる ─────────────────────────────────
 kids="$(sub_issues "$TASK")"
@@ -135,14 +138,16 @@ if check issue "$current" "$kind" "$TASK"; then
     "" \
     "  1. /issue-report で進捗を #$current に記録する" \
     "  2. spec 段なら .spec/issues/$current-*.md の「ステータス:」を completed にする" \
-    "  3. /review を回し、結果を PR 本文の「## /review 結果」に書く" \
-    "  3b. verification のサブエージェントに仕様整合を照合させ、PR 本文の「## 仕様整合」に貼る" \
-    "      （起動文に task #$TASK の goal と bash scripts/read-premises.sh $TASK の出力を原文で貼る。" \
-    "       節に書く行は issue-finish.sh が止まったときにも出る: - goal 書き換え: なし ほか）" \
-    "  4. git add <ファイル名> で入れるものを**名前で** stage し、" \
+    "  3. git add <ファイル名> で入れるものを**名前で** stage し、" \
     "     bash scripts/flow/commit.sh push --issue $current --message <題>" \
-    "     gh pr create で PR を作る（本文に 'Refs #$current'。Closes は書かない。close は issue-finish.sh が行う）" \
-    "  5. bash scripts/flow/issue-finish.sh $current $TASK" \
+    "  4. gh pr create --body-file <本文ファイル> で PR を作る" \
+    "     （本文に 'Refs #$current'。Closes は書かない。close は issue-finish.sh が行う）" \
+    "  5. /review を回し、結果を本文ファイルの「## /review 結果」に書く" \
+    "  6. verification のサブエージェントに仕様整合を照合させ、本文ファイルの「## 仕様整合」に書く" \
+    "     （起動文に task #$TASK の goal と bash scripts/read-premises.sh $TASK の出力を原文で貼る。" \
+    "      節に書く行は issue-finish.sh が止まったときにも出る: - goal 書き換え: なし ほか）" \
+    "  7. gh pr edit --body-file <本文ファイル> で PR 本文を更新する" \
+    "  8. bash scripts/flow/issue-finish.sh $current $TASK" \
     "     （検査 → マージ → close をこれが行う。PR 本文はモデルが書く）"
 fi
 

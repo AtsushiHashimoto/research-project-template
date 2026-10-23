@@ -38,6 +38,8 @@
 set -uo pipefail
 # ★ 起動のたびに読まれる初期化ファイルを切る（bash 1 回の起動が 275 ms → 14 ms）
 unset BASH_ENV ENV
+# ★ 品質ゲートの中から走ると QUALITY_* を継承する。記録の鍵の検査が親の値で変わらないよう切る
+unset QUALITY_FULL_SCAN QUALITY_SCOPE QUALITY_BASE_BRANCH
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
@@ -81,10 +83,10 @@ flow_files="$(sed -n "s/^FLOW_FILES='\(.*\)'$/\1/p" "$REPO_ROOT/scripts/quality-
 if [ -z "$flow_files" ]; then ng "quality-check.sh に FLOW_FILES が無い（flow のテストが品質ゲートに登録されていない）"
 else
   missing=""
-  for ref in $(grep -ohE 'scripts/[A-Za-z0-9_./-]+\.(sh|py)' "$FLOW"/*.sh "$REPO_ROOT"/scripts/check-discipline* | sort -u); do
+  while IFS= read -r ref; do
     [ -e "$REPO_ROOT/$ref" ] || continue
     [[ "$ref" =~ $flow_files ]] || missing="$missing $ref"
-  done
+  done < <(grep -ohE 'scripts/[A-Za-z0-9_./-]+\.(sh|py)' "$FLOW"/*.sh "$REPO_ROOT"/scripts/check-discipline* | sort -u)
   if [ -z "$missing" ]; then ok "flow が呼ぶ scripts/ のファイルは全部 FLOW_FILES に入っている"
   else ng "FLOW_FILES に無い:$missing"; fi
   for t in issue_flow commit_flow quick_flow task_run; do
@@ -497,6 +499,21 @@ $i:$kind:OPEN:x:parent=940
   git -C "$SANDBOX/repo" branch -D "$want/940-i$i" >/dev/null 2>&1
   i=$((i + 1))
 done
+
+# ★ 本物の configure-agent-workflow.sh を新しい worktree に当てても作業ツリーが clean のまま
+#   （汚れると commit.sh merge が必ず止まり、quick.sh が生成物をコミットする）
+R="$SANDBOX/realcfg"; rm -rf "$R"; mkdir -p "$R"
+( cd "$REPO_ROOT" && git ls-files -co --exclude-standard -z | xargs -0 tar cf - ) | tar xf - -C "$R"
+( cd "$R" && git init -q -b main . && git config user.email t@e.x && git config user.name t \
+  && git add -A && git commit -qm x && git worktree add -q --detach "$R/worktrees/w1" ) >/dev/null 2>&1
+out="$(bash "$R/scripts/configure-agent-workflow.sh" "$R/worktrees/w1" 2>&1)"; rc=$?
+dirty="$(git -C "$R/worktrees/w1" status --porcelain 2>&1)"
+if [ "$rc" -eq 0 ] && [ -z "$dirty" ]; then ok "★ 本物の configure-agent-workflow.sh の後も新しい worktree は clean"
+else ng "configure-agent-workflow.sh で worktree が汚れた（rc=$rc）: $dirty $(printf '%s' "$out" | tail -2)"; fi
+bash "$R/scripts/configure-agent-workflow.sh" "$R" >/dev/null 2>&1 || true
+if [ -f "$R/.claude/settings.json" ]; then ok "main のチェックアウトではフックを登録する（.claude/settings.json を作る）"
+else ng "main のチェックアウトでもフックを登録しなくなった"; fi
+rm -rf "$R"
 
 # ★ <TASK> の解決（親 task / 親なし / 親 epic）
 setup_sandbox

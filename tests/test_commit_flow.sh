@@ -29,6 +29,8 @@
 set -uo pipefail
 # ★ 起動のたびに読まれる初期化ファイルを切る（bash 1 回の起動が 275 ms → 14 ms）
 unset BASH_ENV ENV
+# ★ 品質ゲートの中から走ると QUALITY_* を継承する。記録の鍵の検査が親の値で変わらないよう切る
+unset QUALITY_FULL_SCAN QUALITY_SCOPE QUALITY_BASE_BRANCH
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
@@ -96,7 +98,9 @@ if [ "$(count_in_code "$FLOW/issue-finish.sh" 'flow/commit\.sh')" -gt 0 ]; then
   ok "issue-finish.sh の MERGE_CMD が flow/commit.sh を指す"
 else ng "issue-finish.sh が flow/commit.sh を指していない"; fi
 
-if [ "$(count_in_code "$REPO_ROOT/scripts/quality-check.sh" 'commit-merge')" -eq 0 ]; then
+# ★ FLOW_FILES はスキルのディレクトリ .claude/skills/commit-merge/ を正当に挙げるので、
+#   消したスクリプトとテストの名前だけを数える
+if [ "$(count_in_code "$REPO_ROOT/scripts/quality-check.sh" 'scripts/commit-merge\.sh|test_commit_merge')" -eq 0 ]; then
   ok "quality-check.sh に commit-merge の検査ブロックが残っていない"
 else ng "quality-check.sh が削除した commit-merge を指したまま"; fi
 

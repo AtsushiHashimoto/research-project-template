@@ -11,6 +11,7 @@
 # ★ 新規作成モード（--new）は持たない。非ゼロ終了の意味を
 #   「着手の前提が揃っていない」1 通りに保つため。作成は issue-create.sh。
 
+# shellcheck source=scripts/flow/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 [ $# -eq 1 ] || die "使い方: bash scripts/flow/issue-start.sh <issue番号>"
