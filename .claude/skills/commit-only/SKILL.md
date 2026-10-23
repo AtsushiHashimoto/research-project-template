@@ -1,6 +1,7 @@
 ---
 name: commit-only
-description: Commit changes only (no push)
+description: stage 済みの変更をコミットする（push しない）
+argument-hint: --issue <N> --message <題>
 metadata:
   harness: shared
 ---
@@ -9,74 +10,13 @@ metadata:
 必須の実行機能が無い場合は、変更・投稿・委譲の前に停止する。
 
 
-# Commit Only（ローカル保存）
+# Commit Only
 
-変更をコミットのみ（プッシュしない）
+入れるファイルを `git add <ファイル名>` で名指しで stage してから呼ぶ。
 
-**用途**: 一時的にローカルに変更を保存したい場合
-
-## Workflow
-
-### Phase 0: 簡易レビュー
-
-1. **変更内容を確認**
-   ```bash
-   git status
-   git diff --stat
-   ```
-
-2. **簡易チェック**
-   - 明らかな問題（デバッグコード、未完成のコード等）がないか確認
-   - 問題があれば指摘
-
-### Phase 1: Commit
-
-3. **変更をステージング**
-   ```bash
-   git add -- path/to/changed_file1 path/to/changed_file2   # 実際に変更したファイルに置き換える（git add . は使わない。git-workflow.md）
-   git diff --cached --stat   # 意図したものだけか確認
-   ```
-
-4. **コミット**
-   - Conventional Commits 形式を使用
-   - Issue番号を含める（`Refs #ISSUE_ID`）
-   - Claude Code署名を含める
-
-## Implementation
-
-現在のブランチから Issue 番号を取得：
-```bash
-BRANCH=$(git branch --show-current)
-ISSUE_ID=$(echo "$BRANCH" | grep -oE '[0-9]+' | head -1)
-
-# エラーチェック
-if [ -z "$ISSUE_ID" ]; then
-    echo "Error: Could not extract Issue ID from branch name: $BRANCH"
-    echo "Branch name must contain Issue number (e.g., feature/123-description)"
-    exit 1
-fi
+```
+bash scripts/flow/commit.sh only --issue <N> --message <題>
 ```
 
-変更をステージング：
-```bash
-git add -- path/to/changed_file1 path/to/changed_file2   # 実際に変更したファイルに置き換える（git add . は使わない。git-workflow.md）
-git diff --cached --stat   # 意図したものだけか確認
-```
-
-コミット（適切なメッセージで）：
-```bash
-git commit -m "適切なコミットメッセージ
-
-Refs #${ISSUE_ID}
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-```
-
-## Output
-
-- 簡易レビュー結果（問題があれば）
-- コミットハッシュ
-- 変更ファイル数
-- 次のステップの案内（push: `/commit-push`、完了: `/issue-finish`）
+- 未 stage・未追跡しか無ければ止まり、一覧と `git add` の例を出す
+- push もするなら `/commit-push`、完了なら `/issue-finish`

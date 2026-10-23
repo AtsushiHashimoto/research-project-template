@@ -60,7 +60,11 @@ DEFINED=$(grep -oE '^[[:space:]]*"[a-z][a-z-]*\|[0-9A-Fa-f]{6}\|' scripts/setup-
 [ -n "$DEFINED" ] || { echo "[skill-labels] ラベル定義を読めませんでした"; exit 1; }
 
 FILES=()
-while IFS= read -r f; do [ -f "$f" ] && FILES+=("$f"); done < <(git ls-files '.claude/skills/*')
+# 走査対象: スキル本体 ＋ **scripts/flow/**（issue の作成・着手の手順はスクリプトにある）。
+# ★ 静的走査で拾えるのは**リテラルで書かれたラベルだけ**（`--type "$TYPE"` のような引数で渡る
+#   ラベルは拾えない）。そちらの網は scripts/flow/issue-create.sh の `gh label list` による実行時の確認
+while IFS= read -r f; do [ -f "$f" ] && FILES+=("$f"); done \
+  < <(git ls-files '.claude/skills/*' 'scripts/flow/*')
 [ "${#FILES[@]}" -gt 0 ] || { echo "[skill-labels] 走査対象がありません"; exit 0; }
 
 EXCLUDED=0
