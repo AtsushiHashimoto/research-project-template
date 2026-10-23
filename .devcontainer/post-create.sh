@@ -84,7 +84,7 @@ if [ -z "$claude_min" ]; then
   echo "[post-create:claude-path] FAIL: install-claude-native.sh から下限を読めなかった（MIN_VERSION_DEFAULT の行が変わった？）" >&2
   claude_fail=1
 elif resolved=$(command -v claude 2>/dev/null); then
-  rv=$("$resolved" --version 2>&1 | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+  rv=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' <<<"$("$resolved" --version 2>&1)" || true)
   if [ -z "$rv" ]; then
     echo "[post-create:claude-path] WARN: PATH 上の $resolved の版を読めなかった" >&2
   elif [ "$(printf '%s\n%s\n' "$claude_min" "$rv" | sort -V | sed -n '1p')" != "$claude_min" ]; then

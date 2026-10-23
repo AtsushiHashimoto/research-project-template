@@ -59,7 +59,7 @@ run_block() {
   chmod +x "$TMPD/bin/claude"
   (PATH="$TMPD/bin:$PATH"; claude_fail=0; eval "$BLOCK" >/dev/null 2>&1; echo "$claude_fail")
 }
-older=$(awk -F. '{printf "%d.%d.%d", $1, $2, $3 - 1}' <<<"$min")
+older=0.0.0   # 下限が x.y.0 でも常に下限未満（1 を引くと x.y.-1 になり読めない）
 newer=$(awk -F. '{printf "%d.%d.%d", $1, $2, $3 + 1}' <<<"$min")
 
 expect "下限未満（$older）で FAIL にする" "$(run_block "$older")" 1
@@ -73,5 +73,11 @@ else
   expect "PATH 上に claude が無いとき FAIL にする" \
     "$(PATH="/usr/bin:/bin"; claude_fail=0; eval "$BLOCK" >/dev/null 2>&1; echo "$claude_fail")" 1
 fi
+
+# 下限を読めない（installer の行の形が変わった）ときも FAIL にする
+mkdir -p "$TMPD/repo/.devcontainer"
+echo 'MIN_VERSION_DEFAULT="2.1.280"' > "$TMPD/repo/.devcontainer/install-claude-native.sh"
+expect "下限を読めないとき FAIL にする" \
+  "$(cd "$TMPD/repo" && PATH="$TMPD/bin:$PATH" && claude_fail=0 && eval "$BLOCK" >/dev/null 2>&1; echo "$claude_fail")" 1
 
 finish

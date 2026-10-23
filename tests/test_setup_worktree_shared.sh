@@ -50,6 +50,7 @@ JSON
     STORE="$FIX/main/data/shared"
 }
 teardown_fixture() { [[ -n "${FIX:-}" ]] && rm -rf "$FIX"; }
+trap teardown_fixture EXIT
 
 run_setup() { (cd "$WT" && bash scripts/setup-worktree.sh >/dev/null 2>&1); }
 
@@ -111,7 +112,18 @@ teardown_fixture
 # by a fixture; pin its position instead (the store was lost once despite earlier guards).
 unguarded=$(awk '/assert_safe_to_delete "data\/shared"/{g = NR} /^[[:space:]]*(if ! )?rm -rf data\/shared/{if (!g || NR - g > 3) print NR}' "$SETUP")
 check "T6b every rm -rf data/shared is preceded by assert_safe_to_delete" "${unguarded:-none}" "none"
+# ...and its failure stops the script (a `|| true` would leave the guard in place but toothless)
+check "T6b the guard's failure stops the script" \
+    "$(grep -A1 'assert_safe_to_delete "data/shared"' "$SETUP" | grep -c '|| error')" "1"
 check "T6b (control) rm -rf data/shared exists" "$(grep -cE '^[[:space:]]*(if ! )?rm -rf data/shared' "$SETUP")" "1"
+
+# T6c: a store that has become a symlink stops the script before anything is touched
+setup_fixture
+mv "$STORE" "$FIX/elsewhere" && ln -s "$FIX/elsewhere" "$STORE"
+run_setup
+check "T6c symlinked store -> non-zero exit" "$?" "1"
+check "T6c worktree data/shared is not created" "$([[ -e "$WT/data/shared" || -L "$WT/data/shared" ]] && echo yes || echo no)" "no"
+teardown_fixture
 
 # T7: refuses to run in the main repository (data/shared is the store there)
 setup_fixture

@@ -53,7 +53,7 @@ get_version() {
   fi
   # 先頭行だけでなく全行から探す（警告などが先に出ても版を取り出せるように）。
   # grep の不一致（非ゼロ）で set -e / pipefail に殺されないよう || true で受ける
-  ver=$(printf '%s\n' "$out" | grep -m1 -oE '^[0-9]+\.[0-9]+\.[0-9]+' || true)
+  ver=$(grep -m1 -oE '^[0-9]+\.[0-9]+\.[0-9]+' <<<"$out" || true)
   if [ -n "$ver" ]; then
     echo "$ver"
     return 0

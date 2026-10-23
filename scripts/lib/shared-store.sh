@@ -6,9 +6,9 @@
 # repository by one script and relative to the current directory by another --
 # and one of them decides what to delete. This file is the single definition.
 #
-# In a derived project the whole store (~26 GB) was destroyed and replaced by a
-# relative link written into the main repository, although a main-repo guard and
-# a `cd` into the worktree were already in place. So these checks are meant to be
+# In a derived project the store was destroyed and replaced by a relative link
+# written into the main repository, although a main-repo guard and a `cd` into
+# the worktree were already in place. So these checks are meant to be
 # re-run *immediately before* each destructive operation, not once at the top.
 #
 # Usage:
@@ -29,9 +29,13 @@ shared_store_path() {
         echo "shared-store: shared_data_path is unset in $config" >&2
         return 1
     fi
-    # Always resolved against the main repository. `path_type: relative` describes
-    # the *link* written into a worktree, not where the store lives.
-    printf '%s\n' "$main_repo/$rel"
+    # A relative value is always resolved against the main repository (never the cwd).
+    # `path_type: relative` describes the *link* written into a worktree, not where the
+    # store lives. init-data.sh writes an absolute value for an external store.
+    case "$rel" in
+        /*) printf '%s\n' "$rel" ;;
+        *)  printf '%s\n' "$main_repo/$rel" ;;
+    esac
 }
 
 # The store must be a real directory. If it has become a symlink or vanished,
@@ -67,9 +71,13 @@ assert_safe_to_delete() {
     local target="$1" store="$2" expected_cwd="$3" main_repo="$4"
     local here resolved
     here=$(pwd -P)
-    resolved=$(readlink -f "$target" 2>/dev/null || true)
+    # Fail closed: if the target cannot be resolved, "is it the store?" cannot be answered
+    if ! resolved=$(readlink -f "$target" 2>/dev/null) || [ -z "$resolved" ]; then
+        echo "shared-store: refusing to delete '$target': cannot resolve it (readlink -f)." >&2
+        return 1
+    fi
 
-    if [ -n "$resolved" ] && [ "$resolved" = "$(readlink -f "$store" 2>/dev/null)" ]; then
+    if [ "$resolved" = "$(readlink -f "$store" 2>/dev/null)" ]; then
         echo "shared-store: refusing to delete '$target': it IS the shared store." >&2
         echo "  $target -> $resolved" >&2
         return 1

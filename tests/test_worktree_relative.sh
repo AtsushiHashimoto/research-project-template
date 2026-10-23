@@ -61,6 +61,16 @@ git -C "$R" config worktree.useRelativePaths true
 ( cd "$R" && bash scripts/configure-worktree-paths.sh >/dev/null 2>&1 )
 relative "$R/worktrees/issue2" && ok "configure: 絶対パスの既存 worktree を相対化" || ng "configure: 絶対パスの既存 worktree を相対化"
 [ -z "$(git -C "$R" config --get worktree.useRelativePaths)" ] && ok "configure: useRelativePaths を解除" || ng "configure: useRelativePaths を解除"
+# 異常は exit 1 で返す（呼び出し元は WARNING を出して続ける）
+( cd "$R" && bash scripts/configure-worktree-paths.sh >/dev/null 2>&1 ) && ok "configure: 正常なら 0" || ng "configure: 正常なら 0"
+mkdir -p "$R/worktrees/broken" && echo "gitdir: ../../.git/worktrees/nope" > "$R/worktrees/broken/.git"
+( cd "$R" && bash scripts/configure-worktree-paths.sh >/dev/null 2>&1 ) && ng "configure: fix の失敗は非 0" || ok "configure: fix の失敗は非 0"
+rm -rf "$R/worktrees/broken"
+printf '[worktree]\n\tuseRelativePaths = yes\n' > "$TMP/gcfg"
+( cd "$R" && GIT_CONFIG_GLOBAL="$TMP/gcfg" bash scripts/configure-worktree-paths.sh >/dev/null 2>&1 ) \
+  && ng "configure: リポジトリの外の useRelativePaths（yes も真）が残れば非 0" || ok "configure: リポジトリの外の useRelativePaths（yes も真）が残れば非 0"
+( cd "$R/worktrees/issue2" && echo "gitdir: /nonexistent" > .git && bash "$R/scripts/configure-worktree-paths.sh" >/dev/null 2>&1 ) \
+  && ng "configure: .git が解決できなければ非 0" || ok "configure: .git が解決できなければ非 0"
 
 # 4: fix は壊れたパスがあっても残りを処理し、非 0 で返す
 R="$TMP/part/repo"; newrepo "$R"; git -C "$R" worktree add -q "$R/worktrees/issue3" -b f3 2>/dev/null

@@ -9,8 +9,10 @@
 #       例: bash scripts/worktree-relative.sh add worktrees/issue12 -b feature/12-x
 #   bash scripts/worktree-relative.sh fix [<worktree のパス>...]
 #       既存 worktree を直す。省略時は <メインリポジトリ>/worktrees/*/ のうち .git ファイルを持つもの
+#   bash scripts/worktree-relative.sh remove <path> [git worktree remove の引数...]
+#       unlock してから remove する。remove が失敗したら lock し直す（登録を無防備に残さない）
 #
-# worktree の作成・修復はこのスクリプトだけを通す（規則・スキルはここを呼ぶ）。
+# worktree の作成・修復・削除はこのスクリプトだけを通す（規則・スキルはここを呼ぶ）。
 #
 # 方式（git のバージョンによらず同じ）:
 #   素の `git worktree add` で作り、直後に **worktree 側の .git ファイルだけ**を相対パスに書き換える。
@@ -26,8 +28,8 @@
 # add が worktree を lock する理由:
 #   メイン側 gitdir は 1 つの環境でしか有効にならないので、反対側の環境で `git gc --auto`
 #   （内部で `git worktree prune`）が走ると、その worktree の登録が消える。
-#   lock した worktree は prune の対象外になる。消すときは `git worktree unlock` してから
-#   `git worktree remove` する（scripts/commit-merge.sh・scripts/safe-remove-worktree.sh）。
+#   lock した worktree は prune の対象外になる。消すときは `remove` サブコマンドを使う。
+#   --reason は git 2.31 以上。それより古い git では理由なしで lock する。
 
 set -euo pipefail
 
@@ -65,9 +67,13 @@ relativize_worktree_side() {
 cmd_add() {
   [ $# -ge 1 ] || die "使い方: $0 add <path> [git worktree add の引数...]"
   local path=$1; shift
+  local lock=(--lock)
+  [ "$(git worktree add -h 2>&1 | grep -c -- '--reason' || true)" -gt 0 ] && lock+=(--reason "$LOCK_REASON")
   # --lock で作成と同時に lock する（作成と lock の間に失敗して、lock の無い worktree が残らないように）
-  git -c worktree.useRelativePaths=false worktree add --lock --reason "$LOCK_REASON" "$path" "$@"
-  log "lock: $path（反対側の環境の prune で登録が消えないように。消すときは unlock してから）"
+  git -c worktree.useRelativePaths=false worktree add "${lock[@]}" "$path" "$@" \
+    || die "worktree を作れません: $path（フォルダを手で消して登録だけ残っている場合は
+  git worktree unlock '$path' && git worktree prune を実行してからやり直す）"
+  log "lock: $path（反対側の環境の prune で登録が消えないように。消すときは remove サブコマンドで）"
   relativize_worktree_side "$path" || die "作成した worktree の相対化に失敗しました: $path"
 }
 
@@ -87,8 +93,22 @@ cmd_fix() {
   return $failed
 }
 
+cmd_remove() {
+  [ $# -ge 1 ] || die "使い方: $0 remove <path> [git worktree remove の引数...]"
+  local path=$1 locked=0; shift
+  # lock の無い古い worktree では unlock が失敗する。それは問題ない（locked=0 のまま）
+  git worktree unlock "$path" 2>/dev/null && locked=1
+  if git worktree remove "$@" "$path"; then return 0; fi
+  if [ "$locked" = 1 ]; then
+    git worktree lock --reason "$LOCK_REASON" "$path" 2>/dev/null || git worktree lock "$path" \
+      || warn "$path を lock し直せませんでした（反対側の環境の prune で登録が消えうる）"
+  fi
+  return 1
+}
+
 case "${1:-}" in
   add) shift; cmd_add "$@" ;;
   fix) shift; cmd_fix "$@" ;;
-  *) die "使い方: $0 add <path> [args...] | fix [<path>...]" ;;
+  remove) shift; cmd_remove "$@" ;;
+  *) die "使い方: $0 add <path> [args...] | fix [<path>...] | remove <path> [args...]" ;;
 esac

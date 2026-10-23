@@ -194,7 +194,10 @@ if [[ -f "$LOCAL_POLICY_MAIN" ]]; then
         warn ".claude/model-policy.local.json is a real file in this worktree; leaving it as is"
     else
         mkdir -p "$CURRENT_DIR/.claude"
-        LOCAL_POLICY_TARGET=$(realpath --relative-to="$CURRENT_DIR/.claude" "$LOCAL_POLICY_MAIN")
+        if ! LOCAL_POLICY_TARGET=$(realpath --relative-to="$CURRENT_DIR/.claude" "$LOCAL_POLICY_MAIN" 2>/dev/null); then
+            warn "cannot compute a relative path to $LOCAL_POLICY_MAIN; falling back to absolute"
+            LOCAL_POLICY_TARGET="$LOCAL_POLICY_MAIN"
+        fi
         ln -sfn "$LOCAL_POLICY_TARGET" "$LOCAL_POLICY_WT"
         success "linked: .claude/model-policy.local.json -> $LOCAL_POLICY_TARGET"
     fi
@@ -206,23 +209,20 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 $(msg run_init_first): ./scripts/init-data.sh"
 fi
 
-# Read configuration
+# Only path_type is read here.  Where the store lives is answered by shared_store_path()
+# (scripts/lib/shared-store.sh), so this script and safe-remove-worktree.sh cannot disagree.
+# The store is addressed absolutely for the checks below; the *link target* may be relative.
 if command -v jq &>/dev/null; then
-    SHARED_DATA_PATH=$(jq -r '.shared_data_path' "$CONFIG_FILE")
     PATH_TYPE=$(jq -r '.path_type // "absolute"' "$CONFIG_FILE")
 else
-    SHARED_DATA_PATH=$(grep '"shared_data_path"' "$CONFIG_FILE" | cut -d'"' -f4)
     PATH_TYPE=$(grep '"path_type"' "$CONFIG_FILE" | cut -d'"' -f4 || echo "absolute")
 fi
 
-# The store is always addressed absolutely for the checks below; the *link target*
-# may be relative.  Overwriting SHARED_DATA_PATH with the absolute form is what
-# silently defeated path_type=relative: the config asked for a relative link and got
-# an absolute one, which breaks when the repository is mounted at another path.
+# Loaded from this script's own directory, so a main checkout at an older commit still works
 # shellcheck source=scripts/lib/shared-store.sh
-. "$MAIN_REPO/scripts/lib/shared-store.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/lib/shared-store.sh"
 STORE_ABS=$(shared_store_path "$MAIN_REPO") || error "cannot resolve the shared store"
-SHARED_DATA_PATH="$STORE_ABS"
+SHARED_DATA_PATH="$STORE_ABS"   # the name the checks below use
 
 # A store that is missing or has become a symlink makes every check below meaningless
 assert_store_intact "$STORE_ABS" || error "aborting: the shared store is not usable."

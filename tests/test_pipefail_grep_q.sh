@@ -84,7 +84,7 @@ head_hits_in() {
 # `… | grep -q …` の違反を返す（同じ形）
 grepq_hits_in() {
   fold_logical_lines "$1" \
-    | grep -E '^[0-9]+:.*(^|[^|])\|[[:space:]]*grep[[:space:]]+(-[a-zA-Z]*q|--quiet)' \
+    | grep -E '^[0-9]+:.*(^|[^|])\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+|command[[:space:]]+)*grep([[:space:]]+-[a-zA-Z]+)*[[:space:]]+(-[a-zA-Z]*[qm][a-zA-Z0-9]*|--quiet|--max-count)' \
     | grep -v 'pipefail-grep-q:allow' \
     | grep -vE '^[0-9]+:[[:space:]]*#' || true
 }
@@ -131,7 +131,7 @@ while IFS= read -r f; do
 ${hits}${head_hits}
 "
   fi
-done < <(git ls-files '*.sh')
+done < <(git ls-files --cached --others --exclude-standard '*.sh')   # 未追跡の新規スクリプトも見る
 
 check "pipefail のスクリプトに early-exit な grep が無い" "${BAD:-none}" "none"
 # ★ 走査できなかったファイルがあれば落とす（「違反なし」と区別する）
@@ -261,6 +261,10 @@ check "'|| grep -q' を誤検出しない" "$(grepq_hits_in "$TMPD/oror.sh" || t
 check "コメント中の言及を誤検出しない" "$(head_hits_in "$TMPD/mention.sh" || true)" ""
 
 # 走査対象が空でないこと（空なら検査全体が恒真になる）
+for spelling in "grep -E -q x" "LC_ALL=C grep -q x" "command grep -q x" "grep -m1 x"; do
+  printf '#!/usr/bin/env bash\nset -uo pipefail\nif printf a | %s; then :; fi\n' "$spelling" > "$TMPD/spell.sh"
+  check "'| $spelling' を検出できる" "$([ -n "$(grepq_hits_in "$TMPD/spell.sh")" ] && echo detected || echo missed)" "detected"
+done
 check "走査対象が空でない" "$([ "$(git ls-files '*.sh' | grep -c .)" -gt 0 ] && echo yes || echo no)" "yes"
 
 # 許可マーカーが効くこと

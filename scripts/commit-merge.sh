@@ -18,6 +18,7 @@
 # 5. ローカルブランチを削除
 
 set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # 後で cd するので先に絶対パスにする
 
 # 色付き出力
 RED='\033[0;31m'
@@ -128,7 +129,7 @@ if ! git checkout main; then
     log_error "      .claude/rules/template/git-workflow.md「既定ブランチ」を参照）"
     log_error ""
     log_error "  ★ PR #${PR_NUMBER} のマージは完了しています。後処理だけが未実行です:"
-    log_error "    git worktree remove ${WORKTREE_PATH:-<worktree>}"
+    log_error "    bash scripts/worktree-relative.sh remove ${WORKTREE_PATH:-<worktree>}"
     log_error "    git branch -D ${BRANCH_TO_DELETE:-<branch>}"
     log_error "    git push origin --delete ${BRANCH_TO_DELETE:-<branch>}"
     exit 1
@@ -139,11 +140,10 @@ git pull
 # ブランチ削除より先に行う必要がある
 if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
     log_info "Worktreeを削除中: $WORKTREE_PATH"
-    # worktree-relative.sh add は worktree を lock する。lock したままでは remove --force も拒まれる
-    git worktree unlock "$WORKTREE_PATH" 2>/dev/null || true
-    git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || {
+    # worktree-relative.sh add は worktree を lock するので、unlock してから消す（同 remove）
+    bash "$SCRIPT_DIR/worktree-relative.sh" remove "$WORKTREE_PATH" --force 2>/dev/null || {
         log_warn "Worktreeの自動削除に失敗しました。手動で削除してください:"
-        log_warn "  git worktree unlock $WORKTREE_PATH; git worktree remove $WORKTREE_PATH --force"
+        log_warn "  bash scripts/worktree-relative.sh remove $WORKTREE_PATH --force"
     }
 fi
 

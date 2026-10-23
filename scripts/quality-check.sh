@@ -338,8 +338,8 @@ collect_sh_files() {
     case "$f" in
       *.sh) SH_FILES+=("$f"); continue ;;
     esac
-    if head -n 1 "$f" 2>/dev/null \
-      | LC_ALL=C grep -Eq '^#![[:space:]]*[^[:space:]]*/(env[[:space:]]+)?(ba|da|k)?sh([[:space:]]|$)'; then
+    if LC_ALL=C grep -Eq '^#![[:space:]]*[^[:space:]]*/(env[[:space:]]+)?(ba|da|k)?sh([[:space:]]|$)' \
+      <<<"$(head -n 1 "$f" 2>/dev/null)"; then
       SH_FILES+=("$f")
     fi
   done
@@ -478,7 +478,7 @@ fi
 
 # setup-worktree.sh の回帰テスト（data/shared のリンク・共有ストアの保護・model-policy.local.json）
 #   一時リポジトリで worktree を作るので約 9 秒かかる。関係するファイルが変わったときだけ走らせる。
-SETUP_WT_FILES='^(scripts/(setup-worktree|resolve-model)\.sh|scripts/lib/shared-store\.sh|tests/test_setup_worktree_shared\.sh)$'
+SETUP_WT_FILES='^(scripts/(setup-worktree|resolve-model)\.sh|scripts/lib/shared-store\.sh|\.claude/model-policy\.json|tests/test_setup_worktree_shared\.sh)$'
 if [ "$SCOPE" = "docs" ]; then
   skip "setup-worktree の回帰テスト（QUALITY_SCOPE=docs）"
 elif [ ! -f tests/test_setup_worktree_shared.sh ]; then
@@ -489,12 +489,19 @@ else
   run_check "setup-worktree の回帰テスト" bash tests/test_setup_worktree_shared.sh
 fi
 
-# 共有ストアの所在と削除前の再確認（scripts/lib/shared-store.sh）
-#   所在をスクリプトごとに別の基準で解釈すると、削除の判断を誤る。一時ディレクトリで 1 秒未満。
-if [ ! -f tests/test_shared_store_lib.sh ]; then
-  skip "共有ストアの判定（tests/test_shared_store_lib.sh が無い）"
+# 共有ストアの所在と削除前の再確認（scripts/lib/shared-store.sh）と、それを使う削除の経路
+#   所在をスクリプトごとに別の基準で解釈すると、削除の判断を誤る。lock した worktree の削除・
+#   init-data.sh の拒否も含めて一時リポジトリで数秒。関係するファイルが変わったときだけ走らせる。
+STORE_FILES='^(scripts/(safe-remove-worktree|init-data|worktree-relative)\.sh|scripts/lib/shared-store\.sh|tests/test_(shared_store_lib|safe_remove_worktree)\.sh)$'
+if [ "$SCOPE" = "docs" ]; then
+  skip "共有ストアと削除の経路（QUALITY_SCOPE=docs）"
+elif [ ! -f tests/test_shared_store_lib.sh ] || [ ! -f tests/test_safe_remove_worktree.sh ]; then
+  skip "共有ストアと削除の経路（tests/test_shared_store_lib.sh か tests/test_safe_remove_worktree.sh が無い）"
+elif ! changed_any "$STORE_FILES"; then
+  skip "共有ストアと削除の経路（関係するファイルの変更なし vs ${BASE_REF:-?}）"
 else
   run_check "共有ストアの判定" bash tests/test_shared_store_lib.sh
+  run_check "共有ストアと削除の経路" bash tests/test_safe_remove_worktree.sh --quiet
 fi
 
 # commit-merge.sh の merge 前チェックの回帰テスト

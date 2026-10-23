@@ -26,6 +26,7 @@ fixture() {
     echo STORE > "$FIX/main/data/shared/datasets/marker.txt"
 }
 cleanup() { rm -rf "$FIX"; }
+trap '[ -n "${FIX:-}" ] && rm -rf "$FIX"' EXIT
 
 echo "=== shared-store.sh ==="
 
@@ -43,6 +44,10 @@ cd "$REPO_ROOT" || exit 1
 
 shared_store_path "$FIX/nonexistent" >/dev/null 2>&1
 check "a missing config is an error, not an empty path" "$?" "1"
+
+# An external store (init-data.sh writes an absolute path for it) is used as is
+echo '{"shared_data_path":"/srv/store","path_type":"absolute"}' > "$FIX/main/.claude/worktree-config.json"
+check "an absolute shared_data_path is used as is" "$(shared_store_path "$FIX/main")" "/srv/store"
 cleanup
 
 # ------------------------------------------------------------ store intact
@@ -80,6 +85,9 @@ cd "$WT" || exit 1
 mkdir -p data/shared
 assert_safe_to_delete "data/shared" "$STORE" "$WT" "$FIX/main" >/dev/null 2>&1
 check "deleting a worktree-local directory is allowed" "$?" "0"
+# A target that cannot be resolved cannot be shown not to be the store: refuse (fail closed)
+assert_safe_to_delete "no-such-dir/shared" "$STORE" "$WT" "$FIX/main" >/dev/null 2>&1
+check "an unresolvable target is refused" "$?" "1"
 
 # data/ pointing back into the main repository makes data/shared *be* the store
 # while looking like an ordinary directory (-L false, -d true).
@@ -92,6 +100,10 @@ check "deleting the store through a symlinked data/ is refused" "$?" "1"
 cd "$FIX/main" || exit 1
 assert_safe_to_delete "data/shared" "$STORE" "$WT" "$FIX/main" >/dev/null 2>&1
 check "deleting from the main repository is refused" "$?" "1"
+# ...even when the target is not the store (only the main-repository check can refuse this)
+mkdir -p "$FIX/main/scratch"
+assert_safe_to_delete "scratch" "$STORE" "" "$FIX/main" >/dev/null 2>&1
+check "any deletion from the main repository is refused" "$?" "1"
 
 # A relative path computed for one worktree, applied from another directory, is
 # the shape the incident left behind.

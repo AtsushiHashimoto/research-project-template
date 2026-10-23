@@ -165,7 +165,9 @@ tar -czf "$OUT" -C "$TMP" "$PREFIX" || {
 echo ""
 echo "生成: $OUT"
 echo "検証（開発ハーネスが含まれていないこと）:"
-if [ -n "$(tar -tzf "$OUT" | grep -E "/(\.claude|\.spec|\.dev|\.devcontainer|worktrees)/" || true)" ]; then
+# tar が読めなければ「含まれていない」と言わない（空の一覧を合格扱いにしない）
+LISTING=$(tar -tzf "$OUT") || { echo "  ❌ 生成物を読めません: $OUT" >&2; exit 2; }
+if [ "$(grep -cE "/(\.claude|\.spec|\.dev|\.devcontainer|worktrees)/" <<<"$LISTING")" -gt 0 ]; then
   # --keep で意図的に残した場合のみここに来る
   echo "  ⚠ 開発ハーネスのパスが含まれています（--keep 指定を確認）"
 else

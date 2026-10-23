@@ -4,6 +4,7 @@
 # Check for important files before removing worktree
 
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # 後で cd するので先に絶対パスにする
 
 # Color output
 GREEN='\033[0;32m'
@@ -44,14 +45,20 @@ if [ -z "$MAIN_REPO" ] || [ ! -d "$MAIN_REPO" ]; then echo "Error: main reposito
 CONFIG_FILE="$MAIN_REPO/.claude/worktree-config.json"
 
 # Read shared data path
-#   Always resolved against the main repository (scripts/lib/shared-store.sh). Reading the
-#   raw value here made it relative to the *current directory*, unlike setup-worktree.sh.
+#   共有ストアの所在は scripts/lib/shared-store.sh の 1 箇所で決める（main 基準。cwd 基準で読むと
+#   setup-worktree.sh と食い違う）。ライブラリはこのスクリプトと同じ版を読む。
+#   ストアが symlink なら止める。まだ作っていない（init-data.sh 未実行）なら退避先なしで続ける。
+# shellcheck source=scripts/lib/shared-store.sh
+. "$SCRIPT_DIR/lib/shared-store.sh"
 SHARED_DATA_PATH=""
 if [ -f "$CONFIG_FILE" ]; then
-    # shellcheck source=scripts/lib/shared-store.sh
-    . "$MAIN_REPO/scripts/lib/shared-store.sh"
     SHARED_DATA_PATH=$(shared_store_path "$MAIN_REPO") || exit 1
-    assert_store_intact "$SHARED_DATA_PATH" || exit 1
+    if [ -L "$SHARED_DATA_PATH" ]; then
+        assert_store_intact "$SHARED_DATA_PATH" || exit 1
+    elif [ ! -d "$SHARED_DATA_PATH" ]; then
+        echo -e "${YELLOW}⚠ 共有ストアがまだありません（$SHARED_DATA_PATH）。退避先なしで続けます${NC}"
+        SHARED_DATA_PATH=""
+    fi
 fi
 
 # Check data/local for potentially important files
@@ -178,14 +185,12 @@ echo -e "${BLUE}Removing worktree...${NC}"
 # ★ Must cd to main repo BEFORE removing worktree
 # Otherwise the shell's cwd becomes invalid after removal
 cd "$MAIN_REPO" || { echo -e "${RED}❌ Failed to cd to main repo: $MAIN_REPO${NC}"; exit 1; }
-# worktree-relative.sh add は worktree を lock する（反対側の環境の prune から登録を守るため）。
-# lock の無い古い worktree では unlock が失敗するが、それで構わない
-git worktree unlock "$WORKTREE_PATH" 2>/dev/null || true
-git worktree remove "$WORKTREE_PATH"
-# The store must have survived the removal (a link that resolved into it must not take it along)
+# worktree-relative.sh add は worktree を lock するので、unlock してから消す（失敗したら lock し直す）
+bash "$SCRIPT_DIR/worktree-relative.sh" remove "$WORKTREE_PATH"
+# 共有ストアが削除で巻き込まれていないこと（ストアへ解決するリンクがあっても）
 if [ -n "$SHARED_DATA_PATH" ]; then
     assert_store_intact "$SHARED_DATA_PATH" || {
-        echo -e "${RED}❌ The shared store is no longer intact after removing the worktree${NC}"
+        echo -e "${RED}❌ worktree の削除の後、共有ストアが壊れています${NC}"
         exit 1
     }
 fi
