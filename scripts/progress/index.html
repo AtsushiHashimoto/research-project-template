@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Progress</title>
+<style>
+:root { --bg:#fff; --fg:#1f2328; --muted:#656d76; --line:#d0d7de; --card:#f6f8fa;
+        --warn-bg:#fff1f0; --warn:#cf222e; --ok:#1a7f37; --work:#0969da; --need:#9a6700; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8d96a0; --line:#30363d; --card:#161b22;
+          --warn-bg:#2d1214; --warn:#ff7b72; --ok:#3fb950; --work:#58a6ff; --need:#d29922; }
+}
+* { box-sizing: border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+       font:14px/1.5 system-ui, sans-serif; max-width:1100px; margin-inline:auto; }
+a { color:var(--work); }
+header { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; }
+h1 { font-size:18px; margin:0; }
+.muted { color:var(--muted); font-size:12px; }
+#banner { display:none; border:2px solid var(--warn); background:var(--warn-bg); color:var(--warn);
+          padding:8px 12px; border-radius:6px; margin:12px 0; }
+#summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin:12px 0; }
+.group { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:8px 12px; }
+.group h2 { font-size:14px; margin:0 0 4px; }
+.group ul { margin:0; padding-left:18px; max-height:180px; overflow:auto; }
+form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+input[type=search] { flex:1 1 200px; padding:4px 8px; background:var(--bg); color:var(--fg);
+                     border:1px solid var(--line); border-radius:6px; }
+details { margin-left:16px; }
+details > summary { cursor:pointer; list-style-position:outside; }
+.row { padding:2px 0; }
+.num { color:var(--muted); }
+.badge { display:inline-block; font-size:11px; padding:0 6px; border-radius:10px; margin-left:4px;
+         border:1px solid var(--line); color:var(--muted); }
+.b-work { border-color:var(--work); color:var(--work); }
+.b-need { border-color:var(--need); color:var(--need); }
+.b-done { border-color:var(--ok); color:var(--ok); }
+.b-mark { border-color:var(--warn); color:var(--warn); }
+.side { color:var(--muted); font-size:12px; margin-left:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Progress</h1>
+  <span class="muted" id="when"></span>
+</header>
+<div id="banner" role="alert"></div>
+<section id="summary" aria-label="要約"></section>
+<form id="filters">
+  <label><input type="checkbox" name="closed"> closed も表示</label>
+  <label><input type="checkbox" name="marks"> 逸脱の印を表示</label>
+  <input type="search" name="q" placeholder="タイトル・番号・ラベルで絞り込み">
+  <button type="button" id="refresh">取り直す</button>
+</form>
+<p class="muted">作業中 = open かつブランチか worktree がある（手元の git。fetch はしない）。PR は closing keyword で紐づいたものだけ。</p>
+<main id="tree"></main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const el = (tag, text, cls) => { const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+let data = null;
+
+function params() { return new URLSearchParams(location.search); }
+function syncForm() {
+  const p = params(), f = $("filters");
+  f.closed.checked = p.get("closed") === "1"; f.marks.checked = p.get("marks") === "1"; f.q.value = p.get("q") || "";
+}
+function writeParams() {
+  const f = $("filters"), p = new URLSearchParams();
+  if (f.closed.checked) p.set("closed", "1"); if (f.marks.checked) p.set("marks", "1"); if (f.q.value) p.set("q", f.q.value);
+  history.replaceState(null, "", "?" + p.toString()); render();
+}
+
+function link(n) { const a = el("a", "#" + n.number + " " + n.title); a.href = n.url; a.target = "_blank"; a.rel = "noopener"; return a; }
+function badges(n, showMarks) {
+  const out = [];
+  if (n.state === "CLOSED") out.push(el("span", n.stateReason === "NOT_PLANNED" ? "見送り" : "完了", "badge b-done"));
+  if (n.labels.includes("user-action")) out.push(el("span", "要対応", "badge b-need"));
+  if (n.labels.includes("blocked")) out.push(el("span", "blocked", "badge b-need"));
+  if (n.working) out.push(el("span", "作業中", "badge b-work"));
+  if (n.working === null && n.state === "OPEN") out.push(el("span", "作業中: 不明", "badge"));
+  if (n.taskBranches.length && n.state === "OPEN") out.push(el("span", "配下で作業中", "badge b-work"));
+  if (n.progress) out.push(el("span", `${n.progress.completed}/${n.progress.total}` +
+      (n.progress.notPlanned ? ` (見送り ${n.progress.notPlanned})` : ""), "badge"));
+  for (const pr of n.prs) out.push(el("span", `PR #${pr.number} ${pr.state.toLowerCase()}`, "badge"));
+  for (const note of n.notes) out.push(el("span", note, "badge"));
+  if (showMarks) for (const m of n.marks) out.push(el("span", "⚠ " + m, "badge b-mark"));
+  return out;
+}
+function matches(n, q) {
+  if (!q) return true; q = q.toLowerCase();
+  return ("#" + n.number + " " + n.title + " " + n.labels.join(" ")).toLowerCase().includes(q);
+}
+function visible(num, opt) {
+  const n = data.nodes[num];
+  if (!opt.closed && n.state === "CLOSED") return false;
+  if (matches(n, opt.q)) return true;
+  return n.children.some((c) => visible(c, opt));
+}
+function rowOf(n, opt) {
+  const row = el("span", undefined, "row"); row.append(link(n), ...badges(n, opt.marks));
+  if (n.worktrees.length) row.append(el("span", n.worktrees.join(", "), "side"));
+  return row;
+}
+function nodeEl(num, opt) {
+  const n = data.nodes[num];
+  const kids = n.children.filter((c) => visible(c, opt));
+  if (!n.children.length) { const d = el("div"); d.style.marginLeft = "16px"; d.append(rowOf(n, opt)); return d; }
+  const d = el("details"); d.open = n.kind !== "issue" && n.state === "OPEN";
+  const s = el("summary"); s.append(el("span", n.kind + " ", "num"), rowOf(n, opt)); d.append(s);
+  for (const c of kids) d.append(nodeEl(c, opt));
+  const hidden = n.children.length - kids.length;
+  if (hidden && !opt.closed && !opt.q) d.append(el("div", `+${hidden} closed`, "muted"));
+  return d;
+}
+function summaryGroup(title, nums, hint) {
+  const g = el("div", undefined, "group"); g.append(el("h2", `${title} (${nums === null ? "不明" : nums.length})`));
+  if (nums === null) { g.append(el("p", hint, "muted")); return g; }
+  const ul = el("ul"); for (const num of nums) { const li = el("li"); li.append(link(data.nodes[num])); ul.append(li); }
+  g.append(ul); return g;
+}
+function render() {
+  if (!data) return;
+  const p = params(), opt = { closed: p.get("closed") === "1", marks: p.get("marks") === "1", q: p.get("q") || "" };
+  $("title").textContent = "Progress — " + data.repo;
+  $("when").textContent = `取得 ${data.fetchedAt}（ttl ${data.ttl} 秒）`;
+  const b = $("banner");
+  const msgs = [];
+  if (data.error) msgs.push(`取得失敗 ${data.errorAt} — 表示は ${data.fetchedAt} 時点（${data.error}）`);
+  if (data.gitError) msgs.push(`手元の git を読めない — 作業中は不明（${data.gitError}）`);
+  b.style.display = msgs.length ? "block" : "none"; b.textContent = msgs.join(" / ");
+  const s = data.summary; $("summary").replaceChildren(
+    summaryGroup("要対応", s.needsUser), summaryGroup("作業中", s.working, data.gitError || ""), summaryGroup("次の候補", s.next));
+  const roots = data.roots.filter((r) => visible(r, opt));
+  const lone = roots.filter((r) => data.nodes[r].kind === "issue" && !data.nodes[r].children.length);
+  const main = $("tree"); main.replaceChildren();
+  for (const r of roots) if (!lone.includes(r)) main.append(nodeEl(r, opt));
+  if (lone.length) { const d = el("details"); d.append(el("summary", `親なし (${lone.length})`));
+    for (const r of lone) d.append(nodeEl(r, opt)); main.append(d); }
+}
+async function load(refresh) {
+  const res = await fetch("/api/tree.json" + (refresh ? "?refresh=1" : ""));
+  const body = await res.json();
+  if (!res.ok) { const b = $("banner"); b.style.display = "block";
+    b.textContent = `取得失敗 ${body.errorAt || ""} — 表示できるデータがありません（${body.error || res.status}）`; return; }
+  data = body; render();
+}
+syncForm();
+$("filters").addEventListener("input", writeParams);
+$("refresh").addEventListener("click", () => load(true));
+load(false);
+</script>
+</body>
+</html>
