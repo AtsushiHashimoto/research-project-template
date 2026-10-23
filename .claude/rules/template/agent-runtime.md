@@ -33,6 +33,7 @@ Codex の登録ではなく、本文のレビュー基準が共通原本。model
 仕様レビュー → auto-reviewer（要求された場合）→ 実装 → 品質チェック → 仕様整合性 → 多角的 review → PR の
 各ゲートを共有スキルに従って記録する。必読欠落、仕様不整合、品質 FAIL は後続・マージを阻止する。
 研究の validation 先行、negative の格付け・トリアージ、goal 不変性、S1〜S8 は変更しない。
+手順は `scripts/flow/*.sh` が出す「次にやること」が正。
 worker は要求された STATUS/QUESTION/HANDOFF で報告する。止まった worker へユーザー回答を渡し、
 Issue の引き継ぎと原文前提を読み直して止まったステップから再開する。
 

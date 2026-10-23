@@ -57,6 +57,26 @@ has "$out" "（節なし）" "大前提節なしを明示"; has "$(cat "$TMP/err
 bash "$S" --epic-only 2>/dev/null; [ $? = 1 ] && ok "--epic-only 番号なしは exit 1" || ng "--epic-only 番号なしは exit 1"
 out=$(PATH="$TMP/nogh:$PATH" bash "$S" --epic-only 5 2>/dev/null)
 hasnt "$out" "P-01" "--epic-only は大前提を出さない"
+# 9: sub-epic（小タスク 9 → issue 4 → task 3 → sub-epic 2 → epic 1）は祖先の epic すべての前提を、近い順に出す
+mkdir -p "$TMP/fakegh"
+cat > "$TMP/fakegh/gh" <<'X'
+#!/bin/sh
+# gh issue view <N> --json labels|parent|body -q ...
+n=$3; f=$5
+case "$f:$n" in
+  labels:1|labels:2) echo epic ;; labels:3) echo task ;; labels:*) echo feature ;;
+  parent:9) echo 4 ;; parent:4) echo 3 ;; parent:3) echo 2 ;; parent:2) echo 1 ;; parent:*) echo "" ;;
+  body:1) printf '## 前提（ユーザー確定事項）\n- TOP\n' ;; body:2) printf '## 前提（ユーザー確定事項）\n- SUB\n' ;;
+  *) exit 1 ;;
+esac
+X
+chmod +x "$TMP/fakegh/gh"
+out=$(PATH="$TMP/fakegh:$PATH" bash "$S" --epic-only 9 2>/dev/null)
+has "$out" "- SUB" "sub-epic の前提を出す"; has "$out" "- TOP" "親 epic の前提も出す"
+[ "$(grep -n -- '- SUB' <<<"$out" | cut -d: -f1)" -lt "$(grep -n -- '- TOP' <<<"$out" | cut -d: -f1)" ] \
+  && ok "sub-epic が先" || ng "sub-epic が先"
+out=$(PATH="$TMP/fakegh:$PATH" bash "$S" --epic-only 1 2>/dev/null)
+has "$out" "- TOP" "epic 自身"; hasnt "$out" "- SUB" "子の sub-epic は出さない"
 # 8: 引数不正は exit 1
 bash "$S" 2>/dev/null; [ $? = 1 ] && ok "引数なしは exit 1" || ng "引数なしは exit 1"
 

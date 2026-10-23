@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # read-premises.sh — ユーザー確定の前提（2層）を1つのテキストとして出力する（.claude/rules/template/premises.md）
 #
-#   bash scripts/read-premises.sh <issue番号>      # issue / task / epic のどれでも。親を辿って epic を探す
+#   bash scripts/read-premises.sh <issue番号>      # issue / task / epic のどれでも。親を辿り、祖先の epic すべて（sub-epic が先）の前提を出す
 #   bash scripts/read-premises.sh --no-epic        # プロジェクト大前提のみ
 #   bash scripts/read-premises.sh --epic-only <issue番号>  # epic 前提のみ（大前提が import 済みのセッション向け。session-context.sh が使う）
 #   bash scripts/read-premises.sh --epic-body-file F  # epic 本文をファイルから（テスト用。gh を呼ばない）
@@ -62,26 +62,29 @@ emit_epic_body() {  # <epic番号 or ラベル> <本文>
   printf '%s\n' "$sec" | sed 1d
 }
 
-find_epic() {  # <issue番号> → epic 番号（無ければ空）。最大3段（issue→task→epic）
+find_epics() {  # <issue番号> → 祖先（自身を含む）の epic 番号を近い順に 1 行ずつ。
+  # 最大 6 段（小タスク→issue→task→sub-epic→epic。sub-epic は 2 段まで: issue-hierarchy.md）
   local n="$1" _ labels
-  for _ in 1 2 3 4; do
+  for _ in 1 2 3 4 5 6; do
     labels=$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")') || return 1
-    if [[ ",$labels," == *",epic,"* ]]; then echo "$n"; return 0; fi
+    [[ ",$labels," == *",epic,"* ]] && echo "$n"
     n=$(gh issue view "$n" --json parent -q '.parent.number // empty') || return 1
     [ -z "$n" ] && return 0
   done
 }
 
-emit_epic() {  # <issue番号> : 祖先の epic を探して前提を出す
-  local epic body
-  epic=$(find_epic "${1#\#}") || { echo "ERROR: gh で issue を辿れない（認証・ネットワークを確認）" >&2; exit 1; }
-  if [ -z "$epic" ]; then
+emit_epic() {  # <issue番号> : 祖先の epic をすべて探して前提を出す（sub-epic の前提を親 epic の前提より先に）
+  local epics epic body
+  epics=$(find_epics "${1#\#}") || { echo "ERROR: gh で issue を辿れない（認証・ネットワークを確認）" >&2; exit 1; }
+  if [ -z "$epics" ]; then
     echo "WARN: #${1#\#} の祖先に epic が無い" >&2
     printf '\n## epic の前提\n\n（親 epic なし）\n'
-  else
+    return
+  fi
+  while IFS= read -r epic; do
     body=$(gh issue view "$epic" --json body -q .body) || { echo "ERROR: epic #$epic の本文を取得できない" >&2; exit 1; }
     emit_epic_body "#$epic" "$body"
-  fi
+  done <<<"$epics"
 }
 
 case "${1:-}" in

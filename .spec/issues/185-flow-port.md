@@ -53,7 +53,7 @@
 
 ### 3-2. task 単位の worktree（P1）
 
-- ブランチ `<prefix>/<TASK>-i<N>`、worktree `worktrees/task<TASK>`。同じ task の issue は 1 本を共有し、issue ごとに squash merge した後 `realign_branch` で origin/main に揃える
+- ブランチ `<prefix>/<TASK>-i<N>`、worktree `worktrees/task<TASK>`。同じ task の issue は 1 本を共有し、issue ごとに squash merge した後 `realign_branch` で origin/main に揃える（枝の先頭がマージした PR の `headRefOid` と一致するときだけ。一致しなければ触らず、差分と未マージのコミットを見せる案内を出す）
 - 親が task でない issue（単独の bug・chore）はブランチ `<prefix>/<N>-<slug>`、worktree `worktrees/issue<N>`
 - 接頭辞は `lib.sh` の `branch_prefix` だけが持つ（`issue-start/SKILL.md` の表は消す）。`chore` → `chore/` を足す。表に無い種類ラベルは停止（既定の接頭辞に丸めない）。`branch_prefix` の値の集合と `check-discipline-predicates.sh` の `BRANCH_TYPES` が一致することをテストで固定する
 - worktree の削除は task の最後の open な子を閉じたときだけ。削除は `scripts/worktree-relative.sh remove`
@@ -96,7 +96,7 @@
 | ゲート（中身） | モード（`check-discipline.sh`） | 検査 |
 |---|---|---|
 | goal の空欄（上流 G1・G2） | `goal <TASK>` | task 本文に `## 目標の状態`（前方一致）。その節に `成功条件` と `negative の意味` の行があり、値が空でない。値は `^\s*-\s*\**(成功条件\|negative の意味)\**\s*[:：]\s*(.+)$` の `(.+)` で、空白だけ・`<…>` だけ（雛形のまま）・`TBD`・`未定` は空とみなす |
-| goal の実質（上流 G1b・G3・G4。成功条件が 1 文の合否の述語になる・未確定に言及する語を削っても何を作り何を測るかが残る・解釈が 1 つ） | `goal <TASK>` | task の**最新の** `## goal ゲート` コメントが、本文の最終編集（GraphQL `lastEditedAt`、無ければ作成時刻）より新しく、`^- (G1b\|G3\|G4): PASS — .+$` の 3 行を持つ。判定はワーカーではなく、ワーカーが起動する `verification` のサブエージェントが書く（スクリプトの停止文が起動文と判定の読み方を出す） |
+| goal の実質（上流 G1b・G3・G4。成功条件が 1 文の合否の述語になる・未確定に言及する語を削っても何を作り何を測るかが残る・解釈が 1 つ） | `goal <TASK>` | task の**最新の** `## goal ゲート` コメント（編集されていないもの）が、`目標の状態の hash: <「## 目標の状態」節の sha256 の先頭 12 桁>` で今の本文と一致し、`^- (G1b\|G3\|G4): PASS — .+$` の 3 行を持ち、FAIL の行を持たない（「## 未確定」の書き換えでは判定し直さない）。判定はワーカーではなく、ワーカーが起動する `verification` のサブエージェントが書く（スクリプトの停止文が起動文と判定の読み方を出す） |
 | 未確定の担当（上流 G5〜G7b） | `goal <TASK>` | `## 未確定`（前方一致）の各行が `→`（または `->`）の後に種類ラベルか `#N` を持つ（装飾と後ろの補足は無視）。ラベルならその種類の子がある。`#N` ならこの task の子。担当に `out-of-date`・`user-action` が無い。節が無い・空なら続行 |
 | 未確定の行を消して逃げない | `goal <TASK>` | 初回の `goal` が PASS したとき、スクリプトが task に `## 未確定（記録）` コメントを書く（項目名の一覧。同じ内容は 1 回だけ）。以後、記録にある項目名が本文の `## 未確定` に無ければ停止 |
 | 再照合（上流 0-2b・Step 6） | `goal <TASK>`（task-run の段 0 と各 issue の後） | 担当が**すべて** closed の未確定行は、`解消済み（→ #N, <path>` か `解消不能（理由[:：]\s*\S` に書き換わっていなければ停止。`<path>` は空白か `）` か ` §` の手前まで。`git cat-file -e origin/main:<path>` が通り、`#N` は closed |
@@ -119,7 +119,8 @@
 ## 6. 品質ゲート（P2）
 
 - flow のテストは `quality-check.sh` の `changed_any` で、次が変わったときだけ走る: `scripts/flow/`・`scripts/check-discipline`・`scripts/worktree-relative.sh`・`scripts/lib/shared-store.sh`・`scripts/qa/`・`scripts/setup-worktree.sh`・`scripts/handoff.sh`・`scripts/read-premises.sh`・`scripts/configure-agent-workflow.sh`・`scripts/template-contribute-detect.sh`・`scripts/quality-check.sh`・`tests/test_(issue|commit|quick)_flow.sh`・`tests/test_task_run.sh`・`tests/test_pipefail_grep_q.sh`・§3-1 の SKILL.md と `references/`・`.claude/rules/template/(issue-hierarchy|deliverables|git-workflow|agent-runtime).md`。`QUALITY_FULL_SCAN=1` では常に走る
-- 範囲の一覧の漏れを防ぐため、`scripts/flow/*.sh` が `bash`・`.` で呼ぶ `scripts/` のファイルがすべて上の範囲に入っていることをテストで確かめる
+- 範囲の一覧の漏れを防ぐため、`scripts/flow/*.sh`・`scripts/check-discipline*`・4 本のテスト・`tests/lib/` から `scripts/`・`tests/lib/` への参照を**辿った閉包**（`quality-check.sh` の先は辿らない）がすべて上の範囲に入っていることをテストで確かめる。閉包で入るもの（`configure-agent-workflow.sh` の子の `ensure-claude-hooks.sh`・`agent-skills.py`・`ensure-codex-hooks.py`、`setup-worktree.sh` の子の `init-data.sh`・`ensure-gitignore.sh`、`template-source.sh`・`session-context.sh`）も範囲に入れる
+- `tests/test_$t.sh` が無ければ（下流は `tests/` を sync しない）skip と出して飛ばす
 - 各テストの先頭で `unset BASH_ENV ENV`（実測: bash 1 回の起動 275 ms → 14 ms。4 本合計 417 s → 70 s）
 
 ## 7. 判定（validation #187）
@@ -141,3 +142,4 @@
 
 - 2026-10-23: 初版
 - 2026-10-23: /review-spec 7 観点を反映。全部 negative の検査が発火しない問題を、task の判定の形（`結果:` 行）を決めて直した。前提の受け渡し、`/task-start` の呼び方、sub-epic での前提の読み取り、未確定の行の削除の検出、`Closes` の扱い、名指しの stage の 3 通り、ゲートの受理形式（正規表現）、停止出力の要件、V3 の単位、V4 の 3 通り、`changed_any` の範囲を足した。下流向けの切り替え（環境変数・`local.sh`）は P6 に反するため削除。G1b・G3・G4 の判定はワーカーの自己申告をやめ `verification` のサブエージェントが書く形にした
+- 2026-10-23: /review（7 観点）の指摘を反映。goal ゲートの判定と本文の結びつきを `lastEditedAt` から「## 目標の状態」の hash に変えた。`realign_branch` は PR の head で判定する。再入（マージ済み・issue は open）でもマージ済みの PR の本文で /review・仕様整合と成果物を見る。§6 の範囲を参照の閉包で確かめ、無いテストは skip にした

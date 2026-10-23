@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+#
+# task 1 つ分の仕事を、**1 回の呼び出しで 1 段だけ**進める状態機械。
+#
+#   bash scripts/flow/task-run.sh <task番号>
+#
+# 散文の「絶対にスキップしない」は効かなかったので、意図の表明（散文）と強制（プログラム）を分ける。
+#
+# 状態はファイルに持たない。GitHub の open/closed と git から導く。
+# 判定の実体は scripts/check-discipline.sh。ここには述語を書かない。
+
+# shellcheck source=scripts/flow/lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+[ $# -eq 1 ] || die "使い方: bash scripts/flow/task-run.sh <task番号>"
+TASK="$1"
+
+# ── 0. task の妥当性 ────────────────────────────────────────────
+labels="$(issue_labels "$TASK")"
+has_label "$labels" task || die "#$TASK は task ラベルを持たない（labels=$labels）"
+
+head2 "task #$TASK: $(issue_title "$TASK")"
+
+# ★ closed 済みの task には完了判定を案内しない（閉じた後に呼ぶと済んだ判定を再び促していた）
+if [ "$(issue_state "$TASK")" = "CLOSED" ]; then
+  next "task #$TASK は closed 済み（完了判定は済んでいる）。" \
+    "次の task は /epic-cycle で選ぶ（ここでは作らない）。"
+fi
+
+# ── 0b. goal の検査（★ 毎回呼ぶ。各 issue の後の再照合＝未確定の解消の確認もこれが兼ねる）──
+# ★ 落ちたときは検査の出力を丸ごと出さない（gate_stop が FAILED の行と書く行だけを 1 回出す）
+grc=0; gout="$(check goal "$TASK" 2>&1)" || grc=$?
+[ "$grc" != 0 ] || printf '%s\n' "$gout"
+[ "$grc" = 0 ] || gate_stop "$TASK" \
+  "task #$TASK の goal が判定できる形になっていない（空欄・goal の中身の判定・未確定の担当・解消の記録のどれか）" \
+  "$gout" "bash scripts/flow/task-run.sh $TASK" \
+  "  1. 先に上の「足りないもの」を直す。★ ワーカーが書き換えてよい本文は「## 未確定」節の行だけ。" \
+  "     「## 目標の状態」の空欄と goal ゲートの FAIL は needs-user で返す（goal はユーザーが書く）" \
+  "  2. 1 が済んでから $(goal_gate_launch "$TASK")" ""
+
+# ── 1. 子 issue を既定順に並べる ─────────────────────────────────
+kids="$(sub_issues "$TASK")"
+[ -n "$kids" ] || die "#$TASK に子 issue が無い。/task-start で作ること"
+
+declare -a ordered=()
+declare -A kind_of_kid=() skip_of_kid=()
+for k in $kids; do
+  kl="$(issue_labels "$k")"
+  kk="$(kind_of "$kl")"
+  # ★ 種類ラベルを持たない子・未知のラベルの子は**黙って飛ばさない**
+  [ -n "$kk" ] || die "#$k が種類ラベルを持たない（labels=$kl）。ラベルを付けること"
+  kind_of_kid["$k"]="$kk"
+  # ★ 状態ラベルの子は飛ばす（labels.md「自動処理でスキップ」）。飛ばしたことは段 2 で必ず出す
+  for sl in user-action blocked out-of-date; do
+    if has_label "$kl" "$sl"; then skip_of_kid["$k"]="$sl"; break; fi
+  done
+done
+for want in $DEFAULT_ORDER $EXTRA_ORDER; do
+  for k in $(printf '%s\n' "$kids" | sort -n); do
+    [ "${kind_of_kid[$k]}" = "$want" ] && ordered+=("$k")
+  done
+done
+
+# ── 2. いまの段を決める（open な最初のもの）────────────────────
+current=""
+declare -a done_kids=() skipped=()
+for k in "${ordered[@]}"; do
+  st="$(issue_state "$k")"
+  if [ "$st" = "OPEN" ] && [ -n "${skip_of_kid[$k]:-}" ]; then
+    # ★ 飛ばすのは既定構成の後ろに並ぶ種類（EXTRA_ORDER）だけ。既定構成の段を飛ばすと
+    #   validation が済まないまま experiment へ進める（issue-hierarchy.md）ので、そこでは止める
+    case " $EXTRA_ORDER " in
+      *" ${kind_of_kid[$k]} "*) ;;
+      *) next_fail "#$k [${kind_of_kid[$k]}] に ${skip_of_kid[$k]} ラベルが付いている。**既定構成の段は飛ばさない。**" "" \
+           "  - ユーザー対応・ブロックの解消を待ち、ラベルを外してから再び呼ぶ" ;;
+    esac
+    say "  --   #$k [${kind_of_kid[$k]}] は ${skip_of_kid[$k]} ラベル付きなので飛ばす（ラベルを外すと再び対象になる）"
+    skipped+=("#$k(${skip_of_kid[$k]})"); continue
+  fi
+  if [ "$st" = "OPEN" ]; then current="$k"; break; fi
+  done_kids+=("$k")
+done
+
+# ── 3. closed の先行段を検査（成果物だけ）──────────────────────
+if [ "${#done_kids[@]}" -gt 0 ]; then
+  head2 "closed の先行段を検査（成果物だけ）"
+  bad=0
+  for k in "${done_kids[@]}"; do
+    # ★ `gh issue close` を直に呼べば成果物なしで段が進む。これを塞ぐ
+    check artifacts "$k" "${kind_of_kid[$k]}" || bad=1
+  done
+  # ★ base ref が古いと、正しく閉じた段でもコミットが見つからず落ちる。
+  #   原因の取り違えを防ぐため、その可能性を診断に書く
+  [ "$bad" = 0 ] || die "先行段の成果物が揃っていない。
+  成果物なしで閉じた段があるか、**origin/main が古い**。
+  後者なら \`git fetch origin\` を実行してから再度呼ぶこと"
+fi
+
+# ── 4. 全て closed なら task の完了判定へ ───────────────────────
+# ★ 飛ばした子が open で残っているなら「全て closed」ではない。完了判定へ進ませない
+if [ -z "$current" ] && [ "${#skipped[@]}" -gt 0 ]; then
+  next_fail \
+    "task #$TASK: 残っている open な子は状態ラベル付きで飛ばしたものだけ（${skipped[*]}）。" \
+    "" \
+    "  - ユーザー対応・ブロックの解消を待つ。済んだらラベルを外して再び呼ぶ" \
+    "    （close するなら bash scripts/flow/issue-finish.sh で。直に閉じると、このスクリプトの「closed の先行段の成果物の検査」で落ちる）" \
+    "  - ★ ラベルを外さずに task を閉じない（完了判定は全ての子が closed になってから）"
+fi
+if [ -z "$current" ]; then
+  # ★ 親 epic があれば、再開は epic-cycle（次の task を選ぶのは epic-cycle）
+  resume_with="task-run"; resume_n="$TASK"; ep="$(issue_parent "$TASK")"
+  if [ -n "$ep" ] && has_label "$(issue_labels "$ep")" epic; then resume_with=epic-cycle; resume_n="$ep"; fi
+  head2 "全ての子 issue が closed。task の判定の形を検査する"
+  vrc=0; vout="$(check verdict-task "$TASK" 2>&1)" || vrc=$?
+  [ "$vrc" != 0 ] || printf '%s\n' "$vout"
+  [ "$vrc" = 0 ] || gate_stop "$TASK" \
+    "task #$TASK を閉じる前の判定コメント（結果: の行と、成功条件の 1 項目ずつの引用）が揃っていない" \
+    "$vout" "bash scripts/flow/task-run.sh $TASK" \
+    "  task の完了判定を行い、gh issue comment $TASK で『## 判定』の見出しのコメントに書く:" \
+    "    1. 本文の「目標の状態」の成功条件を 1 項目ずつ引用して照合する（未充足が 1 つでもあれば達成としない）" \
+    "    2. 「negative の意味」と「未確定」節に残る項目も照合する" \
+    "    3. 結果を 1 行: 結果: positive | 結果: negative | 結果: 未達成" \
+    "  ★ goal を書き換えて「達成」にしない。goal を小さく読んで「達成」にしない。" ""
+  next_final \
+    "task #$TASK の判定は記録されている（結果: の行と成功条件の引用がある）。" \
+    "" \
+    "  1. gh issue close $TASK で task を閉じる" \
+    "★ 次の task は**ここでは作らない**（結果駆動の task 生成は epic-cycle が統括する）。" \
+    "" \
+    "$(handoff_steps "$TASK" "$resume_with" "$resume_n")"
+fi
+
+kind="${kind_of_kid[$current]}"
+head2 "いまの段: #$current [$kind] $(issue_title "$current")"
+
+# ── 5. その段の前提を検査 ───────────────────────────────────────
+# ★ ブランチは **task 単位**なので $TASK で見る
+if check issue "$current" "$kind" "$TASK"; then
+  head2 "前提は揃っている。品質チェックへ"
+  run_quality "$kind"
+  next \
+    "#$current の成果物は揃い、品質チェックも通った。" \
+    "" \
+    "  1. /issue-report で進捗を #$current に記録する" \
+    "  2. spec 段なら .spec/issues/$current-*.md の「ステータス:」を completed にする" \
+    "  3. git add <ファイル名> で入れるものを**名前で** stage し、" \
+    "     bash scripts/flow/commit.sh push --issue $current --message <題>" \
+    "  4. gh pr create --body-file <本文ファイル> で PR を作る" \
+    "     （本文に 'Refs #$current'。Closes は書かない。close は issue-finish.sh が行う）" \
+    "  5. /review を回し、結果を本文ファイルの「## /review 結果」に書く" \
+    "  6. verification のサブエージェントに仕様整合を照合させ、本文ファイルの「## 仕様整合」に書く" \
+    "     （起動文に task #$TASK の goal と bash scripts/read-premises.sh $TASK の出力を原文で貼る。" \
+    "      節に書く行は issue-finish.sh が止まったときにも出る: - goal 書き換え: なし ほか）" \
+    "  7. gh pr edit --body-file <本文ファイル> で PR 本文を更新する" \
+    "  8. bash scripts/flow/issue-finish.sh $current $TASK" \
+    "     （検査 → マージ → close をこれが行う。PR 本文はモデルが書く）"
+fi
+
+# ── 6. 揃っていない → 何を作ればよいかを出す ────────────────────
+case "$kind" in
+  survey)
+    next_fail \
+      "#$current は survey の段である。" \
+      "" \
+      "  1. bash scripts/flow/issue-start.sh $current を呼び、出力された cd 先へ移る" \
+      "  2. docs/surveys/<日付>_<題>.md を書く。**本文に #$current を含めること**" \
+      "     （語境界つき。その issue のために書かれたことが辿れるようにする）" \
+      "  3. 追加調査が不要という判断でも、**skip ではなく判断の記録を残す**" ;;
+  spec)
+    next_fail \
+      "#$current は spec の段である。" \
+      "" \
+      "  1. bash scripts/flow/issue-start.sh $current を呼び、出力された cd 先へ移る" \
+      "     （★ spec 段でも check_branch が掛かる。main に居ては前提が揃わない）" \
+      "  2. .spec/issues/$current-<題>.md を書く" \
+      "     **1 行目の見出しに #$current を含めること**" \
+      "  3. auto-reviewer に代理判断させ、" \
+      "     .spec/issues/$current-auto-decisions.md を書き出させる" \
+      "     **本文に 'Issue #$current' と '停止条件' を含めること**" \
+      "     モデルは bash scripts/resolve-model.sh abstract-review で解決する" \
+      "     起動文に前提 bash scripts/read-premises.sh $TASK の出力を原文で貼る" \
+      "     判断ログの停止条件の行は「停止条件: 該当なし」の形（該当したら .claude/agents/auto-reviewer.md の停止条件 S1〜S8 のどれかと、仕様の欠落を書く）" \
+      "  4. 停止条件に該当したら**進まずに報告する**" ;;
+  *)
+    next_fail \
+      "#$current は $kind の段である。" \
+      "" \
+      "  1. bash scripts/flow/issue-start.sh $current を呼び、出力された cd 先へ移る" \
+      "  2. 実装・測定を行い、作業差分を作る" \
+      "     （★ この段は**仕様ファイルを要求しない**。仕様は spec 段の番号で" \
+      "       作られるので、$kind の番号では引きようがない）" \
+      "  3. experiment の段なら data/shared/experiments/<日付>_<名>/ に" \
+      "     README.md（**本文に #$current**）・data/・figures/ の 3 点セットを作る" ;;
+esac

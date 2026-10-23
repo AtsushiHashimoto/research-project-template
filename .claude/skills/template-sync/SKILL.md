@@ -381,6 +381,14 @@ rm -rf "$TMP_DIR"
 - 適用前に必ずユーザーに確認を取る
 - 既存ファイルを上書きする前にバックアップを表示する（diffで確認できる）
 
+## 手で行う移行（sync が扱わないもの）
+
+sync はテンプレートで**消えた**ファイルを消さず、`tests/` を同期しない。該当する版を取り込むときは手で行う。
+
+- **scripts/flow/ の導入（#186）**: `scripts/commit-merge.sh` と `tests/test_commit_merge.sh` を消す（`scripts/flow/commit.sh merge` に置き換わった）。
+  `tests/test_{issue,commit,quick}_flow.sh`・`tests/test_task_run.sh`・`tests/lib/` はテンプレートからコピーする
+  （無ければ `quality-check.sh` が skip と出す）
+
 ## Note
 
 - テンプレートリポジトリの URL は `scripts/template-source.sh` から取得する（ハードコード禁止）

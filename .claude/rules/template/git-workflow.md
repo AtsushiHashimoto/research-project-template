@@ -7,14 +7,14 @@
 
 ## コミットのルール
 
-- コミットメッセージには必ず Issue を参照: `Fixes #ISSUE_ID` または `Refs #ISSUE_ID`
+- コミット・PR は `Refs #ISSUE_ID` で参照する（`Closes`・`Fixes` は不可。close は `issue-finish.sh` が行う）
 - **`git add .` / `git add -A` を使わず、意図したファイルを名指しで stage する**（未追跡の clone・生成物が混入した事例がある）。
   commit 前に `git diff --cached --stat` で確認する
 - Conventional Commits 形式を推奨（`feat` / `fix` / `docs` / `refactor` / `test`、`type(scope): description`）
 
 ## プルリクエストのルール
 
-- ブランチでの作業が済んだら PR を作る。タイトルに Issue 番号を含め、説明に `Closes #ISSUE_ID` を書く
+- ブランチでの作業が済んだら PR を作る。タイトルに Issue 番号を含める
 
 ## Git Worktree
 
