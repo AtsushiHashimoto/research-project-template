@@ -37,7 +37,16 @@ class Runner:
         return out
 
 
-TIMEOUT = cmd.FetchError("gh を実行できない: Command '...' timed out after 60 seconds")
+def wrapped(cause):
+    """run_raw と同じく、OSError・TimeoutExpired を __cause__ に持つ FetchError。"""
+    try:
+        raise cmd.FetchError(f"gh を実行できない: {cause}") from cause
+    except cmd.FetchError as e:
+        return e
+
+
+TIMEOUT = wrapped(cmd.subprocess.TimeoutExpired(["gh"], 60))
+NO_GH = wrapped(FileNotFoundError(2, "No such file or directory", "gh"))
 
 
 OK = {"Origin": "http://127.0.0.1:8765", "Content-Type": "application/json; charset=utf-8",
@@ -83,6 +92,10 @@ class Checks(unittest.TestCase):
         self.assertEqual((code, attempted), (502, True))
         self.assertIn("timed out", body["error"])
         self.assertIn("不明", body["error"])                                 # close が通ったかは分からない
+        code, body, attempted = pclose.perform(30, "o/r", Runner(close=NO_GH))
+        self.assertEqual((code, attempted), (502, True))
+        self.assertIn("close していない", body["error"])                     # 起動できなければ close は無い
+        self.assertNotIn("不明", body["error"])
         code, _, attempted = pclose.perform(30, "o/r", Runner(read=TIMEOUT))
         self.assertEqual((code, attempted), (502, False))                    # 確認の失敗は試みていない
 
@@ -146,6 +159,8 @@ class Endpoint(unittest.TestCase):
         port, cache = self.start(Runner())
         responses = [self.post(port, method="GET", path=p, body=b"") for p in ("/", "/page.js", "/api/tree.json", "/x")]
         responses += [self.post(port), self.post(port, Origin="null"), self.post(port, method="PUT")]
+        responses += [self.post(port, method="FOO")]                         # 標準の send_error（501）
+        self.assertEqual(responses[-1][0], 501)
         for status, headers, _ in responses:
             self.assertEqual(headers.get("X-Frame-Options"), "DENY", status)
             self.assertEqual(headers.get("Content-Security-Policy"), "frame-ancestors 'none'", status)
@@ -196,6 +211,15 @@ class Endpoint(unittest.TestCase):
         self.assertIn("Resource not accessible by integration", str(ctx.exception))
         self.assertNotIn("終了コード", str(ctx.exception))
         self.assertEqual(pclose.perform(30, "o/r", Runner(read=(0, out, "")))[::2], (502, False))
+        forbidden = (1, out, "gh: Resource not accessible by integration")         # exit 1 でも message
+        self.assertIn("Resource not accessible", pclose.perform(30, "o/r", Runner(read=forbidden))[1]["error"])
+
+    def test_read_odd_shapes_are_502(self):
+        """#216: 応答の形が違っても例外を漏らさず 502（応答が返らない経路を残さない）。"""
+        for out in ('{"errors": 5}', '{"errors": "x"}', '{"data": [1]}', '{"data": {"repository": [1]}}', "[1]", "null"):
+            code, body, attempted = pclose.perform(30, "o/r", Runner(read=(0, out, "")))
+            self.assertEqual((code, attempted), (502, False), out)
+            self.assertNotIn("終了コード 0", body["error"], out)
 
 
 if __name__ == "__main__":

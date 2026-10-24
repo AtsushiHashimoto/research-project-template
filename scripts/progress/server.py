@@ -176,11 +176,16 @@ def make_handler(cache, runner):
         def log_message(self, *args):  # アクセスログは出さない
             pass
 
+        def end_headers(self):
+            """標準の send_error（400・414・501）も通るここで付ける（201 §6。全応答を iframe に入れさせない）。"""
+            for k, v in FRAME_DENY:
+                self.send_header(k, v)
+            super().end_headers()
+
         def send(self, code, body, ctype, extra=()):
             self.send_response(code)
             for k, v in (("Content-Type", ctype), ("Content-Length", str(len(body))),
-                         ("Cache-Control", "no-store"), ("X-Content-Type-Options", "nosniff"),
-                         *FRAME_DENY, *extra):
+                         ("Cache-Control", "no-store"), ("X-Content-Type-Options", "nosniff"), *extra):
                 self.send_header(k, v)
             self.end_headers()
             self.wfile.write(body)
