@@ -44,8 +44,13 @@ def parse_body(raw):
 
 
 def close(number, repo, runner=run_raw):
-    """順 7。成功なら None、失敗なら stderr の先頭。"""
-    code, _, err = runner(["gh", "issue", "close", str(number), "--repo", repo, "--reason", "not planned"])
+    """順 7。成功なら None、失敗なら理由の文字列（stderr の先頭）。
+    gh を実行できない・timeout（runner の FetchError）も理由にする。timeout では GitHub 側で
+    close が通っている場合があるので、呼び出し側は「試みた」として扱う（順 8 の無効化）。"""
+    try:
+        code, _, err = runner(["gh", "issue", "close", str(number), "--repo", repo, "--reason", "not planned"])
+    except FetchError as e:
+        return f"{e}（GitHub 側で close されたかは不明。一覧を取り直して確かめる）"
     return None if code == 0 else (err.strip().splitlines() or [f"終了コード {code}"])[0]
 
 

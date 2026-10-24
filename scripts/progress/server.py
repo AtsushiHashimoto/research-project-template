@@ -143,6 +143,8 @@ def stamp(t):
 
 Q_MAX = 200
 CLOSE_PATH = "/api/close"
+# 201 §6: 他のサイトの iframe に入れさせない（中の fetch は Origin・Host とも 127.0.0.1 になり、close の検査を通るため）
+FRAME_DENY = (("X-Frame-Options", "DENY"), ("Content-Security-Policy", "frame-ancestors 'none'"))
 
 
 def view_args(query):
@@ -177,7 +179,8 @@ def make_handler(cache, runner):
         def send(self, code, body, ctype, extra=()):
             self.send_response(code)
             for k, v in (("Content-Type", ctype), ("Content-Length", str(len(body))),
-                         ("Cache-Control", "no-store"), ("X-Content-Type-Options", "nosniff"), *extra):
+                         ("Cache-Control", "no-store"), ("X-Content-Type-Options", "nosniff"),
+                         *FRAME_DENY, *extra):
                 self.send_header(k, v)
             self.end_headers()
             self.wfile.write(body)

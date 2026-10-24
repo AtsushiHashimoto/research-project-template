@@ -31,7 +31,13 @@ class Runner:
 
     def __call__(self, argv):
         self.calls.append(argv)
-        return self.close if argv[:3] == ["gh", "issue", "close"] else self.read
+        out = self.close if argv[:3] == ["gh", "issue", "close"] else self.read
+        if isinstance(out, Exception):     # run_raw は実行できない・timeout を FetchError で投げる
+            raise out
+        return out
+
+
+TIMEOUT = cmd.FetchError("gh を実行できない: Command '...' timed out after 60 seconds")
 
 
 OK = {"Origin": "http://127.0.0.1:8765", "Content-Type": "application/json; charset=utf-8",
@@ -70,6 +76,15 @@ class Checks(unittest.TestCase):
             self.assertNotIn(CLOSE_ARGV, r.calls)                            # 確かめられなければ close しない
         self.assertEqual(pclose.perform(30, "o/r", Runner(close=(1, "", "HTTP 403\n")))[::2], (502, True))
         self.assertFalse(pclose.perform(30, "o/r", Runner(read=(0, state(subs=1), "")))[2])   # 試みていない
+
+    def test_perform_close_cannot_run(self):
+        """#216: gh issue close が timeout・OSError でも例外を漏らさず 502、試みた扱い（順 8 で無効化）。"""
+        code, body, attempted = pclose.perform(30, "o/r", Runner(close=TIMEOUT))
+        self.assertEqual((code, attempted), (502, True))
+        self.assertIn("timed out", body["error"])
+        self.assertIn("不明", body["error"])                                 # close が通ったかは分からない
+        code, _, attempted = pclose.perform(30, "o/r", Runner(read=TIMEOUT))
+        self.assertEqual((code, attempted), (502, False))                    # 確認の失敗は試みていない
 
 
 class Endpoint(unittest.TestCase):
@@ -116,6 +131,25 @@ class Endpoint(unittest.TestCase):
         self.assertFalse([k for k in headers if k.lower().startswith("access-control")])
         self.assertEqual(sum(c == CLOSE_ARGV for c in r.calls), 2)
 
+    def test_close_cannot_run_returns_502_and_invalidates(self):
+        """#216: close の runner が FetchError でも応答が返り、キャッシュを無効にする。"""
+        port, cache = self.start(Runner(close=TIMEOUT))
+        cache.get()
+        gen = cache.generation
+        status, _, body = self.post(port)
+        self.assertEqual(status, 502)
+        self.assertIn("timed out", json.loads(body)["error"])
+        self.assertEqual(cache.generation, gen + 1)
+
+    def test_frame_deny_headers(self):
+        """#216: どの応答も iframe に入れさせない（clickjacking で close を押させない）。"""
+        port, cache = self.start(Runner())
+        responses = [self.post(port, method="GET", path=p, body=b"") for p in ("/", "/page.js", "/api/tree.json", "/x")]
+        responses += [self.post(port), self.post(port, Origin="null"), self.post(port, method="PUT")]
+        for status, headers, _ in responses:
+            self.assertEqual(headers.get("X-Frame-Options"), "DENY", status)
+            self.assertEqual(headers.get("Content-Security-Policy"), "frame-ancestors 'none'", status)
+
     def test_generation_drops_fetch_started_before_close(self):
         started, gate, calls = threading.Event(), threading.Event(), []
 
@@ -152,6 +186,16 @@ class Endpoint(unittest.TestCase):
     def test_read_failure_is_502(self):
         with self.assertRaises(cmd.FetchError):
             pclose.progress_gh.fetch_issue_state("o/r", 30, lambda argv: (1, "not json", "boom"))
+
+    def test_read_graphql_errors_with_exit_0(self):
+        """#216: exit 0 で NOT_FOUND 以外の errors が来たら、その message を出す（「終了コード 0」にしない）。"""
+        out = json.dumps({"data": {"repository": None},
+                          "errors": [{"type": "FORBIDDEN", "message": "Resource not accessible by integration"}]})
+        with self.assertRaises(cmd.FetchError) as ctx:
+            pclose.progress_gh.fetch_issue_state("o/r", 30, lambda argv: (0, out, ""))
+        self.assertIn("Resource not accessible by integration", str(ctx.exception))
+        self.assertNotIn("終了コード", str(ctx.exception))
+        self.assertEqual(pclose.perform(30, "o/r", Runner(read=(0, out, "")))[::2], (502, False))
 
 
 if __name__ == "__main__":

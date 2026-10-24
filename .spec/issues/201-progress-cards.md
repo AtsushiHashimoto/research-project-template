@@ -208,11 +208,12 @@ goal「30 日更新の無い open」と task #200 の「現在の状態」の 11
 | 3 | `Origin` が `"http://" + Host ヘッダの値` と完全一致。**Origin が無い・`null` も 403**（拒む側に倒す。他のサイトのフォーム・fetch を拒む。TCP のポート転送では Host と Origin は同じ値で届く） | 403 |
 | 4 | `Content-Type` の media type（`;` より前を小文字にしたもの）が `application/json`、かつ `X-Progress-Close: 1`（独自ヘッダは他の origin から preflight を要する。OPTIONS は従来どおり 405 で CORS ヘッダを返さない） | 403 |
 | 5 | `Content-Length` が整数で 1〜1024。無い・`Transfer-Encoding` がある → 411、1024 を超える → 413（どちらも本文を読まずに返す）。本文が JSON で、`number` が `type(x) is int`（`bool` を除く）の正の整数 | 411・413・400 |
-| 6 | **GitHub で取り直して確かめる**（キャッシュを使わない）: `progress_gh.fetch_issue_state(repo, number)` が `gh api graphql -F number=N` で `repository{ issue(number:$number){ state labels(first:100){totalCount nodes{name}} subIssues{totalCount} } }` を取る。OPEN・ラベルに `epic` か `task`・`subIssues.totalCount == 0` でなければ 409（理由を本文に。別 repo の子は §4-5）。**`gh` は存在しない番号・PR の番号で exit 1 と `errors[].type == "NOT_FOUND"`・`issue: null` を返す**（実測）ので、exit ≠ 0 でも stdout を JSON として読み、NOT_FOUND なら 409、それ以外の失敗（ネットワーク・認証・timeout）は 502 で close しない | 409・502 |
-| 7 | `gh issue close N --repo <cwd の repo> --reason "not planned"`（コメントは付けない。前提の例外は close だけ） | 502（stderr の先頭） |
+| 6 | **GitHub で取り直して確かめる**（キャッシュを使わない）: `progress_gh.fetch_issue_state(repo, number)` が `gh api graphql -F number=N` で `repository{ issue(number:$number){ state labels(first:100){totalCount nodes{name}} subIssues{totalCount} } }` を取る。OPEN・ラベルに `epic` か `task`・`subIssues.totalCount == 0` でなければ 409（理由を本文に。別 repo の子は §4-5）。**`gh` は存在しない番号・PR の番号で exit 1 と `errors[].type == "NOT_FOUND"`・`issue: null` を返す**（実測）ので、exit ≠ 0 でも stdout を JSON として読み、NOT_FOUND なら 409、それ以外の失敗（ネットワーク・認証・timeout）は 502 で close しない。**exit 0 で NOT_FOUND 以外の `errors` が来たときも 502**（理由は先頭の `message`。`collect` と同じ `progress_gh.graphql_error`）| 409・502 |
+| 7 | `gh issue close N --repo <cwd の repo> --reason "not planned"`（コメントは付けない。前提の例外は close だけ） | 502（stderr の先頭）。**gh を実行できない・timeout（`run_raw` の `FetchError`）も `close()` の中で理由に変えて 502**（例外を漏らさない。timeout では GitHub 側で close が通っていることがあるので、「試みた」として順 8 の無効化を行い、理由に「close されたかは不明」と書く） |
 | 8 | キャッシュを無効にし、200 `{"closed": N}`。stderr に INFO で 1 行。順 7 が 502 のときも無効にする | |
 
 - **キャッシュの無効化は世代番号で行う**: `Cache` に `generation` を持ち、無効化で 1 増やす。取得は始めたときの世代を覚え、終わったときに世代が変わっていたらその結果を「新しい」とみなさない（close の前に始まって後に終わった取得が、close 前の木を返すのを防ぐ）。次の GET（`load(true)`）で取り直す。
+- **iframe に入れさせない**: server の全応答に `X-Frame-Options: DENY` と `Content-Security-Policy: frame-ancestors 'none'` を付ける（`server.FRAME_DENY`）。他のサイトがこのページを iframe に入れると、中の fetch は Origin・Host とも 127.0.0.1 になり順 1〜5 を通るため、2 回のクリックを誘導されると close されうる（clickjacking）。
 - close は lock で 1 本ずつ。1 回の close で GitHub への呼び出しは 2 回。
 - 順 6 と 7 の間に別の人が sub-issue を足すと close されうる（数秒の窓）。これは受け入れ、確認行に reopen で戻せることを書く。
 - 理由を not planned に固定するのは、子が 0 件＝何も行っていないため。画面の確認行に理由を書く。
@@ -289,3 +290,4 @@ fixture（`progress_fixture.py`）: `NOW` を固定し、`built()` は既定で 
 - 2026-10-24: auto-reviewer の警告を反映し、close に添えるコメントをやめた（前提の例外は close だけ）
 - 2026-10-24: /review 8 観点を反映。`gone` を 1 か所で決める、依存の向き（`progress_work` へブランチ名・段の規則を移す）、`steps` の形、`rules` を server から返す、`page.js` に分ける（確定）、`work_ok`（git・基準・PR）で要約まで不明にする、結び付かない open の PR と fork の PR、ref ごとの判定、境界（14 日は含む・30 日ちょうどは付かない）と境界の fixture、`now` を必須に、JST の日付、K1 を `<summary>` の構造に、chip の順と形、close の検査（Origin 無し・`null`、Content-Length、bool、`-F`、NOT_FOUND、確認の失敗）、世代番号による無効化、確認行の focus・Esc・preventDefault、B1〜B3 の食い違いと再適用、epic の帯は出す task だけ、子が全部完了扱いの親、既存テストの書き換え箇所、`CARD_ISSUES` に分ける、W5 の下流は検証不能として分けて記録
 - 2026-10-24: bug #208。§3-1 の案 B（open の PR だけ本文の行頭の `Refs #N`）を A に足す。§3-2 に本文の取得、K2・§5-2・W2・W3 の文言を A・B・C に合わせた
+- 2026-10-25: bug #216（Integrity Review 2026-10-25T0642）。順 7 の gh を実行できない・timeout を 502 と順 8 の無効化に、順 6 の exit 0 の `errors` を 502（message）に、全応答に `X-Frame-Options: DENY`・`frame-ancestors 'none'` を足した

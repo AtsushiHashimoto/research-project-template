@@ -98,6 +98,12 @@ def fetch_pulls(repo, runner=run):
     return pulls
 
 
+def graphql_error(errors):
+    """GraphQL の errors（空でない list）を、先頭の message を添えた FetchError にする。"""
+    first = errors[0] if isinstance(errors, list) else errors
+    return FetchError(f"GraphQL のエラー: {first.get('message', first) if isinstance(first, dict) else first}")
+
+
 def collect(pages, field="issues"):
     """--slurp の出力（ページの list）を検査して node の list にする。"""
     if not isinstance(pages, list) or not pages or not all(isinstance(p, dict) for p in pages):
@@ -106,7 +112,7 @@ def collect(pages, field="issues"):
     total = None
     for page in pages:
         if page.get("errors"):
-            raise FetchError(f"GraphQL のエラー: {page['errors'][0].get('message', page['errors'][0])}")
+            raise graphql_error(page["errors"])
         repo = (page.get("data") or {}).get("repository")
         if repo is None:
             raise FetchError("repository が取れない（名前か権限を確認）")
@@ -134,8 +140,10 @@ def fetch_issue_state(repo, number, runner=run_raw):
     errors = body.get("errors") or [] if isinstance(body, dict) else []
     if any(isinstance(e, dict) and e.get("type") == "NOT_FOUND" for e in errors):
         return None
-    if errors or code != 0 or not isinstance(body, dict):
-        raise failure(argv, code, err or str(errors[:1]))
+    if errors:                                # exit 0 でも errors を返すことがある（終了コードでは言えない）
+        raise graphql_error(errors)
+    if code != 0 or not isinstance(body, dict):
+        raise failure(argv, code, err)
     repo_node = (body.get("data") or {}).get("repository")
     if repo_node is None:
         raise FetchError("repository が取れない（名前か権限を確認）")
