@@ -120,11 +120,14 @@ class Fetch(unittest.TestCase):
         def conn(nodes):
             return json.dumps([{"data": {"repository": {"pullRequests": {"totalCount": len(nodes), "nodes": nodes}}}}])
         allp = conn([{"number": 1, "state": "OPEN"}, {"number": 2, "state": "MERGED"}])
-        bodies = conn([{"number": 1, "body": "Refs #5"}])
+        bodies = conn([{"number": 1, "body": "Refs #5"}, {"number": 2, "body": "Refs #6"}])   # 間で状態が変わった #2
+
+        def query(argv):
+            return next(a for a in argv if a.startswith("query="))
         seen = []
-        got = gh.fetch_pulls("o/r", lambda argv: seen.append(argv) or (bodies if "states: [OPEN]" in argv[6] else allp))
-        self.assertEqual([p.get("body") for p in got], ["Refs #5", None])
-        self.assertNotIn("body", seen[0][6])                    # 全件の query は本文を取らない
+        got = gh.fetch_pulls("o/r", lambda argv: seen.append(query(argv)) or (bodies if "states: [OPEN]" in query(argv) else allp))
+        self.assertEqual([p.get("body") for p in got], ["Refs #5", None])   # open でない PR には足さない
+        self.assertNotIn("body", seen[0])                                    # 全件の query は本文を取らない
 
     def test_worktree_porcelain(self):
         text = "worktree /m\nHEAD a\nbranch refs/heads/main\n\nworktree /w x\nHEAD b\ndetached\nlocked\nprunable gone\n"

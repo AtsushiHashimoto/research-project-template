@@ -11,9 +11,11 @@ import re
 TASK_BRANCH = re.compile(r"^[a-z][a-z-]*/(\d+)-i(\d+)$")
 # pre-task/・pre-epic/ は /task-run・/epic-cycle の退避ブランチ（日付が番号に見える）
 ISSUE_BRANCH = re.compile(r"^(?!pre-(?:task|epic)/)[a-z][a-z-]*/(\d+)(?:-|$)")
-# 201 §3-1 案 B: 本文の `Refs #N`（flow が書く形。closing keyword も同じ形で読む）。`Refs #1, #2` も読む。
-# `owner/repo#N`（別の repo）は # の直前が空白でないので当たらない
-BODY_REFS = re.compile(r"(?i)(?<![a-z0-9_])(?:refs|closes|fixes|resolves):?[ \t]*(#\d+(?:[ \t]*,[ \t]*#\d+)*)")
+# 201 §3-1 案 B: 行頭の `Refs #N`（flow が書く形。`Closes`・`Fixes`・`Resolves` も同じ形で読む）。`Refs #1, #2` も読む。
+# 行頭に限るのは、文中に引用した `Refs #N`（別 repo の PR の説明など）を読まないため。
+# `owner/repo#N`（別の repo）はキーワードの直後が # でないので当たらない。番号は 9 桁まで（他人が書く本文で int を巨大にしない）。
+# issue-finish.sh の PR 本文の検査（同じ語を bash で読む）とは並び・行頭の扱いが違う（あちらは 1 本の PR が #N を持つかだけを見る）
+BODY_REFS = re.compile(r"(?im)^[ \t]*(?:refs|closes|fixes|resolves):?[ \t]*(#\d{1,9}(?!\w)(?:[ \t]*,[ \t]*#\d{1,9}(?!\w))*)")
 STEP_ORDER = ["survey", "spec", "feature", "validation", "experiment"]   # issue-hierarchy.md の既定の task 構成
 DROPPED = {"NOT_PLANNED", "DUPLICATE"}
 WORKING_DAYS = 14   # 「作業中」: main に無い tip がこの日数以内（ちょうどは含む）
@@ -37,28 +39,24 @@ def unix(iso):
 
 def body_issues(body):
     """PR の本文 → `Refs #N` 等で参照する同じ repo の issue 番号の list（出た順、重複なし）。"""
-    out = []
-    for m in BODY_REFS.finditer(body or ""):
-        out += [int(x) for x in re.findall(r"\d+", m.group(1)) if int(x) not in out]
-    return out
+    return list(dict.fromkeys(int(x) for m in BODY_REFS.finditer(body or "") for x in re.findall(r"\d+", m.group(1))))
 
 
 def attach_prs(nodes, pulls):
     """§3-1: A（head ブランチ名）と B（open の PR の本文の Refs #N）と C（closing keyword。node に既にある）を
-    番号で重複を除いて合わせる。B は epic・task に結び付けない（A の task 番号と同じ扱い）。
+    番号で重複を除いて合わせる。B は kind で epic・task を除く（task のカードは workingBelow で表す）。
     pulls が None（取れなかった）なら C だけ。戻り値は結び付かなかった open の PR の番号（None なら不明）。"""
     linked = {p["number"] for n in nodes.values() for p in n["prs"]}
     unlinked = []
     for pr in pulls or []:
         hit = None if pr.get("isCrossRepository") else branch_issue(pr["headRefName"])
-        targets = [hit[0]] if hit else []
+        targets = [hit[0]] if hit and hit[0] in nodes else []
         if pr["state"] == "OPEN":
-            targets += [k for k in body_issues(pr.get("body"))
-                        if k in nodes and nodes[k]["kind"] not in ("epic", "task")]
-        for k in dict.fromkeys(targets):
-            if k in nodes:
-                nodes[k]["prs"].append({k2: pr[k2] for k2 in ("number", "state", "url")})
-                linked.add(pr["number"])
+            targets += [num for num in body_issues(pr.get("body"))
+                        if num in nodes and nodes[num]["kind"] not in ("epic", "task")]
+        for num in dict.fromkeys(targets):
+            nodes[num]["prs"].append({key: pr[key] for key in ("number", "state", "url")})
+            linked.add(pr["number"])
     for pr in pulls or []:
         if pr["state"] == "OPEN" and pr["number"] not in linked:
             unlinked.append(pr["number"])
