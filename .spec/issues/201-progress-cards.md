@@ -228,7 +228,7 @@ goal「30 日更新の無い open」と task #200 の「現在の状態」の 11
 | `progress_gh.py` | issue の query に `createdAt`。`collect(pages, field)` に一般化し（`issues`・`pullRequests`）、PR を取る `fetch_pulls(repo, runner)` と close の確認の `fetch_issue_state(repo, number, runner)` |
 | `progress_git.py` | `read_branches` を `read_refs(runner)` → `[{refname, name, oid, time}]` に置き換える（`*/HEAD` を除く）。`read_unmerged(base, runner)` → 完全な refname の集合、`read_base(runner)` → 基準の ref か None。`read_worktrees` は変えない |
 | `progress_work.py`（新規・純関数） | ブランチ名の規則、`STEP_ORDER`・`DROPPED`・`WORKING_DAYS`・`STALE_DAYS`、`attach_prs`・`working`・`workingBelow`・`lastCommit`・`completedLike`・`gone`・`stale`・`anomaly`・`steps` |
-| `progress_tree.py` | `build(issues, repo, sections, refs, worktrees, pulls, base, now, git_error=None, pulls_error=None)`（`now` は必須）。`working()`・`taskBranches` を `progress_work` に移す。`summarize` は `work_ok` と `gone` を見る。`rules` を返す |
+| `progress_tree.py` | `build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged, git_error=None, pulls_error=None)`（`now` と `unmerged`（`progress_git.read_unmerged` の refname の集合）は必須）。`working()`・`taskBranches` を `progress_work` に移す。`summarize` は `work_ok` と `gone` を見る。`rules` を返す |
 | `progress_view.py` | §4-2 の `shown`・除くノードを `gone` で、`item.steps`（epic の集計） |
 | `progress_close.py`（新規） | §6 |
 | `server.py` | 取得の並行、`do_POST`（§6 の順 1・2 と呼び出し）、世代番号の無効化、`GET /page.js`（`text/javascript; charset=utf-8`）。配る path は `/`・`/page.js`・`/api/tree.json` の 3 つだけ |
@@ -291,3 +291,4 @@ fixture（`progress_fixture.py`）: `NOW` を固定し、`built()` は既定で 
 - 2026-10-24: /review 8 観点を反映。`gone` を 1 か所で決める、依存の向き（`progress_work` へブランチ名・段の規則を移す）、`steps` の形、`rules` を server から返す、`page.js` に分ける（確定）、`work_ok`（git・基準・PR）で要約まで不明にする、結び付かない open の PR と fork の PR、ref ごとの判定、境界（14 日は含む・30 日ちょうどは付かない）と境界の fixture、`now` を必須に、JST の日付、K1 を `<summary>` の構造に、chip の順と形、close の検査（Origin 無し・`null`、Content-Length、bool、`-F`、NOT_FOUND、確認の失敗）、世代番号による無効化、確認行の focus・Esc・preventDefault、B1〜B3 の食い違いと再適用、epic の帯は出す task だけ、子が全部完了扱いの親、既存テストの書き換え箇所、`CARD_ISSUES` に分ける、W5 の下流は検証不能として分けて記録
 - 2026-10-24: bug #208。§3-1 の案 B（open の PR だけ本文の行頭の `Refs #N`）を A に足す。§3-2 に本文の取得、K2・§5-2・W2・W3 の文言を A・B・C に合わせた
 - 2026-10-25: bug #216（Integrity Review 2026-10-25T0642）。順 7 の gh を実行できない・timeout を 502 と順 8 の無効化に、順 6 の exit 0 の `errors` を 502（message）に、全応答に `X-Frame-Options: DENY`・`frame-ancestors 'none'` を足した。/review を反映し、timeout と起動できないときの文言を分け、`send_error` の応答にも付け、形の違う応答を 502 にした
+- 2026-10-25: docs #217（Integrity Review 2026-10-25T0642）。§7 の `build` の引数に必須の `unmerged` を足した（`progress_tree.py:42`）

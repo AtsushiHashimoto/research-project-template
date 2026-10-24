@@ -6,6 +6,7 @@
 - ステータス: implemented（/review 8 観点を反映した第 3 版。#177）
 - 親: task #172 / epic #170
 - ブランチ: `spec/176-progress-server`
+- 置き換え: 「閲覧のみ」（タイトル・§6・§8）のうち **close だけは `.spec/issues/201-progress-cards.md` §6 で置き換えた**（`POST /api/close`。子 0 件の epic・task を not planned で close する）。それ以外の書き込みは持たない
 
 ## 1. 目的
 
@@ -82,7 +83,7 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 ```
 
 - 対象 repo は cwd の `gh repo view`（`--repo` は持たない。GitHub と手元の git が別の repo を指す食い違いを作らない）
-- `127.0.0.1` に bind する。Host ヘッダが `127.0.0.1:<port>` か `localhost:<port>` でなければ 403（DNS rebinding で非公開 repo を読ませない）
+- `127.0.0.1` に bind する。Host ヘッダのホスト名（末尾の `:<port>` を除いたもの）が `127.0.0.1`・`localhost`・`[::1]` のどれでもなければ 403（DNS rebinding で非公開 repo を読ませない）。ポートは見ない（ポート転送で手元の番号が変わる。`scripts/progress/server.py` の `LOOPBACK_HOSTS`・`loopback()`）
 - 依存は Python 3.9 以上の標準ライブラリと `gh`（2.48 以上。`--slurp`）と `git`
 - port が使用中なら 1 行の ERROR を出して終了する
 
@@ -97,7 +98,7 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 
 ## 6. 制約
 
-- GET 以外は（HEAD・OPTIONS を含めて）405。書き込みの経路を持たない
+- GET 以外は（HEAD・OPTIONS を含めて）405。書き込みの経路を持たない。**例外は 201 §6 の `POST /api/close` だけ**（他の path の POST は 405 `Allow: GET`、`/api/close` への POST 以外の method は 405 `Allow: POST`）
 - 1 ファイル 300 行以内
 - `scripts/` 配下なので `/template-sync` で配布される。常時読み込みのファイルには何も足さない
 - テストは `scripts/tests/test_progress_*.py`（unittest。品質ゲートが毎回 discover する）と共有 fixture `scripts/tests/progress_fixture.py`。fixture と差し込みの取得関数だけで動き、**合計 1 秒未満**
@@ -110,14 +111,14 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 | V2 | 全件取れている | 重複を除いたノード数 = `totalCount`（100 件超でページ送りを通す） |
 | V3 | 作業中の判定 | fixture: `fix/12-x` → 12 が作業中、`survey/756-i770` → 770 が作業中で 756 は「配下で作業中」、CLOSED + ブランチ → 残骸で作業中でない、`pre-task/2026…` は無視。実 repo: worktree を持つ OPEN issue を 1 件ずつ照合 |
 | V4 | 逸脱の印 | 逸脱を仕込んだ fixture で印が付き、正常な fixture（sub-epic・`review-integrity`・テンプレート外のラベルを含む）で付かない |
-| V5 | 閲覧のみ・Host | POST/PUT/DELETE が 405。Host が別名なら 403。コードに `gh issue edit` / `-X POST` 等が無い |
+| V5 | 閲覧のみ・Host | POST/PUT/DELETE が 405。Host が別名なら 403。コードに `gh issue edit` / `-X POST` 等が無い（#178 の時点の判定。`POST /api/close` と `gh issue close` は 201 §6・W5 が判定する） |
 | V6 | エスケープ | `<script>` を含むタイトルの fixture が JSON にそのまま入り、`index.html` がデータを `innerHTML` に入れていない |
 | V7 | 取得失敗 | 2 ページ目で失敗させると一部の木を出さず、前回の木に失敗表示が付く（前回が無ければ 502）。git だけの失敗で「不明」 |
 | V8 | 要約 | fixture で 3 群の件数が手で数えた値と一致する |
 
 ## 8. 範囲外
 
-- 書き込み（close・ラベル・コメント）
+- 書き込み（ラベル・コメント）。close は 201 §6 で範囲に入った
 - QA の質問への回答と session への戻し（#179）
 - 127.0.0.1 以外への公開
 
@@ -126,3 +127,4 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 - 2026-10-23: 初版
 - 2026-10-23: /review-spec（実現性・品質・設計・Fallback・goal 整合・妥当性検証・UI/UX）を反映。ブランチの種類をラベルから読むのをやめた（`fix/` を取りこぼすため）。作業中を OPEN に限った（実測で手元の issue ブランチの 7 割以上が closed issue のもの）。取得は全ページ成功時だけ採用。task 単位のブランチは既に使われているので先に当てる。要約 3 群・既定の表示・Host 検査・V1 を全ノードに拡大・V8 を追加。`--repo` を削除。取得を GitHub とローカル git の 2 ファイルに分割
 - 2026-10-23: 実装（#177）の /review 8 観点を反映。次の候補を task ごとに先頭の 1 件にした（実データで 56 件→13 件）。見送りに DUPLICATE と見送った親の配下を含めた。取得の失敗後の待ち、`?refresh=1` の取りまとめと header の要求、ラベル定義が読めないときの扱い、親子の循環、`pre-task/` の除外を足した。`--verbose` を削除
+- 2026-10-25: docs #217（Integrity Review 2026-10-25T0642）。§4 の Host 検査を実装（ホスト名だけ・`[::1]` を含む。PR #191）に合わせた。close を 201 §6 で置き換えたことをメタ情報・§6・§7 V5・§8 に書いた
