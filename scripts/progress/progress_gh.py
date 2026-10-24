@@ -98,6 +98,12 @@ def fetch_pulls(repo, runner=run):
     return pulls
 
 
+def graphql_error(errors):
+    """GraphQL の errors（空でない list。呼び出し側で list にそろえる）を、先頭の message を添えた FetchError にする。"""
+    first = errors[0]
+    return FetchError(f"GraphQL のエラー: {first.get('message', first) if isinstance(first, dict) else first}")
+
+
 def collect(pages, field="issues"):
     """--slurp の出力（ページの list）を検査して node の list にする。"""
     if not isinstance(pages, list) or not pages or not all(isinstance(p, dict) for p in pages):
@@ -106,7 +112,7 @@ def collect(pages, field="issues"):
     total = None
     for page in pages:
         if page.get("errors"):
-            raise FetchError(f"GraphQL のエラー: {page['errors'][0].get('message', page['errors'][0])}")
+            raise graphql_error(page["errors"])
         repo = (page.get("data") or {}).get("repository")
         if repo is None:
             raise FetchError("repository が取れない（名前か権限を確認）")
@@ -131,19 +137,28 @@ def fetch_issue_state(repo, number, runner=run_raw):
         body = json.loads(out)
     except json.JSONDecodeError:
         raise failure(argv, code, err) from None
-    errors = body.get("errors") or [] if isinstance(body, dict) else []
+    if not isinstance(body, dict):
+        raise failure(argv, code, err) if code != 0 else shape_error(body)
+    errors = body.get("errors") or []
+    errors = errors if isinstance(errors, list) else [errors]
     if any(isinstance(e, dict) and e.get("type") == "NOT_FOUND" for e in errors):
         return None
-    if errors or code != 0 or not isinstance(body, dict):
-        raise failure(argv, code, err or str(errors[:1]))
-    repo_node = (body.get("data") or {}).get("repository")
-    if repo_node is None:
-        raise FetchError("repository が取れない（名前か権限を確認）")
-    it = repo_node.get("issue")
-    if it is None:
-        return None
+    if errors:                                # exit 0 でも errors を返すことがある（終了コードでは言えない）
+        raise graphql_error(errors)
+    if code != 0:
+        raise failure(argv, code, err)
     try:
+        repo_node = (body.get("data") or {}).get("repository")
+        if repo_node is None:
+            raise FetchError("repository が取れない（名前か権限を確認）")
+        it = repo_node.get("issue")
+        if it is None:
+            return None
         return {"state": it["state"], "labels": [x["name"] for x in it["labels"]["nodes"]],
                 "subIssues": it["subIssues"]["totalCount"]}
-    except (KeyError, TypeError) as e:
-        raise FetchError(f"gh の応答の形が想定と違う: {e!r}") from e
+    except (KeyError, TypeError, AttributeError) as e:   # 形が違えば FetchError（perform が 502 にする）
+        raise shape_error(e) from e
+
+
+def shape_error(what):
+    return FetchError(f"gh の応答の形が想定と違う: {what!r}")

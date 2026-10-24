@@ -143,6 +143,8 @@ def stamp(t):
 
 Q_MAX = 200
 CLOSE_PATH = "/api/close"
+# 201 §6: 他のサイトの iframe に入れさせない（中の fetch は Origin・Host とも 127.0.0.1 になり、close の検査を通るため）
+FRAME_DENY = (("X-Frame-Options", "DENY"), ("Content-Security-Policy", "frame-ancestors 'none'"))
 
 
 def view_args(query):
@@ -173,6 +175,12 @@ def make_handler(cache, runner):
         timeout = 10   # 宣言より短い本文で rfile.read が止まり続けないように
         def log_message(self, *args):  # アクセスログは出さない
             pass
+
+        def end_headers(self):
+            """標準の send_error（400・414・501）も通るここで付ける（201 §6。全応答を iframe に入れさせない）。"""
+            for k, v in FRAME_DENY:
+                self.send_header(k, v)
+            super().end_headers()
 
         def send(self, code, body, ctype, extra=()):
             self.send_response(code)
