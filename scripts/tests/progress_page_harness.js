@@ -1,5 +1,5 @@
-// test_progress_page.py から node で呼ぶ。index.html の <script> を最小限の DOM の stub の上で動かし、結果を JSON で返す。
-// 入力（stdin の JSON）: {script, payloads: {"<closed 0|1>|<label>|<q>": 応答の body}, buttons: [[段, 文言]]}
+// test_progress_page.py から node で呼ぶ。scripts/progress/page.js を最小限の DOM の stub の上で動かし、結果を JSON で返す。
+// 入力（stdin の JSON）: {script, payloads: {"<closed 0|1>|<label>|<q>": 応答の body}, buttons: [[段, 文言]], close: {status, body}}
 "use strict";
 const vm = require("vm");
 
@@ -8,8 +8,11 @@ const vm = require("vm");
 class El {
   constructor(tag, attrs = {}) {
     Object.assign(this, { tagName: tag.toUpperCase(), children: [], _text: "", dataset: {}, listeners: {},
-      attrs, className: "", hidden: false, _open: false, _value: "", checked: false });
+      attrs, className: "", hidden: false, _open: false, _value: "", checked: false, disabled: false });
   }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+  focus() { El.focused = this; }
   get open() { return this._open; }
   set open(v) {
     const changed = this._open !== Boolean(v);
@@ -27,7 +30,11 @@ class El {
   append(...xs) { this.children.push(...xs); }
   replaceChildren(...xs) { this._text = ""; this.children = [...xs]; }
   addEventListener(type, f) { (this.listeners[type] ||= []).push(f); }
-  dispatch(type) { for (const f of this.listeners[type] || []) f({ target: this }); }
+  dispatch(type, extra = {}) {
+    const ev = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...extra };
+    for (const f of this.listeners[type] || []) f(ev);
+    return ev;
+  }
   *all() { for (const c of this.children) { yield c; yield* c.all(); } }
   querySelector(sel) { const name = /^\[name=(\w+)\]$/.exec(sel)[1]; return [...this.all()].find((c) => c.attrs.name === name) || null; }
   querySelectorAll(tag) { return [...this.all()].filter((c) => c.tagName === tag.toUpperCase()); }
@@ -35,20 +42,25 @@ class El {
 
 function page(input, search) {
   const ids = {};
-  for (const id of ["title", "when", "banner", "summary", "tree", "refresh"]) ids[id] = new El(id === "refresh" ? "button" : "div");
+  for (const id of ["title", "when", "banner", "summary", "tree", "refresh", "rules", "bulk-state"]) ids[id] = new El(id === "refresh" ? "button" : "div");
   ids.filters = new El("div");
   ids.filters.append(new El("input", { name: "closed" }), new El("input", { name: "marks" }),
                      new El("select", { name: "label" }), new El("input", { name: "q" }));
   ids.bulk = new El("div");
   for (const [lv, text] of input.buttons) { const b = new El("button"); b.dataset.level = String(lv); b.textContent = text; ids.bulk.append(b); }
-  const timers = [], urls = [], held = [];
+  const timers = [], urls = [], held = [], posts = [];
   const location = { search, pathname: "/" };
   const ctx = {
     document: { getElementById: (id) => ids[id], createElement: (t) => new El(t) },
     location, window: { innerWidth: 1000 }, URLSearchParams, console,
     history: { replaceState: (_s, _t, url) => { location.search = url.startsWith("?") ? url : ""; } },
     setTimeout: (f) => timers.push(f), clearTimeout: () => { timers.length = 0; },
-    fetch: (url) => {
+    fetch: (url, init = {}) => {
+      if (url === "/api/close") {
+        posts.push({ url, method: init.method, headers: init.headers, body: init.body });
+        const c = input.close;
+        return Promise.resolve({ ok: c.status === 200, status: c.status, text: async () => JSON.stringify(c.body) });
+      }
       urls.push(url);
       const p = new URLSearchParams(url.split("?")[1] || "");
       const body = input.payloads[`${p.get("closed") === "1" ? 1 : 0}|${p.get("label") || ""}|${p.get("q") || ""}`];
@@ -61,10 +73,14 @@ function page(input, search) {
   const flush = () => new Promise((r) => setImmediate(r)).then(() => new Promise((r) => setImmediate(r)));
   const runTimers = () => timers.splice(0).forEach((f) => f());
   const opened = () => [...ids.tree.all()].filter((e) => e.tagName === "DETAILS" && e.open).map((e) => String(e.dataset.key)).sort();
-  const shown = () => [...ids.tree.all()].filter((e) => e.tagName === "A").map((e) => Number(/^#(\d+)/.exec(e.textContent)[1]));
+  const shown = () => [...ids.tree.all()].filter((e) => /\bcard\b/.test(e.className)).map((e) => Number(e.dataset.key));
   const details = (key) => [...ids.summary.all(), ...ids.tree.all()].find((e) => e.tagName === "DETAILS" && String(e.dataset.key) === key);
   const click = (lv) => ids.bulk.children.find((b) => b.dataset.level === String(lv)).dispatch("click");
-  return { ids, ctx, urls, held, flush, runTimers, opened, shown, details, click };
+  const pressed = () => ids.bulk.children.map((b) => b.getAttribute("aria-pressed"));
+  const card = (num) => [...ids.tree.all()].find((e) => /\bcard\b/.test(e.className) && String(e.dataset.key) === String(num));
+  // 見えている開いた <details> の数を、page.js とは別に数える（祖先が全部開いているもの）
+  const visible = () => { let n = 0; const rec = (e, s) => { for (const c of e.children) { const o = s && c.tagName === "DETAILS" && c.open; if (o) n++; rec(c, c.tagName === "DETAILS" ? o : s); } }; rec(ids.tree, true); return n; };
+  return { ids, ctx, urls, held, posts, flush, runTimers, opened, shown, details, click, pressed, card, visible };
 }
 
 async function main() {
@@ -118,6 +134,48 @@ async function main() {
   gq.value = "no-payload"; g.ids.filters.dispatch("input"); g.runTimers(); await g.flush();
   g.ids.filters.querySelector("[name=marks]").checked = true; g.ids.filters.dispatch("input"); g.runTimers(); await g.flush();
   out.failBanner = g.ids.banner.textContent;
+  // 201 W7: 一括の手応え（B1〜B3）
+  const h = page(input, "");
+  await h.flush();
+  const state = () => h.ids["bulk-state"].textContent;
+  out.bulk = {};
+  for (const lv of [0, 1, 2, 3]) { h.click(lv); await h.flush(); out.bulk[lv] = { pressed: h.pressed(), text: state(), visible: h.visible() }; }
+  h.click(3); await h.flush();
+  out.bulk.reapplied = state();
+  h.click(1); await h.flush();
+  h.details("2").open = true; await h.flush();              // 段 1 で閉じている task を手で開けた
+  out.bulk.toggled = { pressed: h.pressed(), text: state(), visible: h.visible() };
+  h.click(1); await h.flush();
+  out.bulk.afterReapply = { pressed: h.pressed(), text: state() };
+  const hq = h.ids.filters.querySelector("[name=q]");
+  hq.value = "#770"; h.ids.filters.dispatch("input"); h.runTimers(); await h.flush();
+  out.bulk.filtered = { pressed: h.pressed(), text: state(), visible: h.visible() };
+  // 201 K1・K4・K6: カードの構造・chip・メタ行
+  hq.value = ""; h.ids.filters.dispatch("input"); h.runTimers(); await h.flush();
+  h.click(3); await h.flush();
+  out.cards = [...h.ids.tree.all()].filter((e) => /\bcard\b/.test(e.className)).map((e) => {
+    const top = e.tagName === "DETAILS" ? e.children[0] : e;
+    const head = top.children.find((c) => c.className === "head");
+    return { key: Number(e.dataset.key), tag: e.tagName, first: e.children[0].tagName,
+             inner: top.children.map((c) => c.className),
+             outside: e.tagName === "DETAILS" ? e.children.slice(1).map((c) => c.className) : [],
+             chips: head ? head.children.filter((c) => /\bchip\b/.test(c.className)).map((c) => c.textContent) : [],
+             meta: (top.children.find((c) => c.className === "meta") || {}).textContent };
+  });
+  // 201 W5: close は 2 回目の押下でだけ送る
+  const closeBtn = () => [...h.card(30).all()].find((c) => c.className === "close");
+  const ev = closeBtn().dispatch("click"); await h.flush();
+  const row = () => [...h.card(30).all()].find((c) => c.className === "confirm");
+  out.close = { prevented: ev.defaultPrevented, postsAfterFirst: h.posts.length, confirm: Boolean(row()),
+                focused: El.focused && El.focused.textContent };
+  row().dispatch("keydown", { key: "Escape" }); await h.flush();
+  out.close.afterEscape = Boolean(row());
+  closeBtn().dispatch("click"); await h.flush();
+  const before = h.urls.length;
+  row().children.find((c) => c.textContent === "close する").dispatch("click"); await h.flush(); await h.flush();
+  out.close.posts = h.posts;
+  out.close.reload = h.urls.slice(before);
+  out.close.afterSend = Boolean(row());
   process.stdout.write(JSON.stringify(out));
 }
 main().catch((e) => { console.error(e.stack); process.exit(1); });

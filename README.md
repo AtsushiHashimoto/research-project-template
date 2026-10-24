@@ -123,7 +123,7 @@ The list lives there only — this README does not duplicate it.
 
 **Progress overview (read-only)**: `python3 scripts/progress/server.py` then open http://127.0.0.1:8765/ —
 the epic / task / issue tree of the current repository, with what needs you, what is in progress and what is next
-(reads GitHub through `gh` and the local git; writes nothing).
+(reads GitHub through `gh` and the local git; the only write is closing an epic / task that has no children, from the page).
 
 ---
 

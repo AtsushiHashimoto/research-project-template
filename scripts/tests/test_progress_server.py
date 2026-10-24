@@ -13,15 +13,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from progress_fixture import (
-    PROGRESS,
-    REPO,
-    SECTIONS,
-    built,
-    cmd,
-    server,
-    tree,
-)
+from progress_fixture import PROGRESS, build, built, cmd, server
 
 
 class FakeClock:
@@ -121,7 +113,7 @@ class Server(unittest.TestCase):
         status, body = self.req(port)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["nodes"]["70"]["title"], "<script>alert(1)</script>")
-        page = (PROGRESS / "index.html").read_text(encoding="utf-8")
+        page = (PROGRESS / "index.html").read_text(encoding="utf-8") + (PROGRESS / "page.js").read_text(encoding="utf-8")
         for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("):
             self.assertNotIn(sink, page)
 
@@ -162,14 +154,20 @@ class Server(unittest.TestCase):
         self.assertEqual(v["query"], {"closed": True, "label": "blocked", "q": ""})
 
     def test_empty_repo(self):
-        self.assertEqual(self.req(self.start(lambda: tree.build([], REPO, SECTIONS, [], [])))[0], 200)
+        self.assertEqual(self.req(self.start(lambda: build([])))[0], 200)
 
     def test_no_write_paths_in_code(self):
+        """書き込みは progress_close.py の gh issue close だけ（201 §6・§8）。"""
         for f in PROGRESS.glob("*.py"):
             text = f.read_text(encoding="utf-8")
             self.assertNotRegex(text, r"\bmutation\b", f.name)
+            allowed = {("gh", "repo"), ("gh", "api"), ("git", "for-each-ref"), ("git", "worktree"), ("git", "rev-parse")}
+            if f.name == "progress_close.py":
+                allowed.add(("gh", "issue"))
+                self.assertIn('["gh", "issue", "close"', text)
+                text = text.replace('"close"', "")
             for call in re.findall(r'\["(gh|git)", "([^"]+)"', text):
-                self.assertIn(call, {("gh", "repo"), ("gh", "api"), ("git", "for-each-ref"), ("git", "worktree")}, f.name)
+                self.assertIn(call, allowed, f.name)
             self.assertNotRegex(text, r'"(-X|--method|edit|close|comment|push|commit)"', f.name)
 
 

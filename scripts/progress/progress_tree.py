@@ -1,19 +1,22 @@
-"""issue・ブランチ・worktree から進捗の木を組む（純関数。ネットワークも git も呼ばない）。
+"""issue・ブランチ・worktree・PR から進捗の木を組む（純関数。ネットワークも git も呼ばない）。
 
-規則の原本は .spec/issues/176-progress-server.md §3-1。階層の規則は
+規則の原本は .spec/issues/176-progress-server.md §3-1 と .spec/issues/201-progress-cards.md §4。階層の規則は
 .claude/rules/template/issue-hierarchy.md と labels.md、ラベルの集合は scripts/setup-labels.sh。
 """
 
 import re
 
-# task 単位の worktree を使う派生プロジェクトのブランチ名 <type>/<TASK>-i<N>（テンプレートの issue-start は作らない）。
-# issue 単位の形 <type>/<N>-<slug> にも一致してしまうので先に当てる
-TASK_BRANCH = re.compile(r"^[a-z][a-z-]*/(\d+)-i(\d+)$")
-# pre-task/・pre-epic/ は /task-run・/epic-cycle の退避ブランチ（日付が番号に見える）
-ISSUE_BRANCH = re.compile(r"^(?!pre-(?:task|epic)/)[a-z][a-z-]*/(\d+)(?:-|$)")
+from progress_work import (
+    DROPPED,
+    STALE_DAYS,
+    STEP_ORDER,
+    WORKING_DAYS,
+    attach_prs,
+    branch_issue,
+    classify,
+)
+
 NEEDS_USER = {"user-action", "blocked"}
-DROPPED = {"NOT_PLANNED", "DUPLICATE"}
-STEP_ORDER = ["survey", "spec", "feature", "validation", "experiment"]   # issue-hierarchy.md の既定の task 構成
 
 
 def label_sections(setup_labels_text):
@@ -30,23 +33,17 @@ def label_sections(setup_labels_text):
     return sections
 
 
-def branch_issue(name):
-    """ブランチ名 → (issue 番号, task 番号 or None)。形に合わなければ None。"""
-    m = TASK_BRANCH.match(name)
-    if m:
-        return int(m.group(2)), int(m.group(1))
-    m = ISSUE_BRANCH.match(name)
-    return (int(m.group(1)), None) if m else None
-
-
 def kind_of(labels):
     if "epic" in labels:
         return "epic"
     return "task" if "task" in labels else "issue"
 
 
-def build(issues, repo, sections, branches=None, worktrees=None, git_error=None):
-    """木を組む。branches/worktrees が None なら git が失敗したとみなし、作業中と次の候補を「不明」にする。
+def build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged=frozenset(),
+          git_error=None, pulls_error=None):
+    """木を組む。refs/worktrees が None なら git が失敗、base が None なら基準のブランチが無い、pulls が None なら
+    PR を取れなかったとみなし、作業中・配下で作業中・次の候補を「不明」（None）にする（201 §4 の work_ok）。
+    unmerged は基準に無い ref の完全な refname の集合。now は取得を始めた unix 秒（省略不可）。
     sections に「種類」が無ければ（setup-labels.sh を読めない）ラベルに基づく検査を行わない。"""
     nodes = {}
     for it in issues:
@@ -55,8 +52,9 @@ def build(issues, repo, sections, branches=None, worktrees=None, git_error=None)
         nodes[it["number"]] = n = {
             "number": it["number"], "title": it["title"], "state": it["state"],
             "stateReason": it.get("stateReason"), "url": it["url"], "updatedAt": it["updatedAt"],
+            "createdAt": it.get("createdAt"),
             "labels": labels, "kind": kind_of(labels), "parent": None, "children": [],
-            "branches": [], "worktrees": [], "taskBranches": [], "prs": prs["nodes"],
+            "branches": [], "worktrees": [], "prs": [dict(p) for p in prs["nodes"]],
             "marks": [], "notes": [], "progress": None, "working": None,
         }
         if it["labels"]["totalCount"] > len(labels) or prs["totalCount"] > len(prs["nodes"]):
@@ -69,21 +67,21 @@ def build(issues, repo, sections, branches=None, worktrees=None, git_error=None)
         for n in nodes.values():
             check_hierarchy(n, nodes, sections)
 
-    git_ok = branches is not None and worktrees is not None
-    if git_ok:
-        attach_work(nodes, branches, worktrees)
+    git_ok = refs is not None and worktrees is not None
+    refs_of = attach_work(nodes, refs, worktrees) if git_ok else {}
+    unlinked = attach_prs(nodes, pulls)
+    merged_oids = {p["headRefOid"] for p in pulls or [] if p["state"] == "MERGED"}
+    work_ok = git_ok and base is not None and pulls is not None
+    classify(nodes, refs_of, unmerged, merged_oids, now, work_ok)
     for n in nodes.values():
-        n["working"] = working(n) if git_ok else None
         if git_ok and n["state"] == "CLOSED" and (n["branches"] or n["worktrees"]):
             n["notes"].append("残骸（closed なのにブランチ・worktree が残っている）")
 
     for r in roots:
         progress(nodes, r)
-    for n in nodes.values():
-        if n["kind"] in ("epic", "task") and not n["children"]:
-            n["notes"].append("子なし")
-    return {"repo": repo, "nodes": nodes, "roots": roots,
-            "summary": summarize(nodes, git_ok), "gitError": git_error}
+    rules = {"workingDays": WORKING_DAYS, "staleDays": STALE_DAYS, "base": base, "unlinkedOpenPrs": unlinked}
+    return {"repo": repo, "nodes": nodes, "roots": roots, "now": now, "rules": rules,
+            "summary": summarize(nodes, work_ok), "gitError": git_error, "pullsError": pulls_error}
 
 
 def link_parents(issues, nodes, repo):
@@ -141,24 +139,21 @@ def check_hierarchy(n, nodes, sections):
             n["notes"].append("種類ラベルなし")
 
 
-def attach_work(nodes, branches, worktrees):
-    for b in branches:
-        hit = branch_issue(b)
+def attach_work(nodes, refs, worktrees):
+    """ブランチ名・worktree を node に付け、番号 → その issue の ref の list を返す。"""
+    refs_of = {}
+    for r in refs:
+        hit = branch_issue(r["name"])
         if hit and hit[0] in nodes:
-            nodes[hit[0]]["branches"].append(b)
+            refs_of.setdefault(hit[0], []).append(r)
+            if r["name"] not in nodes[hit[0]]["branches"]:
+                nodes[hit[0]]["branches"].append(r["name"])
     by_branch = {b: n for n in nodes.values() for b in n["branches"]}
     for wt in worktrees:
         n = by_branch.get(wt["branch"] or "")
         if n and not wt["prunable"]:
             n["worktrees"].append(wt["path"])
-    for b in branches:                         # task への集計は open の issue のブランチだけ（closed は残骸）
-        hit = branch_issue(b)
-        if hit and hit[1] in nodes and hit[0] in nodes and nodes[hit[0]]["state"] == "OPEN":
-            nodes[hit[1]]["taskBranches"].append(b)
-
-
-def working(n):
-    return n["state"] == "OPEN" and bool(n["branches"] or n["worktrees"])
+    return refs_of
 
 
 def dropped(n):
@@ -183,10 +178,11 @@ def step_key(n):
     return min(steps, default=len(STEP_ORDER)), n["number"]
 
 
-def summarize(nodes, git_ok):
-    opened = [n for n in nodes.values() if n["state"] == "OPEN"]
+def summarize(nodes, work_ok):
+    """要約の 3 群。完了扱いも closed と同じく外す（gone だけを見る。201 §4-2）。"""
+    opened = [n for n in nodes.values() if not n["gone"]]
     needs = [n["number"] for n in opened if NEEDS_USER & set(n["labels"])]
-    if not git_ok:
+    if not work_ok:
         return {"needsUser": needs, "working": None, "next": None}
     nxt = []
     for task in opened:                        # open な task ごとに、作業中の子が無ければ先頭の 1 件
@@ -195,7 +191,7 @@ def summarize(nodes, git_ok):
         kids = [nodes[c] for c in task["children"]]
         if any(k["working"] for k in kids):
             continue
-        todo = sorted((k for k in kids if k["state"] == "OPEN" and k["kind"] == "issue"), key=step_key)
+        todo = sorted((k for k in kids if not k["gone"] and k["kind"] == "issue"), key=step_key)
         if todo and todo[0]["number"] not in needs:   # 先頭が要対応ならそちらに出ている
             nxt.append(todo[0]["number"])
     return {"needsUser": needs, "working": [n["number"] for n in opened if n["working"]], "next": nxt}
