@@ -6,7 +6,7 @@
 - ステータス: implemented（/review 8 観点を反映した第 3 版。#177）
 - 親: task #172 / epic #170
 - ブランチ: `spec/176-progress-server`
-- 置き換え: 「閲覧のみ」（タイトル・§6・§8）のうち **close だけは `.spec/issues/201-progress-cards.md` §6 で置き換えた**（`POST /api/close`。子 0 件の epic・task を not planned で close する）。それ以外の書き込みは持たない
+- 置き換え: `.spec/issues/201-progress-cards.md` が次を置き換えた。(1) 「閲覧のみ」（タイトル・§6・§8）のうち **close だけ**（201 §6 の `POST /api/close`。子 0 件の epic・task を not planned で close する）。(2) §3-1 の「作業中」と「PR」の行（201 §3-1。PR はブランチ名と open の PR の本文の行頭の `Refs #N` でも結ぶ）
 
 ## 1. 目的
 
@@ -83,7 +83,7 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 ```
 
 - 対象 repo は cwd の `gh repo view`（`--repo` は持たない。GitHub と手元の git が別の repo を指す食い違いを作らない）
-- `127.0.0.1` に bind する。Host ヘッダのホスト名（末尾の `:<port>` を除いたもの）が `127.0.0.1`・`localhost`・`[::1]` のどれでもなければ 403（DNS rebinding で非公開 repo を読ませない）。ポートは見ない（ポート転送で手元の番号が変わる。`scripts/progress/server.py` の `LOOPBACK_HOSTS`・`loopback()`）
+- `127.0.0.1` に bind する。Host ヘッダのホスト名（末尾の `:<数字>` を除いたもの）が `127.0.0.1`・`localhost`・`[::1]` のどれでもなければ、GET と POST は 403（DNS rebinding で非公開 repo を読ませない・close させない）。ポートは見ない（ポート転送で手元の番号が変わる。`scripts/progress/server.py` の `LOOPBACK_HOSTS`・`loopback()`）
 - 依存は Python 3.9 以上の標準ライブラリと `gh`（2.48 以上。`--slurp`）と `git`
 - port が使用中なら 1 行の ERROR を出して終了する
 
@@ -98,7 +98,7 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 
 ## 6. 制約
 
-- GET 以外は（HEAD・OPTIONS を含めて）405。書き込みの経路を持たない。**例外は 201 §6 の `POST /api/close` だけ**（他の path の POST は 405 `Allow: GET`、`/api/close` への POST 以外の method は 405 `Allow: POST`）
+- GET 以外は（HEAD・OPTIONS を含めて）405。書き込みの経路を持たない。**例外は 201 §6 の `POST /api/close` だけ**（応答のコードと `Allow` は 201 §6 の順 2）
 - 1 ファイル 300 行以内
 - `scripts/` 配下なので `/template-sync` で配布される。常時読み込みのファイルには何も足さない
 - テストは `scripts/tests/test_progress_*.py`（unittest。品質ゲートが毎回 discover する）と共有 fixture `scripts/tests/progress_fixture.py`。fixture と差し込みの取得関数だけで動き、**合計 1 秒未満**
@@ -118,7 +118,7 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 
 ## 8. 範囲外
 
-- 書き込み（ラベル・コメント）。close は 201 §6 で範囲に入った
+- 書き込み（ラベル・コメント）
 - QA の質問への回答と session への戻し（#179）
 - 127.0.0.1 以外への公開
 
@@ -127,4 +127,4 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 - 2026-10-23: 初版
 - 2026-10-23: /review-spec（実現性・品質・設計・Fallback・goal 整合・妥当性検証・UI/UX）を反映。ブランチの種類をラベルから読むのをやめた（`fix/` を取りこぼすため）。作業中を OPEN に限った（実測で手元の issue ブランチの 7 割以上が closed issue のもの）。取得は全ページ成功時だけ採用。task 単位のブランチは既に使われているので先に当てる。要約 3 群・既定の表示・Host 検査・V1 を全ノードに拡大・V8 を追加。`--repo` を削除。取得を GitHub とローカル git の 2 ファイルに分割
 - 2026-10-23: 実装（#177）の /review 8 観点を反映。次の候補を task ごとに先頭の 1 件にした（実データで 56 件→13 件）。見送りに DUPLICATE と見送った親の配下を含めた。取得の失敗後の待ち、`?refresh=1` の取りまとめと header の要求、ラベル定義が読めないときの扱い、親子の循環、`pre-task/` の除外を足した。`--verbose` を削除
-- 2026-10-25: docs #217（Integrity Review 2026-10-25T0642）。§4 の Host 検査を実装（ホスト名だけ・`[::1]` を含む。PR #191）に合わせた。close を 201 §6 で置き換えたことをメタ情報・§6・§7 V5・§8 に書いた
+- 2026-10-25: docs #217（Integrity Review 2026-10-25T0642）。§4 の Host 検査を実装（ホスト名だけ・`[::1]` を含む。PR #191）に合わせた。close と §3-1 の作業中・PR を 201 で置き換えたことをメタ情報に、close の例外を §6・§7 V5 に書いた

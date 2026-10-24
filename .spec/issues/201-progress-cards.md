@@ -228,7 +228,7 @@ goal「30 日更新の無い open」と task #200 の「現在の状態」の 11
 | `progress_gh.py` | issue の query に `createdAt`。`collect(pages, field)` に一般化し（`issues`・`pullRequests`）、PR を取る `fetch_pulls(repo, runner)` と close の確認の `fetch_issue_state(repo, number, runner)` |
 | `progress_git.py` | `read_branches` を `read_refs(runner)` → `[{refname, name, oid, time}]` に置き換える（`*/HEAD` を除く）。`read_unmerged(base, runner)` → 完全な refname の集合、`read_base(runner)` → 基準の ref か None。`read_worktrees` は変えない |
 | `progress_work.py`（新規・純関数） | ブランチ名の規則、`STEP_ORDER`・`DROPPED`・`WORKING_DAYS`・`STALE_DAYS`、`attach_prs`・`working`・`workingBelow`・`lastCommit`・`completedLike`・`gone`・`stale`・`anomaly`・`steps` |
-| `progress_tree.py` | `build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged, git_error=None, pulls_error=None)`（`now` と `unmerged`（`progress_git.read_unmerged` の refname の集合）は必須）。`working()`・`taskBranches` を `progress_work` に移す。`summarize` は `work_ok` と `gone` を見る。`rules` を返す |
+| `progress_tree.py` | `build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged, git_error=None, pulls_error=None)`（`now` と `unmerged`（`progress_git.read_unmerged` の完全な refname の集合。git が失敗したら None）は必須）。`working()`・`taskBranches` を `progress_work` に移す。`summarize` は `work_ok` と `gone` を見る。`rules` を返す |
 | `progress_view.py` | §4-2 の `shown`・除くノードを `gone` で、`item.steps`（epic の集計） |
 | `progress_close.py`（新規） | §6 |
 | `server.py` | 取得の並行、`do_POST`（§6 の順 1・2 と呼び出し）、世代番号の無効化、`GET /page.js`（`text/javascript; charset=utf-8`）。配る path は `/`・`/page.js`・`/api/tree.json` の 3 つだけ |
