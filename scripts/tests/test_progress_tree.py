@@ -74,10 +74,10 @@ class TreeRules(unittest.TestCase):
         n = r["nodes"]
         self.assertIn(60, r["roots"])
         self.assertIn(100, r["roots"])
-        self.assertEqual(n[1]["children"], [2, 756, 30, 50, 80, 90, 95, 110])
+        self.assertEqual(n[1]["children"], [2, 756, 30, 50, 80, 90, 95, 110, 120, 122])
         self.assertEqual(n[2]["progress"], {"completed": 1, "total": 5, "notPlanned": 1})
         self.assertEqual(n[80]["progress"], {"completed": 0, "total": 0, "notPlanned": 2})
-        self.assertEqual(n[1]["progress"], {"completed": 2, "total": 14, "notPlanned": 4})
+        self.assertEqual(n[1]["progress"], {"completed": 4, "total": 16, "notPlanned": 4})
         self.assertEqual(n[95]["progress"], {"completed": 0, "total": 2, "notPlanned": 1})
         self.assertIn("子なし", n[30]["notes"])
 

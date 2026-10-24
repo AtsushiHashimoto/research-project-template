@@ -4,7 +4,7 @@
     python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 
 cwd の repo の epic / task / issue の木と、要対応・作業中・次の候補をブラウザに出す。
-仕様: .spec/issues/176-progress-server.md
+仕様: .spec/issues/176-progress-server.md、表示の木と query は .spec/issues/194-progress-collapse.md §4-1
 """
 
 import argparse
@@ -23,6 +23,7 @@ from urllib.parse import parse_qs, urlparse
 import progress_gh
 import progress_git
 import progress_tree
+import progress_view
 from progress_cmd import FetchError
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -108,6 +109,24 @@ def stamp(t):
     return datetime.datetime.fromtimestamp(t, JST).strftime("%Y-%m-%d %H:%M:%S JST")
 
 
+Q_MAX = 200
+
+
+def view_args(query):
+    """query → (closed, label, q) か、受け付けない理由の文字列（§4-1。黙って既定に倒さない）。"""
+    qs = parse_qs(query, keep_blank_values=True)
+    for name in ("closed", "label", "q"):
+        if len(qs.get(name, [])) > 1:
+            return f"{name} が 2 回以上ある"
+    closed = qs.get("closed", ["0"])[0]
+    if closed not in ("0", "1"):
+        return f"closed は 0 か 1: {closed[:20]!r}"
+    q = qs.get("q", [""])[0]
+    if len(q) > Q_MAX:
+        return f"q は {Q_MAX} 文字まで（{len(q)} 文字）"
+    return closed == "1", qs.get("label", [""])[0], q
+
+
 def make_handler(cache):
     page = (HERE / "index.html").read_bytes()
 
@@ -136,13 +155,16 @@ def make_handler(cache):
             if url.path == "/":
                 return self.send(200, page, "text/html; charset=utf-8")
             if url.path == "/api/tree.json":
+                args = view_args(url.query)
+                if isinstance(args, str):
+                    return self.send_json(400, {"error": args})
                 # 取り直しはページの JS からだけ受ける（他のサイトの <img> 等から GitHub の利用枠を使わせない）
                 refresh = ("1" in parse_qs(url.query).get("refresh", [])
                            and self.headers.get("X-Progress-Refresh") == "1")
                 data, error, error_at = cache.get(refresh=refresh)
                 if data is None:
                     return self.send_json(502, {"error": error, "errorAt": error_at})
-                return self.send_json(200, data)
+                return self.send_json(200, {**data, "view": progress_view.view(data, *args)})
             return self.send(404, b"not found\n", "text/plain; charset=utf-8")
 
         def refuse(self):

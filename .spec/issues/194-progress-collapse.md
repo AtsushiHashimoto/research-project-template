@@ -89,7 +89,7 @@ JS に残すのは「`view` を DOM にする」「一括の段を覚える」�
 ### 4-2. `view(tree, closed, label, q)` の規則
 
 戻り値: `{"query": {"closed", "label", "q"}, "epics": [item], "lone": {"count", "items": [item], "defaultOpen"}}`。
-`item = {"number", "children": [item], "count", "progress", "defaultOpen", "openAt", "liftedFrom"}`。
+`item = {"number", "children": [item], "count", "progress", "defaultOpen", "openAt", "liftedFrom"}`。`lone` は加えて `"openAt": 1` を持つ（画面は「親なし」の段を JS に書かない）。
 事後条件: 出てくる番号はすべて `tree["nodes"]` にあり、各番号は高々 1 回現れる。
 
 | 項目 | 規則 | 決める値 |
@@ -100,7 +100,7 @@ JS に残すのは「`view` を DOM にする」「一括の段を覚える」�
 | 絞り込み（一致） | **判定は出すノードの中だけ**（`closed` が偽なら closed は一致しない。例: `q="#80"` は 0 行）。`label` は `labels` に含まれる。`q` は小文字化して前後の空白を除き、固定の regex `^#(\d{1,9})$` に合えば番号一致、合わなければタイトルの部分一致（`#abc` もタイトルの部分一致）。利用者の入力を regex にしない | `match(n)` |
 | 絞り込み（出す範囲） | 絞り込み中は、一致したノードと、その祖先（表示の木の上の）だけを出す。**一致したノードの子孫は、それ自身が一致しない限り出さない**（一致した行は子孫に一致が無ければ `count = 0` の葉になる） | — |
 | 件数 | `count = len(children)` | `item.count`、`lone.count = len(lone.items)` |
-| 進捗 | §3-2。`closed` が真なら `node.progress`。偽なら、§3-2 の除くノードを根とする部分木を除いて `progress_tree.progress` と同じ数え方（見送った親の配下は全部見送り）をする。木の上で子を持たないノード（`node.progress` が `null`）は `null`。表示上の子が 0 でも木の上の子があれば出す（例: 子が全部 closed の open な task は葉の行になり、バッジは出る） | `item.progress` |
+| 進捗 | §3-2。`closed` が真なら `node.progress`。偽なら、§3-2 の除くノードを根とする部分木を除いて `progress_tree.progress` と同じ数え方（見送った親の配下は全部見送り）をする。木の上で子を持たないノード（`node.progress` が `null`）と、木の上の子が全部「除くノード」か、数える葉を持たない部分木だけのノードは `null`（「0/0」を出すと隠した epic・task の気配になる）。表示上の子が 0 でも木の上の子があれば出す（例: 子が全部 closed の open な task は葉の行になり、バッジは出る） | `item.progress` |
 | 既定の開閉 | 絞り込みが無いとき: **全部 false**（`lone.defaultOpen` も）。絞り込み中: 出す子があるときだけ true（＝一致に至る経路）。`lone.defaultOpen` は絞り込み中で `lone.items` が空でないとき true | `item.defaultOpen`、`lone.defaultOpen` |
 | 一括で開く段 | `openAt`: epic → 1、task → 2、issue → 3。`lone` は 1 | `item.openAt` |
 | 持ち上げ | §3-1 | `item.liftedFrom` |
@@ -115,7 +115,7 @@ JS に残すのは「`view` を DOM にする」「一括の段を覚える」�
 | 開閉の決め方 | 行の記録 `toggled`（key は番号と `"lone"`）にあればそれ、無ければ `defaultOpen \|\| openAt <= level` | `folder()` |
 | 開閉の記録 | `toggle` イベントで、`d.open` が上の既定と**違うときだけ**記録する（既定・一括で開いた行を利用者の操作として記録しない）。要約の 3 群（key `sum:…`）の記録は別に持ち、一括・絞り込みで消さない | `folder()` |
 | 絞り込み・closed を変えたとき | `level = 0` にし、行の記録を消す（一致した行に至る経路だけが開く） | `writeParams()` |
-| 取得 | `load()` は URL を `URLSearchParams` で組み立て、いまのフォームの `closed`・`label`・`q` を必ず載せる（「取り直す」の `refresh=1` も同じ URL に足す）。入力のたびの取り直しは既存の 150 ms の待ちを通す。応答の `view.query` がいまのフォームの値と違えば**捨てる**（古い応答が新しい応答の後に届いても描かない） | `load()` |
+| 取得 | `load()` は URL を `URLSearchParams` で組み立て、いまのフォームの `closed`（`0`・`1`）・`label`・`q` を既定値でも必ず載せる（「取り直す」の `refresh=1` も同じ URL に足す）。入力のたびの取り直しは既存の 150 ms の待ちを通す。応答の `view.query` がいまのフォームの値と違えば**捨てる**（古い応答が新しい応答の後に届いても描かない） | `load()` |
 | 注記 | 「逸脱の印と注記を表示」を入れたとき、`liftedFrom` がある行に注記「親 #N は closed」 | `badges()` |
 | 不整合 | `view` の番号が `data.nodes` に無ければ、その行を黙って飛ばさず帯（`showBanner`）に出す | `nodeEl()` |
 | ラベルの選択肢 | 既存どおり全ノードのラベル（`fillLabels`）。closed にしか無いラベルを選ぶと「一致なし」になる | |
@@ -162,3 +162,4 @@ API（`test_progress_server.py`）: `closed=2`・`q` が 201 文字・`label` �
 - 2026-10-24: auto-reviewer の指摘 5 点を反映（全部 closed の fixture、件数とバッジの差の明記、実データの照合を `view` と独立に、W6 は記録のみ・W1 の期待値を集合で、絞り込みの判定範囲）
 - 2026-10-24: /review 7 観点を反映。進捗バッジから全部 closed の epic・task の部分木を除く（前提「気配もない」との食い違い）。持ち上げの注記を `build` から `view` の `liftedFrom` へ移す。query の検証（400）、`q` の番号判定を固定 regex に、一致したノードの子孫は出さない、並びの一意化、`lone.defaultOpen`、空の表示、古い応答を捨てる、`toggled` の記録の条件と `sum:` の分離、`load()` の URL に絞り込みを載せる、W7（node で JS を実行）を追加
 - 2026-10-24: 仕様整合の照合を反映。子の無い closed の task・epic も進捗から除く（除くノードの条件を kind でも判定）。fixture (d) #122 を追加。`progress` が `null` になる条件を木の上の子で定義
+- 2026-10-24: feature #195 の /review を反映。木の上の子が全部除くノードのとき進捗を `null` に（「0/0」の気配）、`lone.openAt`、取得の URL に既定値も載せる
