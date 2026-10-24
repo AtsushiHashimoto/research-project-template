@@ -113,13 +113,17 @@ def collect(pages, field="issues"):
     for page in pages:
         if page.get("errors"):
             raise graphql_error(page["errors"])
-        repo = (page.get("data") or {}).get("repository")
+        data = page.get("data") or {}
+        repo = data.get("repository") if isinstance(data, dict) else None
         if repo is None:
             raise FetchError("repository が取れない（名前か権限を確認）")
-        conn = repo[field]
-        total = conn["totalCount"]
-        for node in conn["nodes"]:
-            by_number[node["number"]] = node
+        try:
+            conn = repo[field]
+            total = conn["totalCount"]
+            for node in conn["nodes"]:
+                by_number[node["number"]] = node
+        except (KeyError, TypeError) as e:   # 形が違えば FetchError（PR だけの失敗を取得全体の失敗にしない）
+            raise shape_error(e) from e
     if len(by_number) != total:
         raise FetchError(f"件数が合わない（取れた {len(by_number)} 件 / totalCount {total} 件）")
     return [by_number[n] for n in sorted(by_number)]

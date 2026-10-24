@@ -32,7 +32,7 @@ function query() {
   return { closed: field("closed").checked, label: labelsFilled ? sel.value : (sel.dataset.want || ""), q: field("q").value };
 }
 const sameQuery = (a, b) => a.closed === b.closed && a.label === b.label && a.q === b.q;
-const filtering = () => Boolean(data && (data.view.query.label || data.view.query.q.trim()));
+const filtering = () => Boolean(data && data.view.filtering);
 let timer = null, lastQuery = null;
 function writeParams() {
   const p = new URLSearchParams(), cur = query();
@@ -70,14 +70,13 @@ function chips(n) {
   const out = [];
   const chip = (text, cls, title) => out.push(badge(text, "chip " + (cls || ""), title));
   if (n.anomaly) chip("異常: 子なし", "c-anom", "open の epic・task で子が 0 件");
-  if (n.labels.includes("user-action")) chip("要対応", "b-need");
-  if (n.labels.includes("blocked")) chip("blocked", "b-need");
+  for (const text of n.needs) chip(text, "b-need");
   if (n.working) chip("作業中", "b-work", [...n.branches, ...n.worktrees, ...n.prs.filter((p) => p.state === "OPEN").map((p) => "PR #" + p.number)].join(", "));
   if (n.workingBelow) chip("配下で作業中", "b-work");
   if (n.stale) chip(`${data.rules.staleDays}日動きなし`, "c-stale", "更新 " + full(n.updatedAt));
   if (n.childrenCompletedLike) chip("子は全部完了扱い", "", "子が全部「完了扱い」なので、closed を出さないと子が出ない");
   if (n.completedLike) chip("完了扱い", "b-done", "open のまま、子が全部 closed");
-  if (n.state === "CLOSED") chip(["NOT_PLANNED", "DUPLICATE"].includes(n.stateReason) ? "見送り" : "完了", "b-done");
+  if (n.state === "CLOSED") chip(n.dropped ? "見送り" : "完了", "b-done");
   return out;
 }
 function marks(n, item) {
@@ -222,7 +221,7 @@ function rulesEl() {
   const r = data.rules, ul = el("ul");
   for (const t of [`作業中 = open で、open の PR があるか、基準に無いブランチの tip が ${r.workingDays} 日以内（squash merge 済みの PR の head は除く）`,
                    "完了扱い = open の epic・task で、子が 1 件以上あり全部 closed（closed と同じく「closed も表示」で出す）",
-                   `30日動きなし = open で、自分の更新が ${r.staleDays} 日より前（一覧からは消さない）`,
+                   `${r.staleDays}日動きなし = open で、自分の更新が ${r.staleDays} 日より前（一覧からは消さない）`,
                    "異常 = open の epic・task で子が 0 件（close… から not planned で close できる）",
                    `基準 = ${r.base || "なし"}（手元の ref。fetch はしない）`]) ul.append(el("li", t));
   const d = el("details", undefined, "rules"); d.append(el("summary", "表示の規則"), ul); return d;
@@ -246,7 +245,7 @@ function render() {
     main.append(d);
   }
   if (!v.epics.length && !v.lone.count) {
-    main.append(el("p", v.query.label || v.query.q.trim() ? "一致なし" : "open な issue はありません", "muted"));
+    main.append(el("p", v.filtering ? "一致なし" : "open な issue はありません", "muted"));
   }
   const msgs = loadError ? [loadError] : [];
   if (closeError) msgs.push(closeError);

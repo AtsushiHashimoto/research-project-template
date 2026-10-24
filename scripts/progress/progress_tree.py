@@ -7,7 +7,6 @@
 import re
 
 from progress_work import (
-    DROPPED,
     STALE_DAYS,
     STEP_ORDER,
     WORKING_DAYS,
@@ -15,8 +14,6 @@ from progress_work import (
     branch_issue,
     classify,
 )
-
-NEEDS_USER = {"user-action", "blocked"}
 
 
 def label_sections(setup_labels_text):
@@ -155,14 +152,10 @@ def attach_work(nodes, refs, worktrees):
     return refs_of
 
 
-def dropped(n):
-    return n["state"] == "CLOSED" and n["stateReason"] in DROPPED
-
-
 def progress(nodes, num, under_dropped=False):
     """(完了, 分母, 見送り) を返し、子を持つノードに progress を書く。見送った親の配下は全部見送りに数える。"""
     n = nodes[num]
-    gone = under_dropped or dropped(n)
+    gone = under_dropped or n["dropped"]
     if not n["children"]:
         if gone:
             return 0, 0, 1
@@ -180,7 +173,7 @@ def step_key(n):
 def summarize(nodes, work_ok):
     """要約の 3 群。完了扱いも closed と同じく外す（gone だけを見る。201 §4-2）。"""
     opened = [n for n in nodes.values() if not n["gone"]]
-    needs = [n["number"] for n in opened if NEEDS_USER & set(n["labels"])]
+    needs = [n["number"] for n in opened if n["needs"]]
     if not work_ok:
         return {"needsUser": needs, "working": None, "next": None}
     nxt = []

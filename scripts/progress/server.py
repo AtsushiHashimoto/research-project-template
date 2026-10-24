@@ -46,7 +46,11 @@ def read_label_sections():
     """表示する repo（cwd）の setup-labels.sh を読む。無ければこのスクリプトの隣。読めなければ (None, 理由)。"""
     for path in (Path.cwd() / "scripts" / "setup-labels.sh", HERE.parent / "setup-labels.sh"):
         if path.is_file():
-            sections = progress_tree.label_sections(path.read_text(encoding="utf-8", errors="replace"))
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:          # 読めないだけで取得全体を失敗にしない（ラベルの検査を外す）
+                return None, f"{path} を読めない: {e}"
+            sections = progress_tree.label_sections(text)
             if "種類" in sections:
                 return sections, None
             return None, f"{path} に「# --- 種類ラベル」の見出しが無い"

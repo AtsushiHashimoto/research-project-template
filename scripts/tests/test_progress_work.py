@@ -4,12 +4,14 @@ fixture だけで動く（ネットワーク・git 不要）。対応する判�
 期待値は fixture（progress_fixture.CARD_*）を手で数えたもの。
 """
 
+import re
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from progress_fixture import CARD_PULLS, DAY, NOW, built, built_cards, pr, pview
+from progress_fixture import CARD_PULLS, DAY, ISSUES, NOW, PROGRESS, built, built_cards, cmd, gh, pr, pview, server
 
 
 def walk(items):
@@ -127,6 +129,41 @@ class Hidden(unittest.TestCase):
     def test_w5_anomaly(self):
         n = built()["nodes"]
         self.assertEqual({k for k, x in n.items() if x["anomaly"]}, {30, 71, 72})
+
+
+class SingleSource(unittest.TestCase):
+    """#218: 判定は progress_work だけが持ち、node・rules・view に載せる（画面と他の Python は読むだけ）。"""
+
+    def test_rules_live_only_in_progress_work(self):
+        files = {f.name: f.read_text(encoding="utf-8") for f in PROGRESS.glob("*") if f.suffix in (".py", ".js", ".html")}
+        for pattern in (r"NOT_PLANNED|DUPLICATE", r"user-action", r"\bDROPPED\b|NEEDS_USER", r"stateReason\b.{0,8}\bin\b"):
+            self.assertEqual({k for k, t in files.items() if re.search(pattern, t)}, {"progress_work.py"}, pattern)
+        js = files["page.js"]
+        self.assertNotRegex(js, r'"blocked"|query\.q|\d+日動きなし')   # 絞り込み中は view.filtering、日数は rules.staleDays
+        self.assertLessEqual(js.count("\n"), 300)
+
+    def test_node_and_view_carry_the_rules(self):
+        n = built()["nodes"]
+        self.assertEqual({k for k, x in n.items() if x["dropped"]}, {k for k, x in n.items()
+                         if x["state"] == "CLOSED" and x["stateReason"] in ("NOT_PLANNED", "DUPLICATE")})
+        self.assertEqual(n[14]["needs"], ["要対応"])
+        t = built_cards()
+        for q, want in (("", False), (" \u0085", False), ("x", True)):
+            self.assertEqual(pview.view(t, q=q)["filtering"], want, repr(q))
+        self.assertTrue(pview.view(t, label="blocked")["filtering"])
+
+    def test_shape_errors_are_fetch_errors(self):
+        bad = {"data": {"repository": {"pullRequests": {"nodes": []}}}}       # totalCount が無い
+        with self.assertRaisesRegex(cmd.FetchError, "形が想定と違う"):
+            gh.collect([bad], "pullRequests")
+        with mock.patch.object(gh, "current_repo", return_value="o/r"), \
+             mock.patch.object(gh, "fetch_issues", return_value=ISSUES), \
+             mock.patch.object(gh, "fetch_pulls", side_effect=lambda repo: gh.collect([bad], "pullRequests")), \
+             mock.patch.object(server, "read_git", return_value=(None, None, None, None, "git なし")), \
+             mock.patch.object(Path, "read_text", side_effect=PermissionError("denied")):
+            r = server.default_fetch()                 # PR とラベル定義だけの失敗は取得全体の失敗にしない
+        self.assertRegex(r["pullsError"], "形が想定と違う")
+        self.assertRegex(r["labelsError"], "読めない: denied")
 
 
 if __name__ == "__main__":

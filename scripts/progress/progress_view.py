@@ -7,14 +7,14 @@
 
 import re
 
-from progress_work import DROPPED, sum_steps
+from progress_work import sum_steps
 
 OPEN_AT = {"epic": 1, "task": 2, "issue": 3}   # 一括で開く段（§4-2）
 NUMBER_QUERY = re.compile(r"^#(\d{1,9})$", re.ASCII)   # 固定の regex。利用者の入力を regex にしない（全角の数字は番号にしない）
 
 
 def view(tree, closed=False, label="", q=""):
-    """§4-2 の戻り値 {"query", "epics", "lone"} を返す。"""
+    """§4-2 の戻り値 {"query", "filtering", "epics", "lone"} を返す。"""
     nodes = tree["nodes"]
     needle = (q or "").strip().lower()
     number = NUMBER_QUERY.match(needle)
@@ -55,7 +55,7 @@ def view(tree, closed=False, label="", q=""):
 
     def count_progress(num, under_dropped):
         n = nodes[num]
-        gone = under_dropped or (n["state"] == "CLOSED" and n.get("stateReason") in DROPPED)
+        gone = under_dropped or n["dropped"]
         if not n["children"]:
             return (0, 0, 1) if gone else ((1 if n["state"] == "CLOSED" else 0), 1, 0)
         # 数える葉が 1 枚も無い部分木は None（子が全部除くノードの open な task 等。親の和にも入れない）
@@ -96,6 +96,6 @@ def view(tree, closed=False, label="", q=""):
         it = item(num, None)
         if it is not None:
             (epics if nodes[num]["kind"] == "epic" else lone).append(it)
-    return {"query": {"closed": closed, "label": label, "q": q},
+    return {"query": {"closed": closed, "label": label, "q": q}, "filtering": filtering,   # 画面は filtering を読む（q を自分で削らない）
             "epics": epics,
             "lone": {"count": len(lone), "items": lone, "defaultOpen": filtering and bool(lone), "openAt": 1}}

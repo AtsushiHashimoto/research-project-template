@@ -238,6 +238,10 @@ goal「30 日更新の無い open」と task #200 の「現在の状態」の 11
 
 node に足すキー: `createdAt`・`lastCommit`（unix 秒か null）・`workingBelow`・`completedLike`・`gone`・`stale`・`anomaly`・`steps`。`taskBranches` は消す。JSON の最上位に `now`・`rules`・`pullsError` を足す。
 
+**判定の置き場所（refactor #218）**: 見送り（`DROPPED`・`dropped()`）と要対応のラベル（`NEEDS_USER`。ラベル → chip の文言）は `progress_work` だけが持ち、node の `dropped`（bool）・`needs`（chip の文言の list）に載せる。`progress_tree`（進捗・要約）と `progress_view`（数え直し）は node のキーを読む。絞り込み中かは `progress_view.view` が `filtering` として返し（q の空白を削るのは Python の `strip` だけ）、規則の説明の日数は `rules.staleDays` から組み立てる。`page.js` はこれらのキーを読むだけで、ラベル名・`stateReason` の値・日数を持たない（`test_progress_work.py` の `SingleSource` が grep で固定）。`collect` の形の違い（`KeyError`・`TypeError`）と `setup-labels.sh` の `OSError` は `FetchError`・`labelsError` にし、PR とラベル定義だけの失敗を取得全体の失敗にしない。
+
+**`page.js` の分割方針**（300 行の上限。#218 の時点で 299 行）: 次に機能を足して 300 行を超えるなら、足す前に**独立した塊を別ファイルに出す**。第一候補は子 0 件の close（§5-4。`closeButton`・`confirmRow`・`send`。約 30 行）を `page_close.js` に、第二候補は日付の整形（K6。`JST`・`day`・`full`）。分けたファイルは `server.py` の配る path に足し（`/`・`/page.js`・`/api/tree.json` の 3 つから増やす。`text/javascript; charset=utf-8`）、`index.html` で `page.js` より先に読み、`progress_page_harness.js` は両方を順に評価する。判定を画面に戻して行数を減らすこと（server の JSON を読まずに JS で決め直すこと）はしない。
+
 ## 8. 制約
 
 - 書き込みは §6 の 1 本だけ。他の書き込み（ラベル・コメント・編集）は持たない
@@ -292,3 +296,4 @@ fixture（`progress_fixture.py`）: `NOW` を固定し、`built()` は既定で 
 - 2026-10-24: bug #208。§3-1 の案 B（open の PR だけ本文の行頭の `Refs #N`）を A に足す。§3-2 に本文の取得、K2・§5-2・W2・W3 の文言を A・B・C に合わせた
 - 2026-10-25: bug #216（Integrity Review 2026-10-25T0642）。順 7 の gh を実行できない・timeout を 502 と順 8 の無効化に、順 6 の exit 0 の `errors` を 502（message）に、全応答に `X-Frame-Options: DENY`・`frame-ancestors 'none'` を足した。/review を反映し、timeout と起動できないときの文言を分け、`send_error` の応答にも付け、形の違う応答を 502 にした
 - 2026-10-25: docs #217（Integrity Review 2026-10-25T0642）。§7 の `build` の引数に必須の `unmerged` を足した（`progress_tree.py:42`）
+- 2026-10-25: refactor #218（Integrity Review 2026-10-25T0642）。§7 に判定の置き場所（`dropped`・`needs`・`view.filtering`・`rules.staleDays`、取得の失敗の包み方）と `page.js` の分割方針を足した。挙動は変えない（JS の `trim` と Python の `strip` で落とす空白が違った分だけ、画面の「絞り込み中」が server の判定に揃う）
