@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from progress_fixture import ISSUES, build, built, issue, pview, tree
+from progress_fixture import ISSUES, build, built, issue, pview
 
 
 def walk(items):
@@ -117,7 +117,6 @@ class ViewRules(unittest.TestCase):
 
     def test_progress_matches_tree_without_excluded(self):
         """除くノードが無い木では、数え直した進捗が progress_tree.progress と一致する（写しのずれを検出）。"""
-        self.assertEqual(pview.DROPPED, tree.DROPPED)
         gone = {120, 121, 122, 130, 131}
         t = build([x for x in ISSUES if x["number"] not in gone])
         for it in all_items(pview.view(t)):

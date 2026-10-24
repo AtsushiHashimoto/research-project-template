@@ -227,16 +227,23 @@ goal「30 日更新の無い open」と task #200 の「現在の状態」の 11
 |---|---|
 | `progress_gh.py` | issue の query に `createdAt`。`collect(pages, field)` に一般化し（`issues`・`pullRequests`）、PR を取る `fetch_pulls(repo, runner)` と close の確認の `fetch_issue_state(repo, number, runner)` |
 | `progress_git.py` | `read_branches` を `read_refs(runner)` → `[{refname, name, oid, time}]` に置き換える（`*/HEAD` を除く）。`read_unmerged(base, runner)` → 完全な refname の集合、`read_base(runner)` → 基準の ref か None。`read_worktrees` は変えない |
-| `progress_work.py`（新規・純関数） | ブランチ名の規則、`STEP_ORDER`・`DROPPED`・`WORKING_DAYS`・`STALE_DAYS`、`attach_prs`・`working`・`workingBelow`・`lastCommit`・`completedLike`・`gone`・`stale`・`anomaly`・`steps` |
+| `progress_work.py`（新規・純関数） | ブランチ名の規則、`STEP_ORDER`・`DROPPED`・`WORKING_DAYS`・`STALE_DAYS`、`attach_prs`・`working`・`workingBelow`・`lastCommit`・`completedLike`・`gone`・`stale`・`anomaly`・`steps`。#218 で `NEEDS_USER`・`dropped`・`needs` |
 | `progress_tree.py` | `build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged, git_error=None, pulls_error=None)`（`now` と `unmerged`（`progress_git.read_unmerged` の完全な refname の集合。git が失敗したら None）は必須）。`working()`・`taskBranches` を `progress_work` に移す。`summarize` は `work_ok` と `gone` を見る。`rules` を返す |
 | `progress_view.py` | §4-2 の `shown`・除くノードを `gone` で、`item.steps`（epic の集計） |
 | `progress_close.py`（新規） | §6 |
-| `server.py` | 取得の並行、`do_POST`（§6 の順 1・2 と呼び出し）、世代番号の無効化、`GET /page.js`（`text/javascript; charset=utf-8`）。配る path は `/`・`/page.js`・`/api/tree.json` の 3 つだけ |
+| `server.py` | 取得の並行、`do_POST`（§6 の順 1・2 と呼び出し）、世代番号の無効化、`GET /page.js`（`text/javascript; charset=utf-8`）。配る path は `/`・`/page.js`・`/api/tree.json`、#213 で足した `/api/identity`（212）の 4 つだけ |
 | `index.html` | §5 の CSS と骨組み。**`<script>` は `scripts/progress/page.js` に出す**（245 行に §5 を足すと 300 行を超える見込み。`<script src="/page.js">`） |
 | `scripts/tests/progress_page_harness.js` | `page.js` を読む。`fetch` は method・headers・body を記録し、`/api/close` には別の応答を返す。`setAttribute`・`getAttribute`・`disabled`・`focus`・`keydown`・`preventDefault` と id `bulk-state` を stub に足す |
 | `scripts/tests/test_progress_work.py`・`test_progress_close.py`（新規） | §9 |
 
 node に足すキー: `createdAt`・`lastCommit`（unix 秒か null）・`workingBelow`・`completedLike`・`gone`・`stale`・`anomaly`・`steps`。`taskBranches` は消す。JSON の最上位に `now`・`rules`・`pullsError` を足す。
+
+**判定の置き場所（refactor #218）**: 見送り（`DROPPED`・`dropped()`）と要対応のラベル（`NEEDS_USER`。ラベル → chip の文言）は `progress_work` だけが持ち、node の `dropped`（bool）・`needs`（chip の文言の list）に載せる。`progress_tree`（進捗・要約）と `progress_view`（数え直し）は node のキーを読む。絞り込み中かは `progress_view.view` が `filtering` として返し（q の空白を削るのは Python の `strip` だけ）、規則の説明の日数は `rules.staleDays` から組み立てる。`page.js` はこれらのキーを読むだけで、ラベル名・`stateReason` の値・日数を持たない（`test_progress_work.py` の `SingleSource` が grep で固定）。`collect` の形の違い（`KeyError`・`TypeError`）と `setup-labels.sh` の `OSError` は `FetchError`・`labelsError` にし、PR とラベル定義だけの失敗を取得全体の失敗にしない。
+
+**分割方針**（1 ファイル 300 行の上限。#218 の時点で `page.js`・`server.py` とも 299 行。`test_progress_work.py` の `FileSize` が `scripts/progress/` の全ファイルを検査する）: 次に機能を足して 300 行を超えるなら、足す前に**どこにも依存しない塊から別ファイルに出す**。
+- `page.js`: 第一候補は日付の整形（K6。`JST`・`parts`・`toMs`・`day`・`full`。`data.now` だけを引数で受ける形にする）を `page_date.js` に。子 0 件の close（§5-4。`closeButton`・`confirmRow`・`send`）は `confirming`・`focusAfter`・`closeError` と `render`・`load` に読み書きの両方で依存するので、出すなら状態は `page.js` に残して関数だけを移す（第二候補）。分けたファイルは上の表の `server.py` の行の配る path に足し（`text/javascript; charset=utf-8`）、`index.html` で `page.js` より先に読み、`progress_page_harness.js` は両方を順に評価する。
+- `server.py`: 第一候補は `Cache`（世代番号を含む。§6）を `progress_cache.py` に。次が `default_fetch`・`read_git`・`read_label_sections`（取得の組み立て）。
+- どちらも、判定を画面に戻して行数を減らすこと（server の JSON を読まずに JS で決め直すこと）はしない。
 
 ## 8. 制約
 
@@ -292,3 +299,4 @@ fixture（`progress_fixture.py`）: `NOW` を固定し、`built()` は既定で 
 - 2026-10-24: bug #208。§3-1 の案 B（open の PR だけ本文の行頭の `Refs #N`）を A に足す。§3-2 に本文の取得、K2・§5-2・W2・W3 の文言を A・B・C に合わせた
 - 2026-10-25: bug #216（Integrity Review 2026-10-25T0642）。順 7 の gh を実行できない・timeout を 502 と順 8 の無効化に、順 6 の exit 0 の `errors` を 502（message）に、全応答に `X-Frame-Options: DENY`・`frame-ancestors 'none'` を足した。/review を反映し、timeout と起動できないときの文言を分け、`send_error` の応答にも付け、形の違う応答を 502 にした
 - 2026-10-25: docs #217（Integrity Review 2026-10-25T0642）。§7 の `build` の引数に必須の `unmerged` を足した（`progress_tree.py:42`）
+- 2026-10-25: refactor #218（Integrity Review 2026-10-25T0642）。§7 に判定の置き場所（`dropped`・`needs`・`view.filtering`・`rules.staleDays`、取得の失敗の包み方）と `page.js` の分割方針を足した。挙動は変えない（JS の `trim` と Python の `strip` で落とす空白が違った分だけ、画面の「絞り込み中」が server の判定に揃う）

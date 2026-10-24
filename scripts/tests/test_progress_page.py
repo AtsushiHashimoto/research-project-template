@@ -51,7 +51,8 @@ class Page(unittest.TestCase):
             raise unittest.SkipTest("node が無いので画面の JS を実行できない（W7 は未検査）")
         cls.base = payload()
         loads = {"0||": cls.base, "0||#770": payload(q="#770"), "0||#2": payload(q="#2"), "0||#40": payload(q="#40"),
-                 "1|blocked|x": payload(closed=True, label="blocked", q="x"), "0|nosuch|": payload(label="nosuch")}
+                 "1|blocked|x": payload(closed=True, label="blocked", q="x"), "0|nosuch|": payload(label="nosuch"),
+                 "1|feature|": payload(closed=True, label="feature")}
         cls.buttons = [[int(lv), text] for lv, text in
                        re.findall(r'<button type="button" data-level="(\d)">([^<]+)</button>', PAGE)]
         loads["1||"] = loads["0||"]          # close の後の取り直し（refresh=1 は鍵に入れない）
@@ -143,6 +144,14 @@ class Page(unittest.TestCase):
         self.assertEqual(by[95], ["配下で作業中", "30日動きなし"])
         self.assertEqual(by[96], ["作業中"])
         self.assertEqual(by[180], ["子は全部完了扱い"])
+        self.assertEqual(by[92], ["blocked", "30日動きなし"])
+        closed = self.out["closedChips"]                     # #218: 見送り・完了は node の dropped で決まる
+        self.assertEqual((closed["16"], closed["98"], closed["15"], closed["73"]), (["見送り"], ["見送り"], ["完了"], ["要対応", "完了"]))
+
+    def test_rules_text_reads_server_days(self):
+        rules = self.base["rules"]
+        self.assertIn(f"{rules['staleDays']}日動きなし = open で、自分の更新が {rules['staleDays']} 日より前", self.out["rulesText"])
+        self.assertIn(f"tip が {rules['workingDays']} 日以内", self.out["rulesText"])
 
     def test_k6_meta_dates_in_jst(self):
         by = {c["key"]: c["meta"] for c in self.out["cards"]}

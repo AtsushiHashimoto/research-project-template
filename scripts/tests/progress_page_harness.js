@@ -126,6 +126,14 @@ async function main() {
   await f.flush();
   out.filteredUrl = f.urls[0];
   out.filteredText = f.ids.tree.textContent;
+  // 201 K4 と #218: closed のカードの chip（見送り・完了は node の dropped）と、規則の説明の日数（rules.staleDays）
+  const c = page(input, "?closed=1&label=feature");
+  await c.flush();
+  out.closedChips = Object.fromEntries([...c.ids.tree.all()].filter((e) => /\bcard\b/.test(e.className)).map((e) => {
+    const top = e.tagName === "DETAILS" ? e.children[0] : e, head = top.children.find((x) => x.className === "head");
+    return [e.dataset.key, head.children.filter((x) => /\bchip\b/.test(x.className)).map((x) => x.textContent)];
+  }));
+  out.rulesText = p.ids.rules.textContent;
   // URL のラベルが一覧に無ければ外して取り直す。取得の失敗は次の描き直しでも帯に残る
   const g = page(input, "?label=nosuch");
   await g.flush(); g.runTimers(); await g.flush();

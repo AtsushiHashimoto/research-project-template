@@ -88,7 +88,7 @@ JS に残すのは「`view` を DOM にする」「一括の段を覚える」�
 
 ### 4-2. `view(tree, closed, label, q)` の規則
 
-戻り値: `{"query": {"closed", "label", "q"}, "epics": [item], "lone": {"count", "items": [item], "defaultOpen"}}`。
+戻り値: `{"query": {"closed", "label", "q"}, "filtering", "epics": [item], "lone": {"count", "items": [item], "defaultOpen"}}`。`filtering` は絞り込み中か（`label` か、`strip` した `q` が空でない。画面はこれを読み、q を自分で削らない。#218）。
 `item = {"number", "children": [item], "count", "progress", "defaultOpen", "openAt", "liftedFrom"}`。`lone` は加えて `"openAt": 1` を持つ（画面は「親なし」の段を JS に書かない）。
 事後条件: 出てくる番号はすべて `tree["nodes"]` にあり、各番号は高々 1 回現れる。
 
@@ -163,3 +163,4 @@ API（`test_progress_server.py`）: `closed=2`・`q` が 201 文字・`label` �
 - 2026-10-24: /review 7 観点を反映。進捗バッジから全部 closed の epic・task の部分木を除く（前提「気配もない」との食い違い）。持ち上げの注記を `build` から `view` の `liftedFrom` へ移す。query の検証（400）、`q` の番号判定を固定 regex に、一致したノードの子孫は出さない、並びの一意化、`lone.defaultOpen`、空の表示、古い応答を捨てる、`toggled` の記録の条件と `sum:` の分離、`load()` の URL に絞り込みを載せる、W7（node で JS を実行）を追加
 - 2026-10-24: 仕様整合の照合を反映。子の無い closed の task・epic も進捗から除く（除くノードの条件を kind でも判定）。fixture (d) #122 を追加。`progress` が `null` になる条件を木の上の子で定義
 - 2026-10-24: feature #195 の /review を反映。木の上の子が全部除くノードのとき進捗を `null` に（「0/0」の気配）、`lone.openAt`、取得の URL に既定値も載せる
+- 2026-10-25: refactor #218。`view` の戻り値に `filtering` を足した（画面の絞り込み中の判定を server に寄せる）

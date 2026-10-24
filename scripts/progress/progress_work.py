@@ -17,7 +17,9 @@ ISSUE_BRANCH = re.compile(r"^(?!pre-(?:task|epic)/)[a-z][a-z-]*/(\d+)(?:-|$)")
 # issue-finish.sh の PR 本文の検査（同じ語を bash で読む）とは並び・行頭の扱いが違う（あちらは 1 本の PR が #N を持つかだけを見る）
 BODY_REFS = re.compile(r"(?im)^[ \t]*(?:refs|closes|fixes|resolves):?[ \t]*(#\d{1,9}(?!\w)(?:[ \t]*,[ \t]*#\d{1,9}(?!\w))*)")
 STEP_ORDER = ["survey", "spec", "feature", "validation", "experiment"]   # issue-hierarchy.md の既定の task 構成
-DROPPED = {"NOT_PLANNED", "DUPLICATE"}
+DROPPED = {"NOT_PLANNED", "DUPLICATE"}   # 見送り（closed の理由）。判定は dropped() だけが行い、node の dropped に載せる
+# 要対応のラベル → chip の文言（並びが chip の順）。node の needs と要約の needsUser はここから作る（画面は読むだけ）
+NEEDS_USER = {"user-action": "要対応", "blocked": "blocked"}
 WORKING_DAYS = 14   # 「作業中」: main に無い tip がこの日数以内（ちょうどは含む）
 STALE_DAYS = 30     # 「30日動きなし」: 自分の updatedAt がこの日数より前（ちょうどは付かない）
 DAY = 86400
@@ -90,6 +92,15 @@ def stale(n, now):
     return n["state"] == "OPEN" and now - unix(n["updatedAt"]) > STALE_DAYS * DAY
 
 
+def dropped(n):
+    return n["state"] == "CLOSED" and n["stateReason"] in DROPPED
+
+
+def needs(n):
+    """要対応のラベルの chip の文言の list（NEEDS_USER の順）。"""
+    return [text for label, text in NEEDS_USER.items() if label in n["labels"]]
+
+
 def anomaly(n):
     return n["state"] == "OPEN" and n["kind"] in ("epic", "task") and not n["children"]
 
@@ -128,6 +139,8 @@ def classify(nodes, refs_of, unmerged, pulls, now, work_ok):
         n["gone"] = n["state"] == "CLOSED" or n["completedLike"]
         n["stale"] = stale(n, now)
         n["anomaly"] = anomaly(n)
+        n["dropped"] = dropped(n)
+        n["needs"] = needs(n)
         n["steps"] = steps(n, nodes)
     for n in nodes.values():
         # 規則が再帰しないので、子が全部完了扱いの open の親は完了扱いにも異常にもならない（§4-2 の最後）
