@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from progress_fixture import PROGRESS, built_cards, gh, pview
+from progress_fixture import PROGRESS, built_cards, gh, pclose, pview
 
 HERE = Path(__file__).resolve().parent
 PAGE = (PROGRESS / "index.html").read_text(encoding="utf-8")
@@ -152,12 +152,17 @@ class Page(unittest.TestCase):
 
     def test_w5_close_needs_second_press(self):
         c = self.out["close"]
-        self.assertTrue(c["prevented"])                  # <summary> の中でもカードを開閉しない
+        self.assertTrue(c["prevented"])                  # 既定の動作（フォームの送信・開閉）をさせない
         self.assertEqual((c["postsAfterFirst"], c["confirm"], c["focused"]), (0, True, "やめる"))
         self.assertFalse(c["afterEscape"])
         self.assertEqual(c["posts"], [{"url": "/api/close", "method": "POST", "body": '{"number":30}',
                                        "headers": {"Content-Type": "application/json", "X-Progress-Close": "1"}}])
         self.assertEqual(c["reload"], ["/api/tree.json?closed=0&label=&q=&refresh=1"])
+        # 画面が送る要求は server の検査を通る（ブラウザが Host と Origin と Content-Length を付ける）
+        sent = c["posts"][0]
+        headers = {**sent["headers"], "Origin": "http://127.0.0.1:8765", "Content-Length": str(len(sent["body"].encode()))}
+        self.assertIsNone(pclose.check_request(headers, "127.0.0.1:8765"))
+        self.assertEqual(pclose.parse_body(sent["body"].encode()), 30)
         self.assertFalse(c["afterSend"])
 
     def test_closed_hint_removed(self):

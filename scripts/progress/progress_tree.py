@@ -39,11 +39,11 @@ def kind_of(labels):
     return "task" if "task" in labels else "issue"
 
 
-def build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged=frozenset(),
+def build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged,
           git_error=None, pulls_error=None):
     """木を組む。refs/worktrees が None なら git が失敗、base が None なら基準のブランチが無い、pulls が None なら
     PR を取れなかったとみなし、作業中・配下で作業中・次の候補を「不明」（None）にする（201 §4 の work_ok）。
-    unmerged は基準に無い ref の完全な refname の集合。now は取得を始めた unix 秒（省略不可）。
+    unmerged は基準に無い ref の完全な refname の集合（git が失敗したら None）。now は取得を始めた unix 秒。どちらも省略不可。
     sections に「種類」が無ければ（setup-labels.sh を読めない）ラベルに基づく検査を行わない。"""
     nodes = {}
     for it in issues:
@@ -52,7 +52,7 @@ def build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged=fr
         nodes[it["number"]] = n = {
             "number": it["number"], "title": it["title"], "state": it["state"],
             "stateReason": it.get("stateReason"), "url": it["url"], "updatedAt": it["updatedAt"],
-            "createdAt": it.get("createdAt"),
+            "createdAt": it["createdAt"],
             "labels": labels, "kind": kind_of(labels), "parent": None, "children": [],
             "branches": [], "worktrees": [], "prs": [dict(p) for p in prs["nodes"]],
             "marks": [], "notes": [], "progress": None, "working": None,
@@ -70,9 +70,8 @@ def build(issues, repo, sections, refs, worktrees, pulls, base, now, unmerged=fr
     git_ok = refs is not None and worktrees is not None
     refs_of = attach_work(nodes, refs, worktrees) if git_ok else {}
     unlinked = attach_prs(nodes, pulls)
-    merged_oids = {p["headRefOid"] for p in pulls or [] if p["state"] == "MERGED"}
     work_ok = git_ok and base is not None and pulls is not None
-    classify(nodes, refs_of, unmerged, merged_oids, now, work_ok)
+    classify(nodes, refs_of, unmerged, pulls, now, work_ok)
     for n in nodes.values():
         if git_ok and n["state"] == "CLOSED" and (n["branches"] or n["worktrees"]):
             n["notes"].append("残骸（closed なのにブランチ・worktree が残っている）")

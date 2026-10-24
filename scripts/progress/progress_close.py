@@ -50,21 +50,20 @@ def close(number, repo, runner=run_raw):
 
 
 def perform(number, repo, runner=run_raw):
-    """順 6〜7。(コード, 応答の JSON) を返す。"""
+    """順 6〜7。(コード, 応答の JSON, close を試みたか) を返す。"""
     with LOCK:
         try:
             st = progress_gh.fetch_issue_state(repo, number, runner)
         except FetchError as e:
-            return 502, {"error": f"GitHub で状態を確かめられない（close していない）: {e}"}
-        if st is None:
-            return 409, {"error": f"#{number} は issue として存在しない"}
-        if st["state"] != "OPEN":
-            return 409, {"error": f"#{number} は open でない"}
-        if not {"epic", "task"} & set(st["labels"]):
-            return 409, {"error": f"#{number} は epic・task でない"}
-        if st["subIssues"]:
-            return 409, {"error": f"#{number} には子が {st['subIssues']} 件ある（別 repo の子を含む）"}
+            return 502, {"error": f"GitHub で状態を確かめられない（close していない）: {e}"}, False
+        refused = (f"#{number} は issue として存在しない" if st is None
+                   else f"#{number} は open でない" if st["state"] != "OPEN"
+                   else f"#{number} は epic・task でない" if not {"epic", "task"} & set(st["labels"])
+                   else f"#{number} には子が {st['subIssues']} 件ある（別 repo の子を含む）" if st["subIssues"]
+                   else None)
+        if refused:
+            return 409, {"error": refused}, False
         why = close(number, repo, runner)
         if why is not None:
-            return 502, {"error": f"gh issue close が失敗: {why}"}
-        return 200, {"closed": number}
+            return 502, {"error": f"gh issue close が失敗: {why}"}, True
+        return 200, {"closed": number}, True

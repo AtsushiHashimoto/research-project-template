@@ -15,7 +15,7 @@ let data = null, labelsFilled = false, level = 0, missing = [], seq = 0, loadErr
 let confirming = null, focusAfter = null;
 const toggled = new Map();      // 利用者が開け閉めした行（key は番号と "lone"）。一括・絞り込みで消す
 const sumToggled = new Map();   // 要約の 3 群（key は "sum:…"）。一括・絞り込みでは消さない
-const LEVEL_TEXT = ["すべて閉じている", "epic まで", "task まで", "すべて"];
+const LEVEL_TEXT = ["すべて閉じた後", "epic まで", "task まで", "すべて"];   // 段 0 は手で開けた行があるときだけ使う
 const REAPPLIED = " · 再適用";
 
 function options() {
@@ -67,14 +67,14 @@ function full(v) { const p = parts(toMs(v)); return `${p.year}-${p.month}-${p.da
 // ── カード ──────────────────────────────────────────────
 // K4: chip の文言と順は固定。自由な文字は title に入れる
 function chips(n) {
-  const out = [], open = n.state === "OPEN", group = n.kind !== "issue";
+  const out = [];
   const chip = (text, cls, title) => out.push(badge(text, "chip " + (cls || ""), title));
   if (n.anomaly) chip("異常: 子なし", "c-anom", "open の epic・task で子が 0 件");
   if (n.labels.includes("user-action")) chip("要対応", "b-need");
   if (n.labels.includes("blocked")) chip("blocked", "b-need");
   if (n.working) chip("作業中", "b-work", [...n.branches, ...n.worktrees, ...n.prs.filter((p) => p.state === "OPEN").map((p) => "PR #" + p.number)].join(", "));
-  if (open && group && n.workingBelow) chip("配下で作業中", "b-work");
-  if (n.stale) chip("30日動きなし", "c-stale", "更新 " + full(n.updatedAt));
+  if (n.workingBelow) chip("配下で作業中", "b-work");
+  if (n.stale) chip(`${data.rules.staleDays}日動きなし`, "c-stale", "更新 " + full(n.updatedAt));
   if (n.childrenCompletedLike) chip("子は全部完了扱い", "", "子が全部「完了扱い」なので、closed を出さないと子が出ない");
   if (n.completedLike) chip("完了扱い", "b-done", "open のまま、子が全部 closed");
   if (n.state === "CLOSED") chip(["NOT_PLANNED", "DUPLICATE"].includes(n.stateReason) ? "見送り" : "完了", "b-done");
@@ -148,7 +148,7 @@ function cardEl(item, opt) {
 // ── 子 0 件の close（§5-4。2 回目の押下でだけ送る）──────────────────
 function closeButton(n) {
   const b = el("button", "close…", "close"); b.type = "button"; b.setAttribute("aria-label", `#${n.number} を close`);
-  b.addEventListener("click", (e) => { e.preventDefault(); confirming = n.number; render(); });
+  b.addEventListener("click", (e) => { e.preventDefault(); confirming = n.number; focusAfter = true; render(); });
   return b;
 }
 function confirmRow(n) {
@@ -159,11 +159,11 @@ function confirmRow(n) {
   no.addEventListener("click", (e) => { e.preventDefault(); cancel(); });
   row.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); cancel(); } });
   row.append(el("span", `#${n.number}「${n.title}」を not planned で close する（戻すときは GitHub で reopen）`), yes, no);
-  focusAfter = no;
+  if (focusAfter === true) focusAfter = no;   // 確認行を開いた直後の 1 回だけ「やめる」へ（他の描き直しで focus を奪わない）
   return row;
 }
 async function send(n, yes, no) {
-  yes.disabled = no.disabled = true;
+  yes.disabled = no.disabled = true; yes.textContent = "close 中…";
   let status = 0, why = "";
   try {
     const res = await fetch("/api/close", { method: "POST", headers: { "Content-Type": "application/json", "X-Progress-Close": "1" },
@@ -194,7 +194,7 @@ function bulkState() {
   }
   const n = visibleOpen($("tree"), true);
   let text = f && level === 0 ? `一致への経路だけ開いている · 開いている ${n} 行`
-    : level === 0 && k === 0 ? LEVEL_TEXT[0] : `${LEVEL_TEXT[level]} · 開いている ${n} 行`;
+    : level === 0 && k === 0 ? "すべて閉じている" : `${LEVEL_TEXT[level]} · 開いている ${n} 行`;
   if (k) text += ` · 手で変えた ${k} 行`;
   $("bulk-state").textContent = text;
 }
@@ -237,7 +237,7 @@ function render() {
     summaryGroup("作業中", s.working, why), summaryGroup("次の候補", s.next, why));
   const rules = $("rules"), keep = rules.firstChild && rules.firstChild.open;
   rules.replaceChildren(rulesEl()); rules.firstChild.open = Boolean(keep);
-  const main = $("tree"); main.replaceChildren(); missing = []; focusAfter = null;
+  const main = $("tree"); main.replaceChildren(); missing = [];
   for (const it of v.epics) { const e = cardEl(it, opt); if (e) main.append(e); }
   if (v.lone.count) {
     const d = folder("lone", el("summary", `親なし (${v.lone.count})`), v.lone.defaultOpen || v.lone.openAt <= level);
@@ -262,7 +262,7 @@ function render() {
   if (missing.length) msgs.push(`一覧に無い issue 番号があるので、その行を出していない: ${missing.map((x) => "#" + x).join(", ")}`);
   showBanner(msgs.join(" / "));
   bulkState();
-  if (focusAfter) focusAfter.focus();
+  if (focusAfter && focusAfter !== true) focusAfter.focus(); focusAfter = null;
 }
 // 失敗は帯に残す（次の描き直しで消さない）。下の木が前の条件のものであることも書く
 function failed(why) {

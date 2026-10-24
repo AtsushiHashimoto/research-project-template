@@ -4,7 +4,7 @@ GitHub の取得とは失敗の仕方が違うので別にしてある。ここ�
 「作業中」の列だけを不明にする（.spec/issues/176-progress-server.md §3-2、201 §3-2）。
 """
 
-from progress_cmd import failure, run, run_raw
+from progress_cmd import FetchError, failure, run, run_raw
 
 BASES = ("refs/remotes/origin/main", "refs/heads/main")   # 基準の ref（この順で最初にあるもの）
 
@@ -17,8 +17,8 @@ def read_refs(runner=run):
     refs = []
     for line in out.splitlines():
         parts = line.split("\t")
-        if len(parts) != 3:
-            continue
+        if len(parts) != 3 or not parts[2].isdigit():     # 書式を固定しているので、崩れた行は git の失敗とみなす
+            raise FetchError(f"git for-each-ref の行を読めない: {line[:80]!r}")
         refname, oid, when = parts
         if refname.startswith("refs/heads/"):
             name = refname[len("refs/heads/"):]
@@ -29,7 +29,7 @@ def read_refs(runner=run):
             name = rest[1]
         else:
             continue
-        refs.append({"refname": refname, "name": name, "oid": oid, "time": int(when or 0)})
+        refs.append({"refname": refname, "name": name, "oid": oid, "time": int(when)})
     return refs
 
 

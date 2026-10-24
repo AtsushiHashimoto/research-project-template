@@ -15,6 +15,7 @@ from progress_fixture import (
     NOW,
     REFS,
     REPO,
+    UNMERGED,
     WORKTREES,
     built,
     cmd,
@@ -67,7 +68,7 @@ class TreeRules(unittest.TestCase):
         self.assertEqual(n[72]["kind"], "epic")
 
     def test_v4_no_label_checks_without_sections(self):
-        n = tree.build(ISSUES, REPO, {}, REFS, WORKTREES, [], BASE, NOW)["nodes"]
+        n = tree.build(ISSUES, REPO, {}, REFS, WORKTREES, [], BASE, NOW, UNMERGED)["nodes"]
         self.assertEqual(n[51]["marks"], [])
         self.assertEqual(n[41]["notes"], [])
 
@@ -126,6 +127,21 @@ class Fetch(unittest.TestCase):
             {"refname": "refs/heads/fix/12-x", "name": "fix/12-x", "oid": "a", "time": 10},
             {"refname": "refs/remotes/origin/fix/12-x", "name": "fix/12-x", "oid": "b", "time": 20},
             {"refname": "refs/remotes/origin/feature/9-y", "name": "feature/9-y", "oid": "d", "time": 40}])
+
+    def test_refs_follow_the_format(self):
+        """偽の git は argv の --format から行を作る（書式と読み手のずれ・リモートの抜けを検出する）。"""
+        def fake(argv):
+            fmt = next(a for a in argv if a.startswith("--format="))[len("--format="):]
+            rows = [("refs/heads/fix/12-x", "a", "10"), ("refs/remotes/origin/fix/12-x", "b", "20")]
+            rows = [r for r in rows if any(r[0].startswith(p + "/") for p in argv if p.startswith("refs/"))]
+            return "".join(fmt.replace("%09", "\t").replace("%(refname)", r).replace("%(objectname)", o)
+                           .replace("%(committerdate:unix)", t) + "\n" for r, o, t in rows)
+        self.assertEqual([(r["refname"], r["time"]) for r in git.read_refs(fake)],
+                         [("refs/heads/fix/12-x", 10), ("refs/remotes/origin/fix/12-x", 20)])
+        self.assertEqual(git.read_unmerged("refs/remotes/origin/main", fake),
+                         {"refs/heads/fix/12-x", "refs/remotes/origin/fix/12-x"})
+        with self.assertRaises(cmd.FetchError):                  # 崩れた行は黙って捨てない
+            git.read_refs(lambda argv: "refs/heads/x a\n")
 
     def test_read_base(self):
         """rev-parse の終了コード 1 だけが「無い」。それ以外は git の失敗。"""

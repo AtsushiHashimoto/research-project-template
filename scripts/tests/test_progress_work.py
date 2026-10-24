@@ -36,6 +36,7 @@ class Working(unittest.TestCase):
         self.assertEqual({k: n[k]["working"] for k in expect}, expect)
         self.assertTrue(n[95]["workingBelow"] and n[2]["workingBelow"] and n[1]["workingBelow"])
         self.assertFalse(n[90]["workingBelow"])
+        self.assertIsNone(n[12]["workingBelow"])                        # issue 層には付けない
 
     def test_w3_unknown_without_base_or_pulls(self):
         for kw in ({"pulls": None, "pulls_error": "落ちた"}, {"base": None}, {"refs": None, "worktrees": None}):

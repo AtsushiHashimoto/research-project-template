@@ -81,7 +81,7 @@ def default_fetch():
     if git_error is None and base is None:
         log("WARN", "基準のブランチ（origin/main・main）が無い（作業中・次の候補は不明として出す）")
     result = progress_tree.build(issues, repo, sections or {}, refs, worktrees, pulls, base, now,
-                                 unmerged or set(), git_error, pulls_error)
+                                 unmerged, git_error, pulls_error)
     result["labelsError"] = labels_error
     count = "不明" if refs is None else len(refs)
     prs = "不明" if pulls is None else len(pulls)
@@ -98,11 +98,12 @@ class Cache:
         self.fetch, self.ttl, self.clock = fetch, ttl, clock
         self.lock = threading.Lock()
         self.data, self.fetched_at, self.error, self.error_at = None, None, None, None
-        self.generation, self.dirty = 0, False
+        self.generation, self.dirty, self.gen_lock = 0, False, threading.Lock()
 
     def invalidate(self):
-        self.generation += 1
-        self.dirty = True
+        with self.gen_lock:
+            self.generation += 1
+            self.dirty = True
 
     def get(self, refresh=False):
         """(表示する JSON か None, 失敗の理由, 失敗の時刻) を返す（lock の中で読んだ値の組）。"""
@@ -110,7 +111,7 @@ class Cache:
         with self.lock:
             last = max(self.fetched_at or 0, self.error_at or 0)
             if refresh:
-                need = last < arrived
+                need = self.dirty or last < arrived
             else:
                 need = last == 0 or self.dirty or self.clock() - last >= self.ttl
             if need:
@@ -169,6 +170,7 @@ def make_handler(cache, runner):
     script = (HERE / "page.js").read_bytes()
 
     class Handler(BaseHTTPRequestHandler):
+        timeout = 10   # 宣言より短い本文で rfile.read が止まり続けないように
         def log_message(self, *args):  # アクセスログは出さない
             pass
 
@@ -189,6 +191,8 @@ def make_handler(cache, runner):
             url = urlparse(self.path)
             if url.path == "/":
                 return self.send(200, page, "text/html; charset=utf-8")
+            if url.path == CLOSE_PATH:
+                return self.refuse()
             if url.path == "/page.js":
                 return self.send(200, script, "text/javascript; charset=utf-8")
             if url.path == "/api/tree.json":
@@ -223,8 +227,9 @@ def make_handler(cache, runner):
             repo = (cache.data or {}).get("repo")
             if not repo:
                 return self.send_json(409, {"error": "一覧をまだ取得していない"})
-            code, body = progress_close.perform(number, repo, runner)
-            cache.invalidate()
+            code, body, attempted = progress_close.perform(number, repo, runner)
+            if attempted:                    # 順 8: close を試みたら（失敗しても）無効化する
+                cache.invalidate()
             log("INFO", f"close #{number}: {code} {body}")
             return self.send_json(code, body)
 

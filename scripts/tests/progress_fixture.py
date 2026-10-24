@@ -102,7 +102,7 @@ WORKTREES = [{"path": "/w/task756", "branch": "survey/756-i770", "prunable": Fal
 
 def build(issues, **kw):
     """refs・PR なし、基準あり、now=NOW の既定で build する（引数で差し替える）。"""
-    args = {"refs": [], "worktrees": [], "pulls": [], "base": BASE, "now": NOW}
+    args = {"refs": [], "worktrees": [], "pulls": [], "base": BASE, "now": NOW, "unmerged": set()}
     args.update(kw)
     return tree.build(issues, REPO, SECTIONS, **args)
 

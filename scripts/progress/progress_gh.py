@@ -114,7 +114,7 @@ def fetch_issue_state(repo, number, runner=run_raw):
     except json.JSONDecodeError:
         raise failure(argv, code, err) from None
     errors = body.get("errors") or [] if isinstance(body, dict) else []
-    if any(e.get("type") == "NOT_FOUND" for e in errors):
+    if any(isinstance(e, dict) and e.get("type") == "NOT_FOUND" for e in errors):
         return None
     if errors or code != 0 or not isinstance(body, dict):
         raise failure(argv, code, err or str(errors[:1]))
@@ -124,5 +124,8 @@ def fetch_issue_state(repo, number, runner=run_raw):
     it = repo_node.get("issue")
     if it is None:
         return None
-    return {"state": it["state"], "labels": [x["name"] for x in it["labels"]["nodes"]],
-            "subIssues": it["subIssues"]["totalCount"]}
+    try:
+        return {"state": it["state"], "labels": [x["name"] for x in it["labels"]["nodes"]],
+                "subIssues": it["subIssues"]["totalCount"]}
+    except (KeyError, TypeError) as e:
+        raise FetchError(f"gh の応答の形が想定と違う: {e!r}") from e

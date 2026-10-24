@@ -58,7 +58,7 @@ class Checks(unittest.TestCase):
 
     def test_perform(self):
         r = Runner()
-        self.assertEqual(pclose.perform(30, "o/r", r), (200, {"closed": 30}))
+        self.assertEqual(pclose.perform(30, "o/r", r), (200, {"closed": 30}, True))
         self.assertEqual(r.calls[-1], CLOSE_ARGV)
         self.assertIn("-F", r.calls[0])                                      # 番号は Int で渡す
         not_found = (1, json.dumps({"data": {"repository": {"issue": None}},
@@ -68,7 +68,8 @@ class Checks(unittest.TestCase):
             r = Runner(read=read)
             self.assertEqual(pclose.perform(30, "o/r", r)[0], code, read)
             self.assertNotIn(CLOSE_ARGV, r.calls)                            # 確かめられなければ close しない
-        self.assertEqual(pclose.perform(30, "o/r", Runner(close=(1, "", "HTTP 403\n")))[0], 502)
+        self.assertEqual(pclose.perform(30, "o/r", Runner(close=(1, "", "HTTP 403\n")))[::2], (502, True))
+        self.assertFalse(pclose.perform(30, "o/r", Runner(read=(0, state(subs=1), "")))[2])   # 試みていない
 
 
 class Endpoint(unittest.TestCase):
@@ -105,12 +106,15 @@ class Endpoint(unittest.TestCase):
         self.assertEqual(self.post(port, Origin="null")[0], 403)
         status, headers, _ = self.post(port, path="/api/tree.json")
         self.assertEqual((status, headers.get("Allow")), (405, "GET"))
-        status, headers, _ = self.post(port, method="PUT")
-        self.assertEqual((status, headers.get("Allow")), (405, "POST"))
+        for m in ("PUT", "GET"):
+            status, headers, _ = self.post(port, method=m)
+            self.assertEqual((status, headers.get("Allow")), (405, "POST"), m)
+        lower = {"origin": f"http://127.0.0.1:{port}", "content-type": "application/json", "x-progress-close": "1"}
+        status, _, _ = self.post(port, **lower)                  # ヘッダ名の大小は区別しない
         status, headers, _ = self.post(port, method="OPTIONS")
         self.assertEqual(status, 405)
         self.assertFalse([k for k in headers if k.lower().startswith("access-control")])
-        self.assertEqual(sum(c == CLOSE_ARGV for c in r.calls), 1)
+        self.assertEqual(sum(c == CLOSE_ARGV for c in r.calls), 2)
 
     def test_generation_drops_fetch_started_before_close(self):
         started, gate, calls = threading.Event(), threading.Event(), []
@@ -130,6 +134,20 @@ class Endpoint(unittest.TestCase):
         t.join()
         self.assertEqual(c.get()[0]["n"], 2)   # ttl 内でも、その取得の結果を新しいとみなさず取り直す
         self.assertEqual(c.get()[0]["n"], 2)
+
+    def test_generation_with_refresh(self):
+        """close の後の load(true) が、close 前に始まり要求の後に終わった取得を受け取らない。"""
+        clock, calls = [1000.0], []
+
+        def fetch():
+            calls.append(1)
+            if len(calls) == 1:
+                c.invalidate()             # 取得の途中で close
+                clock[0] += 5              # 終わったのは load(true) の到着より後
+            return {"repo": "o/r", "n": len(calls)}
+        c = server.Cache(fetch, 60, lambda: clock[0])
+        c.get()
+        self.assertEqual(c.get(refresh=True)[0]["n"], 2)
 
     def test_read_failure_is_502(self):
         with self.assertRaises(cmd.FetchError):

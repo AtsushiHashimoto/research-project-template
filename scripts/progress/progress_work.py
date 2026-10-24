@@ -99,8 +99,10 @@ def sum_steps(tasks):
     return out
 
 
-def classify(nodes, refs_of, unmerged, merged_oids, now, work_ok):
+def classify(nodes, refs_of, unmerged, pulls, now, work_ok):
     """§4 の各キーを node に書く。refs_of は番号 → その issue のブランチの ref の list。"""
+    # squash merge 済みの head は main に入ったとみなす（fork の PR の head は手元のブランチではない）
+    merged_oids = {p["headRefOid"] for p in pulls or [] if p["state"] == "MERGED" and not p.get("isCrossRepository")}
     for n in nodes.values():
         n["_kids"] = [nodes[c] for c in n["children"]]
     for n in nodes.values():
@@ -116,7 +118,8 @@ def classify(nodes, refs_of, unmerged, merged_oids, now, work_ok):
         # 規則が再帰しないので、子が全部完了扱いの open の親は完了扱いにも異常にもならない（§4-2 の最後）
         n["childrenCompletedLike"] = (n["state"] == "OPEN" and n["kind"] in ("epic", "task") and not n["gone"]
                                       and bool(n["_kids"]) and all(c["gone"] for c in n["_kids"]))
-        n["workingBelow"] = below(n) if work_ok else None
+        # task・epic だけに付ける（issue 層は対象外で None）。不明なら None
+        n["workingBelow"] = below(n) if work_ok and n["kind"] in ("epic", "task") and n["state"] == "OPEN" else None
     for n in nodes.values():
         del n["_kids"]
 
