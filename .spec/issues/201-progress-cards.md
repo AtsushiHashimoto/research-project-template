@@ -32,19 +32,26 @@
 
 ## 3. 未確定の解消（task #200 の `## 未確定` の 6 行）
 
-### 3-1. PR と issue の結び付け方 → **PR の head ブランチ名を、ブランチと同じ規則で読む**
+### 3-1. PR と issue の結び付け方 → **PR の head ブランチ名を、ブランチと同じ規則で読む。open の PR は本文の `Refs #N` も読む**（B は #208 で採用）
 
 | 案 | 下流の実測（PR 348 件、2026-10-24） | 採否 |
 |---|---|---|
 | **A. `headRefName` を `branch_issue`（いまは `progress_tree.py:33`）で読む** | **343 件が issue に結び付く**。外れる 5 件は番号を持たないブランチ名（`chore/template-skills-migration` 等） | **採用** |
-| B. 本文の `Refs #N` | 本文を全件取ると応答が大きくなる（本文は 1 件で数 KB）。1 本の PR が複数の issue を参照する | 不採用 |
+| B. 本文の `Refs #N` | 当初は「本文を全件取ると応答が大きくなる（本文は 1 件で数 KB）」として不採用。しかし A だけでは番号を持たないブランチの open の PR（下流 #118。本文は `Refs #70`）を見落とし、#70 を作業中にしなかった（validation #203、bug #208）。**本文を取るのは open の PR だけ**にすれば応答は open の件数ぶん（下流 2 件）で済む | **A に足す**（#208。open の PR だけ） |
 | C. いまの `closedByPullRequestsReferences`（closing keyword） | flow は `Refs #N` を使うので、ほとんど空 | **A に足す**（既存の経路を消さない） |
 
 - task 単位のブランチ `<type>/<TASK>-i<N>` の PR は **issue N** に結び付ける（`branch_issue` の戻り値の 1 つ目）。task #TASK には結び付けない。
   task のカードは「配下で作業中」（§4-3）で子の作業を表す。
-- `isCrossRepository` が真の PR（fork から）は結び付けない（他人の fork のブランチ名が手元の番号に当たるため。下流は 0 件）。
-- 1 つの issue に PR が複数あれば全部持つ。A と C を番号で重複を除いて合わせ、残す値は `{number, state, url}`（C は `headRefOid` を持たないので、§4-1 の照合には A の全 PR の一覧を使う）。カードには番号の最も大きい 1 本の状態と「+k」を出す（§5-2）。
-- **結び付かなかった open の PR**（下流ではいま #118 の 1 本）は、`rules.unlinkedOpenPrs` として返し、帯に「issue に結び付かない open の PR: #118」と出す（作業中から黙って外さない）。
+- **B の規則（#208）**: open の PR だけ、本文の**行頭の** `Refs #N`（`Closes`・`Fixes`・`Resolves` も同じ形で読む。大文字小文字を問わない。`:` 可、`Refs #1, #2` の並びも読む）を同じ repo の issue 番号として読み、その issue に結び付ける（`progress_work.BODY_REFS`・`body_issues`）。
+  - 行頭に限るのは、文中に引用した `Refs #N`（例: 別 repo の PR の説明に書いた「本文 `Refs #70`」）を読まないため。flow が書く形（`commit.sh`・`quick.sh` の `Refs #$N`）は行頭にある。
+  - `owner/repo#N`（別の repo）・語の途中（`xrefs #N`）・語の続く番号（`#12abc`）・10 桁以上の番号は読まない（本文は他人が書ける入力なので、巨大な数字で `int` を落とさない）。merged・closed の PR の本文は取らないので読まない。
+  - **kind が epic・task の番号には結び付けない**（task のカードは §4-3 の「配下で作業中」で表す。A はブランチ名の形で task 番号を外すが、B は kind で外す）。epic・task だけを参照する open の PR は下の `unlinkedOpenPrs` に出る。
+  - fork の PR も本文は読む（fork を外す理由はブランチ名の衝突で、本文には当たらない）。
+  - 参照先の issue が closed でも結び付ける（A と同じ。closed の issue は作業中にならないので、その PR は作業中を生まないが `unlinkedOpenPrs` にも出ない）。
+  - `scripts/flow/issue-finish.sh` の PR 本文の検査も同じ語を読むが、目的（1 本の PR が #N を持つか）が違い、並び・行頭の扱いも違う。規則の原本はここと `BODY_REFS` で、issue-finish.sh とは共有しない。
+- `isCrossRepository` が真の PR（fork から）はブランチ名では結び付けない（他人の fork のブランチ名が手元の番号に当たるため。下流は 0 件）。
+- 1 つの issue に PR が複数あれば全部持つ。A・B・C を番号で重複を除いて合わせ、残す値は `{number, state, url}`（C は `headRefOid` を持たないので、§4-1 の照合には A の全 PR の一覧を使う）。カードには番号の最も大きい 1 本の状態と「+k」を出す（§5-2）。
+- **結び付かなかった open の PR**（下流では #208 の前は #118 の 1 本。#208 の後は 0 本）は、`rules.unlinkedOpenPrs` として返し、帯に「issue に結び付かない open の PR: #n」と出す（作業中から黙って外さない）。
 
 ### 3-2. 「作業中」に要るコミット日・PR の状態を、取得時間を大きく増やさずに取れるか → **取れる（実測）**
 
@@ -52,9 +59,12 @@
 |---|---|---|---|
 | issue（既存）に `createdAt` を足す | 0 回増（同じ query） | 660 件 7 ページで 8.5 秒（既存） | 0 |
 | **PR（新規）** `gh api graphql --paginate --slurp`、1 ページ 100 件、`number state url headRefName headRefOid isCrossRepository` | **ページ数（348 件で 4 回）** | **3.2 秒、69 KB** | **issue の取得と並行**（`ThreadPoolExecutor(2)` を `with` で使い、両方の完了を待ってから例外を出す）。壁時計は max(8.5, 3.2) で 0 秒増 |
+| **open の PR の本文**（#208）同じ形の 2 本目の query、`pullRequests(states: [OPEN])` の `number body` だけ | **ページ数（open 2 件で 1 回）** | `fetch_pulls` の中で全 PR の query の後に続けて呼ぶ。PR の取得 2.59 → 2.86 秒（6 回の平均、+0.27 秒） | issue の取得と並行のまま。壁時計（`default_fetch` 全体）は 8.33 → 8.09 秒（6 回の平均。差は揺れの範囲で増えていない） |
 | git の ref（既存の `for-each-ref` の書式に `%(objectname)`・`%(committerdate:unix)` を足す） | 0 回増 | 305 本で 0.02 秒 | 0 |
 | **git の「main に無い tip」**（新規）`git for-each-ref --no-merged=<基準> --format=%(refname) refs/heads refs/remotes` | **1 回** | 150 本で 0.02 秒 | +0.02 秒 |
 | **基準の有無**（新規）`git rev-parse --verify -q refs/remotes/origin/main`、無ければ `refs/heads/main` | **1〜2 回** | < 0.01 秒 | +0.01 秒 |
+
+本文の query だけが失敗しても `fetch_pulls` 全体を失敗にする（PR の取得の失敗と同じく作業中は「不明」。B を黙って落とした一部の結果で作業中を決めない。176 §3 の「一部だけの木を出さない」と同じ）。2 本の query の間に状態が変わった PR は、本文が付かないだけで誤って結び付けない。
 
 閲覧のみ（GET の範囲）のまま、GitHub への呼び出しは PR のページ数ぶん増えるが並行なので待ち時間は増えない。fetch はしない（176 §3 のまま）。
 **基準は手元の `origin/main`**（fetch しない）。手元が古いと、マージ済みの内容を「main に無い」と数えうる。実際に使った基準の ref 名を `rules.base` で返し、「表示の規則」に出す（`main` に落ちたことも見える）。
@@ -150,7 +160,7 @@ goal「30 日更新の無い open」と task #200 の「現在の状態」の 11
 | # | 規則 | 判定の仕方（W7。CSS と文言の静的な検査は node なしで Python が行う） |
 |---|---|---|
 | K1 | 各 item は 1 枚のカード。子を持つものは `<details class="card">` で、**最初の子が `<summary>`**、その中に見出し行（`.head`）とメタ行（`.meta`、`display:block`）と、close の確認中だけ確認行（`.confirm`）。子のカードは `<summary>` の外に置く。子の無いものは `<div class="card">` で、中身は同じ `.head`・`.meta`（・`.confirm`） | 子を持つカードの最初の子が `SUMMARY` で、その子の class が `head`・`meta`（・`confirm`）だけ。葉のカードも同じ |
-| K2 | **本文を出さない**（issue の本文は取得もしない） | GraphQL の query に `body` が無い |
+| K2 | **本文を出さない**（issue の本文は取得もしない） | issue の query（`QUERY`）と全 PR の query（`PULL_QUERY`）に `body` が無い（open の PR だけの `OPEN_BODY_QUERY` は §3-1 の B のために本文を取る。本文はノードに写さない） |
 | K3 | 見出し行（`flex-wrap:wrap`）: 種別（小さな文字）・`#N`（薄い字の別要素）・タイトル（リンク）・chip・右端のまとまり（進捗バッジ・段の帯・「子 N」・close ボタン）。右端のまとまりは幅が足りなければ次の行に回る | CSS の検査 |
 | K4 | chip の文言は固定の集合だけで、この順に並べる: 異常: 子なし・要対応・blocked・作業中・配下で作業中・30日動きなし・子は全部完了扱い・完了扱い・完了・見送り。ブランチ名・理由などの自由な文字は `title` 属性に入れ、chip の中に書かない | chip の `textContent` が集合に入り、並びがこの順 |
 | K5 | chip の形: 「異常: 子なし」だけ `var(--warn)` の輪郭。「30日動きなし」は枠なしの `var(--muted)` の字（状態の chip と重さを分ける）。他は既存の `.badge` の色。文字は 12px | CSS の検査 |
@@ -167,7 +177,7 @@ goal「30 日更新の無い open」と task #200 の「現在の状態」の 11
 |---|---|---|
 | 更新 | `node.updatedAt`（自分のもの） | 既存 |
 | 作成 | `node.createdAt` | GraphQL に `createdAt` を足す（`progress_gh.py:18`） |
-| PR | `node.prs`（§3-1 の A と C の和、番号の降順）の先頭の `#n` と状態（open・merged・closed）、2 本目以降は `+k` | `progress_work.attach_prs` |
+| PR | `node.prs`（§3-1 の A・B・C の和、番号の降順）の先頭の `#n` と状態（open・merged・closed）、2 本目以降は `+k` | `progress_work.attach_prs` |
 | コミット | `node.lastCommit` = n のブランチの tip の committerdate の最大（基準に含まれるかを問わない）。ブランチが無ければ出さない | `progress_work` |
 | 段の帯 | §3-3。5 つの小さな四角（文字は出さない）。`closed == total > 0` は塗り、`0 < total` で未完は枠、`total == 0` は点線。`title`・`aria-label` に「spec 1/2」等。帯の直後に、最初の未完の段の名前を muted で 1 語（例「spec」。全部閉じていれば出さない） | `item.steps` |
 
@@ -255,8 +265,8 @@ fixture（`progress_fixture.py`）: `NOW` を固定し、`built()` は既定で 
 | # | goal の項目 | テスト（fixture） | 実データ（delta-clip-dev） |
 |---|---|---|---|
 | W1 | カード型・テキスト圧（K1〜K8） | W7 の DOM 検査で K1・K4・K6、Python の静的な検査で K2・K3・K5〜K8 | W7 の DOM 検査を下流の `view` で 1 回走らせ K1・K4 を機械的に照合。ブラウザで 1 回開き K3・K5〜K8 と 375px 幅で横スクロールが出ないことを目で照合して項目ごとに記録。画面写しを残す |
-| W2 | メタ情報 5 種 | `createdAt`・`prs`（A と C の和、重複除き、fork を除く）・`lastCommit`・`steps`（task: #2 の feature が closed 2 / total 5（#13・#14・#15・#16・#51。closed は #15・#16）等、手で数えた値）・epic の帯が出さない task を数えない（`closed=False` で #80・#110・#171 が入らない）・(m) の日付の文字列（`TZ=UTC` の node） | 全 open の `steps`・`lastCommit` を、`build` を使わない別のコードで ref と issue から数えた値と一致。PR の結び付きの件数（343/348 前後）を記録 |
-| W3 | 作業中 | (g) の全本と境界 2 本の期待どおり。PR 取得の失敗と (k) で `work_ok` が偽 | 同じ `now` で独立に数えた集合と一致し、各件の根拠（PR か tip の日付）を示す。§4-1 の外れるべき 10 件が外れる。**結び付かない open の PR の件数と番号を出し、それを「作業中」の規則の誤判定として判定に含める**（いま #118 の 1 件） |
+| W2 | メタ情報 5 種 | `createdAt`・`prs`（A・B・C の和、重複除き、fork はブランチ名だけ除く）・`lastCommit`・`steps`（task: #2 の feature が closed 2 / total 5（#13・#14・#15・#16・#51。closed は #15・#16）等、手で数えた値）・epic の帯が出さない task を数えない（`closed=False` で #80・#110・#171 が入らない）・(m) の日付の文字列（`TZ=UTC` の node） | 全 open の `steps`・`lastCommit` を、`build` を使わない別のコードで ref と issue から数えた値と一致。PR の結び付きの件数（343/348 前後）を記録 |
+| W3 | 作業中 | (g) の全本と境界 2 本の期待どおり。PR 取得の失敗と (k) で `work_ok` が偽 | 同じ `now` で独立に数えた集合と一致し、各件の根拠（PR か tip の日付）を示す。§4-1 の外れるべき 10 件が外れる。**結び付かない open の PR の件数と番号を出し、それを「作業中」の規則の誤判定として判定に含める**（#208 の前は #118 の 1 件） |
 | W4 | 完了扱いで隠す | (e)(f)(j)(l) が期待どおり。完了扱いが `closed=False` の `view` に現れず（(j) の #172 は持ち上がって出る）、`count`・`progress`・要約に寄与しない。`closed=True` では出て chip「完了扱い」 | 完了扱いの集合が独立に数えた集合（いま 7 件）と一致し、`closed=False` の `view` に 0 件 |
 | W5 | 異常と close | #30・#71・#72 が `anomaly`。§6 の順 1〜8 の各外れ（Origin が無い・`null`・ポートだけ違う、Content-Type に charset 付きは通る、`Content-Length` 無し 411・1025 で 413、`number: true` で 400、NOT_FOUND で 409・その他の失敗で 502、別 repo の子で 409、他の path の POST で 405）で期待のコード。runner に渡る argv が `gh issue close N --repo o/r --reason not planned` だけ。`gh issue close` を含むファイルが `progress_close.py` だけ。世代番号: 取得中に close すると、その取得の結果を新しいとみなさない。画面は 1 回目の押下で送らず、2 回目で method・headers・body のそろった POST を送る | **下流: 異常の件数と番号（いま 6 件）は実測。close は前提（閲覧のみ）により下流では行わず、「検証不能（上流で代替）」と項目を分けて記録する。** 上流（このテンプレート）で使い捨ての issue を `/issue-create` で 1 件作り（`epic` ラベル・子 0 件）、ブラウザから close して状態が変わることを 1 回確かめる。**上流への書き込みなので validation の前にユーザーに一言確かめる** |
 | W6 | 30日動きなし | (h) の 4 件と境界 | 同じ `now` で独立に数えた件数と一致（task #200 の時点で 112 件）。完了扱いでないものは `closed=False` の `view` に全件出る（印で消えない） |
@@ -278,3 +288,4 @@ fixture（`progress_fixture.py`）: `NOW` を固定し、`built()` は既定で 
 - 2026-10-24: auto-reviewer（#201）。30日動きなしを自分の `updatedAt` だけに戻す（goal の範囲を狭めない）、完了扱いの下の open の孫の持ち上げを明記、基準が無いときと close の検査で issue が null のときの扱い、summarize の実体、`index.html` の行番号、fixture (j)(k)
 - 2026-10-24: auto-reviewer の警告を反映し、close に添えるコメントをやめた（前提の例外は close だけ）
 - 2026-10-24: /review 8 観点を反映。`gone` を 1 か所で決める、依存の向き（`progress_work` へブランチ名・段の規則を移す）、`steps` の形、`rules` を server から返す、`page.js` に分ける（確定）、`work_ok`（git・基準・PR）で要約まで不明にする、結び付かない open の PR と fork の PR、ref ごとの判定、境界（14 日は含む・30 日ちょうどは付かない）と境界の fixture、`now` を必須に、JST の日付、K1 を `<summary>` の構造に、chip の順と形、close の検査（Origin 無し・`null`、Content-Length、bool、`-F`、NOT_FOUND、確認の失敗）、世代番号による無効化、確認行の focus・Esc・preventDefault、B1〜B3 の食い違いと再適用、epic の帯は出す task だけ、子が全部完了扱いの親、既存テストの書き換え箇所、`CARD_ISSUES` に分ける、W5 の下流は検証不能として分けて記録
+- 2026-10-24: bug #208。§3-1 の案 B（open の PR だけ本文の行頭の `Refs #N`）を A に足す。§3-2 に本文の取得、K2・§5-2・W2・W3 の文言を A・B・C に合わせた

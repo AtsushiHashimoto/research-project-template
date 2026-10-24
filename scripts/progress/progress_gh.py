@@ -2,7 +2,7 @@
 
 全ページが成功し、番号で重複を除いた件数が totalCount と一致したときだけ結果を返す。
 一部だけの木を出さないため、それ以外は FetchError にする（.spec/issues/176-progress-server.md §3）。
-本文（body）は取らない（.spec/issues/201-progress-cards.md §5-1 K2）。
+issue の本文（body）は取らない（.spec/issues/201-progress-cards.md §5-1 K2）。PR の本文は open の PR だけ取る（同 §3-1 案 B）。
 """
 
 import json
@@ -35,6 +35,19 @@ query($owner: String!, $name: String!, $endCursor: String) {
       totalCount
       pageInfo { hasNextPage endCursor }
       nodes { number state url headRefName headRefOid isCrossRepository }
+    }
+  }
+}
+"""
+
+# 201 §3-1 案 B: 本文の Refs #N を読むのは open の PR だけ（全件の本文は取らない）
+OPEN_BODY_QUERY = """
+query($owner: String!, $name: String!, $endCursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(first: 100, after: $endCursor, states: [OPEN]) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
+      nodes { number body }
     }
   }
 }
@@ -76,8 +89,13 @@ def fetch_issues(repo, runner=run):
 
 
 def fetch_pulls(repo, runner=run):
-    """repo の全 PR（open・merged・closed）を返す。"""
-    return paged(repo, PULL_QUERY, "pullRequests", runner)
+    """repo の全 PR（open・merged・closed）を返す。open の PR には本文 `body` を足す（201 §3-1 案 B）。"""
+    pulls = paged(repo, PULL_QUERY, "pullRequests", runner)
+    bodies = {p["number"]: p["body"] or "" for p in paged(repo, OPEN_BODY_QUERY, "pullRequests", runner)}
+    for p in pulls:
+        if p["state"] == "OPEN" and p["number"] in bodies:
+            p["body"] = bodies[p["number"]]
+    return pulls
 
 
 def collect(pages, field="issues"):

@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from progress_fixture import DAY, NOW, built, built_cards, pview
+from progress_fixture import CARD_PULLS, DAY, NOW, built, built_cards, pr, pview
 
 
 def walk(items):
@@ -55,6 +55,30 @@ class Working(unittest.TestCase):
         self.assertEqual(r["rules"]["unlinkedOpenPrs"], [310, 311])
         self.assertEqual(r["rules"]["workingDays"], 14)
         self.assertEqual(r["rules"]["staleDays"], 30)
+
+    def test_body_refs_link_open_prs(self):
+        """#208: 本文の Refs #N だけで結ばれた open の PR も結び付け、作業中にする（201 §3-1 案 B）。"""
+        extra = [pr(320, "chore/a", body="Refs #13, #97\nRefs other/repo#91"),   # 別 repo の #91 は読まない
+                 pr(321, "chore/b", body="Refs #95"),                           # task には結び付けない
+                 pr(322, "chore/c", "MERGED", body="Refs #91"),                 # open でない PR の本文は読まない
+                 pr(323, "chore/d", body="xrefs #92\n本文 `Refs #91` は文中の引用"),  # 語の途中・行頭でない引用は読まない
+                 pr(324, "chore/e", body="Closes: #1\nRefs #91abc\nRefs #" + "9" * 5000),  # epic・語の続く番号・巨大な番号
+                 pr(325, "fix/12-evil2", fork=True, body="fixes #50"),           # fork でも本文は読む
+                 pr(326, "chore/f", body="  RESOLVES #81")]                      # 大文字・行頭の空白
+        r = built_cards(pulls=CARD_PULLS + extra)
+        n = r["nodes"]
+        self.assertEqual([p["number"] for p in n[13]["prs"]], [320, 301, 300])
+        self.assertEqual([p["number"] for p in n[97]["prs"]], [320])
+        self.assertEqual((n[13]["working"], n[97]["working"]), (True, True))   # 本文が無ければどちらも False
+        self.assertEqual([p["number"] for p in n[50]["prs"]], [325])
+        self.assertEqual([p["number"] for p in n[81]["prs"]], [326])
+        self.assertEqual([p["number"] for p in n[12]["prs"]], [302])           # fork のブランチ名は読まない
+        self.assertEqual((n[1]["prs"], n[91]["prs"], n[92]["prs"], n[95]["prs"]), ([], [], [], []))
+        self.assertEqual(r["rules"]["unlinkedOpenPrs"], [310, 311, 321, 323, 324])
+
+    def test_body_issues_dedup(self):
+        from progress_work import body_issues
+        self.assertEqual(body_issues("Refs #5, #5\nrefs: #6,#5"), [5, 6])
 
     def test_w2_meta(self):
         n = built_cards()["nodes"]

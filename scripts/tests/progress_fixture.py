@@ -33,9 +33,10 @@ def ref(name, time, remote=False, oid=None):
             "oid": oid or "oid-" + name + ("-r" if remote else ""), "time": int(time)}
 
 
-def pr(num, head, state="OPEN", oid=None, fork=False):
-    return {"number": num, "state": state, "url": f"https://x/pull/{num}", "headRefName": head,
-            "headRefOid": oid or "pr-" + str(num), "isCrossRepository": fork}
+def pr(num, head, state="OPEN", oid=None, fork=False, body=None):
+    out = {"number": num, "state": state, "url": f"https://x/pull/{num}", "headRefName": head,
+           "headRefOid": oid or "pr-" + str(num), "isCrossRepository": fork}
+    return out if body is None else {**out, "body": body}
 SECTIONS = tree.label_sections((PROGRESS.parent / "setup-labels.sh").read_text(encoding="utf-8"))
 
 
