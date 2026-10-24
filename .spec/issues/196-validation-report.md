@@ -1,6 +1,8 @@
 # Issue #196: validation: 進捗一覧の階層の開閉と closed の隠し方
 
 - 実施日: 2026-10-24 JST
+- ステータス: completed
+- 完了日: 2026-10-24
 - 対象のコード: main = 077d619（feature #195、PR #198 マージ後）
 - 仕様: `.spec/issues/194-progress-collapse.md` §6（W1〜W7。W6 は記録のみ）
 - 実データ: omron-sinicx/delta-clip-dev（閲覧のみ）。**issue 657 件**（task 作成時の 639 件から増えた。W6 もこの件数で測った）、open 168 件、closed 489 件
