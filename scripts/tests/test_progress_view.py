@@ -9,8 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from progress_fixture import ISSUES, REPO, SECTIONS, issue, pview, tree
-from progress_fixture import built
+from progress_fixture import ISSUES, build, built, issue, pview, tree
 
 
 def walk(items):
@@ -120,20 +119,19 @@ class ViewRules(unittest.TestCase):
         """除くノードが無い木では、数え直した進捗が progress_tree.progress と一致する（写しのずれを検出）。"""
         self.assertEqual(pview.DROPPED, tree.DROPPED)
         gone = {120, 121, 122, 130, 131}
-        t = tree.build([x for x in ISSUES if x["number"] not in gone], REPO, SECTIONS, [], [])
+        t = build([x for x in ISSUES if x["number"] not in gone])
         for it in all_items(pview.view(t)):
             self.assertEqual(it["progress"], t["nodes"][it["number"]]["progress"], it["number"])
 
     def test_no_trace_when_all_children_excluded(self):
-        """子が全部 closed の task だけの open な epic は、子の無い葉と同じに見える（「0/0」を出さない）。"""
-        t = tree.build([issue(1, ["epic"]), issue(2, ["task"], "CLOSED", 1, "COMPLETED"),
-                        issue(3, ["feature"], "CLOSED", 2, "COMPLETED"),
-                        issue(4, ["epic"]), issue(5, ["task"], parent=4), issue(6, ["task"], "CLOSED", 5, "COMPLETED")],
-                       REPO, SECTIONS, [], [])
+        """子が全部 closed の open な epic・task は完了扱いで消え（201 §4-2）、子が全部完了扱いの epic は
+        子の無い葉と同じに見える（「0/0」を出さない）。"""
+        t = build([issue(1, ["epic"]), issue(2, ["task"], "CLOSED", 1, "COMPLETED"),
+                   issue(3, ["feature"], "CLOSED", 2, "COMPLETED"),
+                   issue(4, ["epic"]), issue(5, ["task"], parent=4), issue(6, ["task"], "CLOSED", 5, "COMPLETED")])
         v = pview.view(t)
-        self.assertEqual([(it["number"], it["count"], it["progress"]) for it in v["epics"]],
-                         [(1, 0, None), (4, 1, None)])
-        self.assertIsNone(find(v, 5)["progress"])
+        self.assertEqual([(it["number"], it["count"], it["progress"]) for it in v["epics"]], [(4, 0, None)])
+        self.assertTrue(t["nodes"][4]["childrenCompletedLike"])
         self.assertEqual(pview.view(t, q="#１")["epics"], [])          # 全角の数字は番号にしない
 
     def test_postconditions(self):

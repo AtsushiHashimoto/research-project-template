@@ -1,14 +1,16 @@
 """進捗の木から表示の木を作る（純関数。入力の木を書き換えない）。
 
-規則の原本は .spec/issues/194-progress-collapse.md §3・§4-2。木は progress_tree.build の戻り値（dict）だけを受け取る
-（progress_tree・server・progress_gh を import しない）。
+規則の原本は .spec/issues/194-progress-collapse.md §3・§4-2 と .spec/issues/201-progress-cards.md §3-3・§4-2。
+木は progress_tree.build の戻り値（dict）だけを受け取る（progress_work 以外を import しない）。
+出す・出さないは node の gone（closed か完了扱い）だけで決め、state を直接見ない。
 """
 
 import re
 
+from progress_work import DROPPED, sum_steps
+
 OPEN_AT = {"epic": 1, "task": 2, "issue": 3}   # 一括で開く段（§4-2）
 NUMBER_QUERY = re.compile(r"^#(\d{1,9})$", re.ASCII)   # 固定の regex。利用者の入力を regex にしない（全角の数字は番号にしない）
-DROPPED = {"NOT_PLANNED", "DUPLICATE"}         # progress_tree.DROPPED と同じ（import しないので写す）
 
 
 def view(tree, closed=False, label="", q=""):
@@ -19,7 +21,7 @@ def view(tree, closed=False, label="", q=""):
     filtering = bool(label or needle)
 
     def shown(n):
-        return closed or n["state"] == "OPEN"
+        return closed or not n["gone"]
 
     def match(n):
         if label and label not in n["labels"]:
@@ -42,13 +44,13 @@ def view(tree, closed=False, label="", q=""):
 
     def open_below(num):
         if num not in has_open:
-            has_open[num] = any(nodes[c]["state"] == "OPEN" or open_below(c) for c in nodes[num]["children"])
+            has_open[num] = any(not nodes[c]["gone"] or open_below(c) for c in nodes[num]["children"])
         return has_open[num]
 
     def excluded(num):
-        """§3-2 の除くノード: 消えるノード（closed で open の子孫なし）のうち、epic・task か子を持つもの。"""
+        """§3-2 の除くノード: 消えるノード（gone で gone でない子孫なし）のうち、epic・task か子を持つもの。"""
         n = nodes[num]
-        return (n["state"] == "CLOSED" and not open_below(num)
+        return (n["gone"] and not open_below(num)
                 and (n["kind"] in ("epic", "task") or bool(n["children"])))
 
     def count_progress(num, under_dropped):
@@ -69,13 +71,23 @@ def view(tree, closed=False, label="", q=""):
         done, total, skipped = counted
         return {"completed": done, "total": total, "notPlanned": skipped}
 
+    def tasks_below(num):
+        for c in nodes[num]["children"]:
+            if nodes[c]["kind"] == "task" and shown(nodes[c]):
+                yield nodes[c]
+            yield from tasks_below(c)
+
+    def steps_of(n):
+        """201 §3-3: task は自分の帯、epic は出す task の帯の集計、issue は None。"""
+        return sum_steps(tasks_below(n["number"])) if n["kind"] == "epic" else n["steps"]
+
     def item(num, parent_shown):
         n = nodes[num]
         kids = [k for k in (item(c, num) for c in expand(n["children"])) if k is not None]
         if filtering and not (match(n) and shown(n)) and not kids:
             return None
         lifted = n["parent"] if n["parent"] is not None and n["parent"] != parent_shown else None
-        return {"number": num, "children": kids, "count": len(kids), "progress": progress_of(n),
+        return {"number": num, "children": kids, "count": len(kids), "progress": progress_of(n), "steps": steps_of(n),
                 "defaultOpen": filtering and bool(kids), "openAt": OPEN_AT[n["kind"]],
                 "liftedFrom": None if closed else lifted}
 

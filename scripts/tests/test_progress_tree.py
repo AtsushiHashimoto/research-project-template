@@ -10,9 +10,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from progress_fixture import (
-    BRANCHES,
+    BASE,
     ISSUES,
+    NOW,
+    REFS,
     REPO,
+    UNMERGED,
     WORKTREES,
     built,
     cmd,
@@ -29,7 +32,7 @@ class TreeRules(unittest.TestCase):
         self.assertTrue(n[12]["working"])                           # fix/ を取りこぼさない
         self.assertTrue(n[770]["working"])                          # task 単位: 2 つ目の番号が issue
         self.assertFalse(n[756]["working"])                         # task 番号は作業中にしない
-        self.assertEqual(n[756]["taskBranches"], ["survey/756-i770"])   # closed の 771 は数えない
+        self.assertTrue(n[756]["workingBelow"])                     # 配下の #770 が作業中
         self.assertFalse(n[15]["working"])                          # closed + ブランチ → 残骸
         self.assertIn("残骸（closed なのにブランチ・worktree が残っている）", n[15]["notes"])
         self.assertEqual(n[770]["worktrees"], ["/w/task756"])
@@ -44,7 +47,7 @@ class TreeRules(unittest.TestCase):
         self.assertIsNone(tree.branch_issue("main"))
 
     def test_v3_git_unknown(self):
-        r = built(branches=None, worktrees=None, git_error="git が無い")
+        r = built(refs=None, worktrees=None, git_error="git が無い")
         self.assertIsNone(r["nodes"][12]["working"])
         self.assertEqual(r["summary"], {"needsUser": [14, 92], "working": None, "next": None})
         self.assertEqual(r["gitError"], "git が無い")
@@ -65,7 +68,7 @@ class TreeRules(unittest.TestCase):
         self.assertEqual(n[72]["kind"], "epic")
 
     def test_v4_no_label_checks_without_sections(self):
-        n = tree.build(ISSUES, REPO, {}, BRANCHES, WORKTREES)["nodes"]
+        n = tree.build(ISSUES, REPO, {}, REFS, WORKTREES, [], BASE, NOW, UNMERGED)["nodes"]
         self.assertEqual(n[51]["marks"], [])
         self.assertEqual(n[41]["notes"], [])
 
@@ -79,7 +82,8 @@ class TreeRules(unittest.TestCase):
         self.assertEqual(n[80]["progress"], {"completed": 0, "total": 0, "notPlanned": 2})
         self.assertEqual(n[1]["progress"], {"completed": 4, "total": 16, "notPlanned": 4})
         self.assertEqual(n[95]["progress"], {"completed": 0, "total": 2, "notPlanned": 1})
-        self.assertIn("子なし", n[30]["notes"])
+        self.assertTrue(n[30]["anomaly"])
+        self.assertNotIn("子なし", n[30]["notes"])
 
     def test_v8_summary(self):
         s = built()["summary"]
@@ -116,9 +120,36 @@ class Fetch(unittest.TestCase):
         self.assertEqual(git.parse_worktrees(text), [
             {"path": "/m", "branch": "main", "prunable": False}, {"path": "/w x", "branch": None, "prunable": True}])
 
-    def test_remote_branches(self):
-        out = "refs/heads/fix/12-x\nrefs/remotes/origin/fix/12-x\nrefs/remotes/origin/HEAD\nrefs/remotes/origin/feature/9-y\n"
-        self.assertEqual(git.read_branches(lambda argv: out), ["feature/9-y", "fix/12-x"])
+    def test_remote_refs(self):
+        out = ("refs/heads/fix/12-x\ta\t10\nrefs/remotes/origin/fix/12-x\tb\t20\n"
+               "refs/remotes/origin/HEAD\tc\t30\nrefs/remotes/origin/feature/9-y\td\t40\n")
+        self.assertEqual(git.read_refs(lambda argv: out), [
+            {"refname": "refs/heads/fix/12-x", "name": "fix/12-x", "oid": "a", "time": 10},
+            {"refname": "refs/remotes/origin/fix/12-x", "name": "fix/12-x", "oid": "b", "time": 20},
+            {"refname": "refs/remotes/origin/feature/9-y", "name": "feature/9-y", "oid": "d", "time": 40}])
+
+    def test_refs_follow_the_format(self):
+        """偽の git は argv の --format から行を作る（書式と読み手のずれ・リモートの抜けを検出する）。"""
+        def fake(argv):
+            fmt = next(a for a in argv if a.startswith("--format="))[len("--format="):]
+            rows = [("refs/heads/fix/12-x", "a", "10"), ("refs/remotes/origin/fix/12-x", "b", "20")]
+            rows = [r for r in rows if any(r[0].startswith(p + "/") for p in argv if p.startswith("refs/"))]
+            return "".join(fmt.replace("%09", "\t").replace("%(refname)", r).replace("%(objectname)", o)
+                           .replace("%(committerdate:unix)", t) + "\n" for r, o, t in rows)
+        self.assertEqual([(r["refname"], r["time"]) for r in git.read_refs(fake)],
+                         [("refs/heads/fix/12-x", 10), ("refs/remotes/origin/fix/12-x", 20)])
+        self.assertEqual(git.read_unmerged("refs/remotes/origin/main", fake),
+                         {"refs/heads/fix/12-x", "refs/remotes/origin/fix/12-x"})
+        with self.assertRaises(cmd.FetchError):                  # 崩れた行は黙って捨てない
+            git.read_refs(lambda argv: "refs/heads/x a\n")
+
+    def test_read_base(self):
+        """rev-parse の終了コード 1 だけが「無い」。それ以外は git の失敗。"""
+        self.assertEqual(git.read_base(lambda argv: (0, "x", "")), "refs/remotes/origin/main")
+        self.assertEqual(git.read_base(lambda argv: (1 if "origin" in argv[-1] else 0, "", "")), "refs/heads/main")
+        self.assertIsNone(git.read_base(lambda argv: (1, "", "")))
+        with self.assertRaises(cmd.FetchError):
+            git.read_base(lambda argv: (128, "", "fatal: not a git repository"))
 
 
 if __name__ == "__main__":

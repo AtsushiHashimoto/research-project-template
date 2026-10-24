@@ -1,24 +1,55 @@
-"""手元の git からブランチと worktree を読む（fetch はしない）。
+"""手元の git から ref・基準・worktree を読む（fetch はしない）。
 
 GitHub の取得とは失敗の仕方が違うので別にしてある。ここが失敗しても木は出し、
-「作業中」の列だけを不明にする（.spec/issues/176-progress-server.md §3-2）。
+「作業中」の列だけを不明にする（.spec/issues/176-progress-server.md §3-2、201 §3-2）。
 """
 
-from progress_cmd import run
+from progress_cmd import FetchError, failure, run, run_raw
+
+BASES = ("refs/remotes/origin/main", "refs/heads/main")   # 基準の ref（この順で最初にあるもの）
 
 
-def read_branches(runner=run):
-    """ローカルとリモートのブランチ名（remote 名を外し、重複を除き、*/HEAD を除く）。"""
-    out = runner(["git", "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"])
-    names = set()
-    for ref in out.splitlines():
-        if ref.startswith("refs/heads/"):
-            names.add(ref[len("refs/heads/"):])
-        elif ref.startswith("refs/remotes/"):
-            rest = ref[len("refs/remotes/"):].split("/", 1)
-            if len(rest) == 2 and rest[1] != "HEAD":
-                names.add(rest[1])
-    return sorted(names)
+def read_refs(runner=run):
+    """ローカルとリモートの ref。各要素は {refname, name（remote 名を外した名前）, oid, time（committer の unix 秒）}。
+    */HEAD は除く。"""
+    out = runner(["git", "for-each-ref", "--format=%(refname)%09%(objectname)%09%(committerdate:unix)",
+                  "refs/heads", "refs/remotes"])
+    refs = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3 or not parts[2].isdigit():     # 書式を固定しているので、崩れた行は git の失敗とみなす
+            raise FetchError(f"git for-each-ref の行を読めない: {line[:80]!r}")
+        refname, oid, when = parts
+        if refname.startswith("refs/heads/"):
+            name = refname[len("refs/heads/"):]
+        elif refname.startswith("refs/remotes/"):
+            rest = refname[len("refs/remotes/"):].split("/", 1)
+            if len(rest) != 2 or rest[1] == "HEAD":
+                continue
+            name = rest[1]
+        else:
+            continue
+        refs.append({"refname": refname, "name": name, "oid": oid, "time": int(when)})
+    return refs
+
+
+def read_base(runner=run_raw):
+    """基準の ref の完全な名前。どれも無ければ None。rev-parse は「無い」を終了コード 1 で返すので、
+    1 だけを「無い」と読み、それ以外の失敗は FetchError にする。"""
+    for ref in BASES:
+        argv = ["git", "rev-parse", "--verify", "-q", ref]
+        code, _, err = runner(argv)
+        if code == 0:
+            return ref
+        if code != 1:
+            raise failure(argv, code, err)
+    return None
+
+
+def read_unmerged(base, runner=run):
+    """基準に含まれない tip を持つ ref の完全な refname の集合。"""
+    out = runner(["git", "for-each-ref", f"--no-merged={base}", "--format=%(refname)", "refs/heads", "refs/remotes"])
+    return set(out.split())
 
 
 def read_worktrees(runner=run):

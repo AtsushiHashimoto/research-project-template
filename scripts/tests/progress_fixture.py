@@ -1,5 +1,7 @@
 """進捗一覧 web server のテストが共有する fixture（test_progress_*.py から import する。ファイル名が test で始まらないので単独では集められない）。"""
 
+import copy
+import datetime
 import importlib
 import importlib.util
 import sys
@@ -9,20 +11,37 @@ PROGRESS = Path(__file__).resolve().parents[1] / "progress"
 sys.path.insert(0, str(PROGRESS))   # server.py が同じディレクトリの progress_* を import するため
 
 
-cmd, gh, git, tree, pview = (importlib.import_module(m) for m in
-                            ("progress_cmd", "progress_gh", "progress_git", "progress_tree", "progress_view"))
+cmd, gh, git, tree, pview, work, pclose = (importlib.import_module(m) for m in (
+    "progress_cmd", "progress_gh", "progress_git", "progress_tree", "progress_view", "progress_work", "progress_close"))
 _spec = importlib.util.spec_from_file_location("progress_server", PROGRESS / "server.py")
 server = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(server)
 server.log = lambda level, msg: None   # 失敗を起こすテストの stderr を汚さない
 
 REPO = "o/r"
+NOW = datetime.datetime(2026, 10, 24, 9, 0, tzinfo=datetime.timezone.utc).timestamp()   # JST 18 時
+DAY = 86400
+BASE = "refs/remotes/origin/main"
+
+
+def iso(t):
+    return datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def ref(name, time, remote=False, oid=None):
+    return {"refname": ("refs/remotes/origin/" if remote else "refs/heads/") + name, "name": name,
+            "oid": oid or "oid-" + name + ("-r" if remote else ""), "time": int(time)}
+
+
+def pr(num, head, state="OPEN", oid=None, fork=False):
+    return {"number": num, "state": state, "url": f"https://x/pull/{num}", "headRefName": head,
+            "headRefOid": oid or "pr-" + str(num), "isCrossRepository": fork}
 SECTIONS = tree.label_sections((PROGRESS.parent / "setup-labels.sh").read_text(encoding="utf-8"))
 
 
 def issue(num, labels=(), state="OPEN", parent=None, reason=None, title=None, parent_repo=REPO, label_total=None):
     return {"number": num, "title": title or f"t{num}", "state": state, "stateReason": reason,
-            "url": f"https://x/{num}", "updatedAt": "2026-10-23T00:00:00Z",
+            "url": f"https://x/{num}", "updatedAt": "2026-10-23T00:00:00Z", "createdAt": "2026-01-05T00:00:00Z",
             "labels": {"totalCount": label_total or len(labels), "nodes": [{"name": x} for x in labels]},
             "parent": {"number": parent, "repository": {"nameWithOwner": parent_repo}} if parent else None,
             "closedByPullRequestsReferences": {"totalCount": 0, "nodes": []}}
@@ -74,11 +93,55 @@ ISSUES = [
     issue(101, ["docs"], parent=100),
 ]
 BRANCHES = ["fix/12-x", "feature/15-old", "survey/756-i770", "survey/756-i771", "pre-task/2026-1", "main"]
+FRESH = {"fix/12-x", "survey/756-i770"}                # 基準に無く NOW − 3 日（201 §9。#12・#770 が作業中）
+REFS = [ref(b, NOW - (3 if b in FRESH else 100) * DAY) for b in BRANCHES]
+UNMERGED = {r["refname"] for r in REFS if r["name"] in FRESH}
 WORKTREES = [{"path": "/w/task756", "branch": "survey/756-i770", "prunable": False},
              {"path": "/w/gone", "branch": "fix/12-x", "prunable": True}]
 
 
-def built(**kw):
-    args = {"branches": BRANCHES, "worktrees": WORKTREES}
+def build(issues, **kw):
+    """refs・PR なし、基準あり、now=NOW の既定で build する（引数で差し替える）。"""
+    args = {"refs": [], "worktrees": [], "pulls": [], "base": BASE, "now": NOW, "unmerged": set()}
     args.update(kw)
-    return tree.build(ISSUES, REPO, SECTIONS, **args)
+    return tree.build(issues, REPO, SECTIONS, **args)
+
+
+def built(**kw):
+    return build(ISSUES, **{"refs": REFS, "worktrees": WORKTREES, "unmerged": UNMERGED, **kw})
+
+
+# 201 §9 のカード用（ISSUES の手で数えた期待値を変えないので分ける）
+def _cards():
+    out = copy.deepcopy(ISSUES)
+    stamp = {97: NOW - 40 * DAY, 95: NOW - 40 * DAY, 91: NOW - 30 * DAY, 92: NOW - 30 * DAY - 1}   # (h)
+    for it in out:
+        if it["number"] in stamp:
+            it["updatedAt"] = iso(stamp[it["number"]])
+        if it["number"] == 13:                         # C（closing keyword）の PR。A の #301 と合わせる
+            it["closedByPullRequestsReferences"] = {"totalCount": 1, "nodes": [{"number": 300, "state": "MERGED", "url": "u"}]}
+        if it["number"] == 12:                         # A と C の両方にある #302（重複を除く）
+            it["closedByPullRequestsReferences"] = {"totalCount": 1, "nodes": [{"number": 302, "state": "MERGED", "url": "u"}]}
+    m = issue(190, ["docs"])                           # (m) JST では翌日・前年
+    m["updatedAt"], m["createdAt"] = "2026-10-20T15:30:00Z", "2025-12-31T00:00:00Z"
+    return out + [
+        issue(150, ["task"], parent=1), issue(151, ["feature"], C, 150, "COMPLETED"),          # (e)
+        issue(160, ["epic"]), issue(161, ["task"], C, 160, "COMPLETED"),                       # (f)
+        issue(170, ["epic"]), issue(171, ["task"], C, 170, "COMPLETED"), issue(172, ["feature"], parent=171),   # (j)
+        issue(180, ["epic"]), issue(181, ["task"], parent=180), issue(182, ["feature"], C, 181, "COMPLETED"),  # (l)
+        m]
+
+
+CARD_ISSUES = _cards()
+CARD_REFS = [ref("fix/12-x", NOW - 3 * DAY), ref("survey/756-i770", NOW - 3 * DAY),               # (g)
+             ref("feature/13-y", NOW - 20 * DAY), ref("feature/14-z", NOW - 2 * DAY, oid="merged-14"),
+             ref("feature/51-a", NOW - 14 * DAY), ref("feature/97-b", NOW - 14 * DAY - 1),
+             ref("feature/96-c", NOW - 1 * DAY), ref("feature/96-c", NOW - 1 * DAY, remote=True)]
+CARD_UNMERGED = {r["refname"] for r in CARD_REFS if r["name"] != "survey/756-i770"} - {"refs/heads/feature/96-c"}
+CARD_PULLS = [pr(301, "feature/13-y", "MERGED"), pr(302, "fix/12-x", "MERGED"), pr(303, "survey/756-i770"),
+              pr(304, "feature/14-z", "MERGED", oid="merged-14"),
+              pr(310, "chore/no-number"), pr(311, "fix/12-evil", fork=True)]                       # (i)
+
+
+def built_cards(**kw):
+    return build(CARD_ISSUES, **{"refs": CARD_REFS, "worktrees": [], "unmerged": CARD_UNMERGED, "pulls": CARD_PULLS, **kw})

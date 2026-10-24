@@ -117,7 +117,7 @@ my-project/
 一覧はそこだけに置き、この README では重複させません。
 
 **進捗一覧（閲覧のみ）**: `python3 scripts/progress/server.py` を実行し http://127.0.0.1:8765/ を開く。
-いまの repo の epic / task / issue の木と、要対応・作業中・次の候補を出す（`gh` で GitHub を、手元の git を読む。何も書き込まない）。
+いまの repo の epic / task / issue の木と、要対応・作業中・次の候補を出す（`gh` で GitHub を、手元の git を読む。書き込みは、子が 0 件の epic・task を画面から close する操作だけ）。
 
 ---
 
