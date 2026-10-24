@@ -74,8 +74,8 @@ class CacheRules(unittest.TestCase):
 
 
 class Server(unittest.TestCase):
-    def start(self, fetch):
-        srv, _ = server.serve(0, 60, fetch)
+    def start(self, fetch, common=None):
+        srv, _ = server.serve(0, 60, fetch, common=common)
         threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         self.addCleanup(srv.server_close)
         self.addCleanup(srv.shutdown)
@@ -88,7 +88,12 @@ class Server(unittest.TestCase):
         return r.status, r.read()
 
     def test_v5_read_only_and_host(self):
-        port = self.start(built)
+        calls = []
+        port = self.start(lambda: calls.append(1) or built(), common="/r/.git")
+        # 212 §4-2: /api/identity は取得を起こさず、Host 検査は他の GET と同じ
+        ident = json.loads(self.req(port, path="/api/identity")[1])
+        self.assertEqual((ident["app"], ident["commonDir"], calls), ("progress", "/r/.git", []))
+        self.assertEqual(self.req(port, path="/api/identity", host=f"evil.example:{port}")[0], 403)
         for m in ("POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"):
             self.assertEqual(self.req(port, m)[0], 405, m)
         self.assertEqual(self.req(port, host="evil.example:80")[0], 403)
@@ -98,17 +103,6 @@ class Server(unittest.TestCase):
         self.assertEqual(self.req(port, path="/", host="localhost")[0], 200)
         self.assertEqual(self.req(port, path="/", host=f"evil.example:{port}")[0], 403)
         self.assertEqual(self.req(port, path="/", host=f"127.0.0.1.evil.example:{port}")[0], 403)
-
-    def test_identity_no_fetch_and_host(self):
-        """212 §4-2: /api/identity は取得を起こさず、Host 検査は他の GET と同じ。"""
-        srv, _ = server.serve(0, 60, lambda: self.fail("取得した"), common="/r/.git")
-        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
-        self.addCleanup(srv.server_close)
-        self.addCleanup(srv.shutdown)
-        port = srv.server_address[1]
-        code, body = self.req(port, path="/api/identity")
-        self.assertEqual((code, json.loads(body)["app"], json.loads(body)["commonDir"]), (200, "progress", "/r/.git"))
-        self.assertEqual(self.req(port, path="/api/identity", host=f"evil.example:{port}")[0], 403)
 
     def test_refresh_needs_page_header(self):
         calls = []

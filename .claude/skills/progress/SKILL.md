@@ -11,3 +11,6 @@ metadata:
 
 `python3 scripts/progress/ensure.py $ARGUMENTS` を実行し、標準出力（URL と注記の 2 行）か標準エラーの理由をそのまま伝える。
 止めるときは `--stop`。
+
+agent が中身を読むときは、出た URL に続けて `curl -s <URL>api/tree.json` で JSON を取る（`view` が表示中の木）。
+絞り込みは query で足す: `?closed=1`（close 済みも含める）・`?label=<ラベル>`・`?q=<文字列>`（200 文字まで。`&` で組み合わせる）。

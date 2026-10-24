@@ -58,9 +58,11 @@ def choose_port(cli, runner=run_raw):
     """§3-1: --port > git config progress.port > 式。"""
     if cli is not None:
         return parse_port(cli, "--port")
-    code, out, _ = runner(["git", "config", "--get", "progress.port"])
+    code, out, err = runner(["git", "config", "--get", "progress.port"])
     if code == 0:
         return parse_port(out.strip(), "git config progress.port")
+    if code != 1:                                  # 1 だけが「未設定」。壊れた設定で式の番号に黙って戻さない
+        raise Refused(f"git config --get progress.port が終了コード {code}: {err.strip()[:200]}")
     code, out, err = runner(["git", "remote", "get-url", "origin"])
     name = repo_name(out) if code == 0 else ""
     if not name:
@@ -95,7 +97,7 @@ def classify(result, common):
         return "C", "応答なし（別のもの、または高負荷）"
     if result[0] == "http":
         status, body = result[1], result[2]
-        if status == 404 and body == b"not found\n":
+        if status == 404 and body == b"not found\n":    # /api/identity を持たない旧版の server.py の 404 の本文
             return "C", "/api/identity の無い古い進捗一覧の可能性。そのプロセスを手で止める"
         try:
             ident = json.loads(body) if status == 200 else None
@@ -108,6 +110,8 @@ def classify(result, common):
             if os.path.realpath(other) == os.path.realpath(common):
                 return "B", ident
             return "C", f"別の repo の進捗一覧（commonDir {other}）"
+    if result[0] == "error":
+        return "C", f"進捗一覧ではない（{result[1]}）"
     return "C", "進捗一覧ではない"
 
 
@@ -122,7 +126,7 @@ def start_server(port, cwd, log_path):
     try:
         if os.path.getsize(log_path) > LOG_LIMIT:
             open(log_path, "w").close()
-    except OSError:
+    except FileNotFoundError:
         pass
     with open(log_path, "a", encoding="utf-8") as log:
         child = subprocess.Popen([sys.executable, str(HERE / "server.py"), "--port", str(port)], cwd=cwd,
@@ -189,6 +193,8 @@ def read_cmdline(pid):
 
 
 def is_our_server(argv, port):
+    """server.py を --port <番号> で動かしているか。パスは比べない（別の worktree の ensure.py が立てたものも、
+    手で立てたものも、同じ repo のサーバーなら止められるように）。"""
     pairs = list(zip(argv, argv[1:]))
     return any(Path(a).name == "server.py" for a in argv) and ("--port", str(port)) in pairs
 
@@ -203,9 +209,19 @@ def stop(port, common, probe=None, cmdline=read_cmdline, kill=os.kill,
     if kind == "C":
         return 2, "", f"127.0.0.1:{port} はこの repo の進捗一覧ではないので止めない: {info}"
     pid = info.get("pid")
-    if not isinstance(pid, int) or not is_our_server(cmdline(pid), port):
+    if not isinstance(pid, int):
+        return 2, "", f"identity の pid が整数でない（{pid!r}）ので止めない"
+    argv = cmdline(pid)
+    if not argv:
+        return 2, "", f"pid {pid} の cmdline を読めない（/proc が無い、またはそのプロセスが無い）ので止めない"
+    if not is_our_server(argv, port):
         return 2, "", f"pid {pid} の cmdline が server.py --port {port} でないので止めない"
-    kill(pid, signal.SIGTERM)
+    try:
+        kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass                                       # 確かめた後に終わった。下の待ちで止まったことを確かめる
+    except PermissionError as e:
+        return 2, "", f"pid {pid} に SIGTERM を送れない: {e}"
     deadline = clock() + wait
     while probe()[0] != "A":
         if clock() >= deadline:
@@ -231,6 +247,8 @@ def main(argv=None):
         code, out, err = 2, "", str(e)
     except FetchError as e:
         code, out, err = 2, "", f"git を読めない: {e}"
+    except OSError as e:                           # ログを開けない・cwd が無い等
+        code, out, err = 1, "", f"立てられなかった: {e}"
     if out:
         print(out)
     if err:

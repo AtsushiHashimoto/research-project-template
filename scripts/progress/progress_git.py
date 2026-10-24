@@ -4,6 +4,8 @@ GitHub の取得とは失敗の仕方が違うので別にしてある。ここ�
 「作業中」の列だけを不明にする（.spec/issues/176-progress-server.md §3-2、201 §3-2）。
 """
 
+import os
+
 from progress_cmd import FetchError, failure, run, run_raw
 
 BASES = ("refs/remotes/origin/main", "refs/heads/main")   # 基準の ref（この順で最初にあるもの）
@@ -82,8 +84,8 @@ def parse_worktrees(text):
 def common_dir(runner=run):
     """git common dir の絶対パス（worktree 間で同じ。ensure.py と server.py の /api/identity が使う。212 §4-1）。"""
     out = runner(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).strip()
-    if not out:
-        raise FetchError("git rev-parse --git-common-dir が空を返した")
+    if not os.path.isabs(out) or "\n" in out:      # git < 2.31 は --path-format を知らず、そのまま出力に混ぜる
+        raise FetchError(f"git rev-parse --git-common-dir が絶対パスを返さない（git 2.31 以上が要る）: {out[:80]!r}")
     return out
 
 

@@ -66,6 +66,13 @@ class E2Choose(unittest.TestCase):
                     "https://github.com/o/delta-clip-dev.git", "ssh://git@host:22/o/delta-clip-dev"):
             self.assertEqual(ensure.repo_name(url), "delta-clip-dev", url)
 
+    def test_main_exit_code_and_broken_config(self):
+        self.assertEqual(ensure.main(["--port", "abc"]), 2)
+        def broken(argv):                                # 1 以外の失敗（壊れた設定）で式に戻さない
+            return (3, "", "bad config line 1") if argv[1] == "config" else (0, "git@h:o/r.git\n", "")
+        with self.assertRaises(ensure.Refused):
+            ensure.choose_port(None, broken)
+
     def test_no_origin_does_not_use_directory(self):
         for runner in (fake_git(), fake_git(origin="")):
             with self.assertRaises(ensure.Refused) as cm:
@@ -133,32 +140,40 @@ def seq(*kinds):
 
 class E3bWaitAndStop(unittest.TestCase):
     def run_a(self, probe, child):
+        """(ensure の戻り値, 子, 経過した偽の時刻, ログのパス)。"""
         clock = Clock()
         with tempfile.NamedTemporaryFile("w+", suffix=".log") as log:
             log.write("--- 前の回\n他の呼び出しの失敗\n--- この回\nTraceback 本物\n")
             log.flush()
-            return ensure.ensure(1, COMMON, "/", log.name, probe=probe, start=lambda *a: (child, "--- この回"),
-                                 clock=clock, sleep=clock.sleep), child
+            got = ensure.ensure(1, COMMON, "/", log.name, probe=probe, start=lambda *a: (child, "--- この回"),
+                                clock=clock, sleep=clock.sleep)
+            return got, child, clock.t, log.name
 
     def test_child_exits_then_rejudge(self):
-        (code, out, _), _ = self.run_a(seq(("A", None), ("B", {})), Child(exit_at=1))
+        (code, out, _), *_ = self.run_a(seq(("A", None), ("B", {})), Child(exit_at=1))
         self.assertEqual((code, out.splitlines()[0]), (0, "http://127.0.0.1:1/"))
-        (code, _, err), _ = self.run_a(seq(("A", None), ("C", "別の repo の進捗一覧")), Child(exit_at=1))
+        (code, _, err), *_ = self.run_a(seq(("A", None), ("C", "別の repo の進捗一覧")), Child(exit_at=1))
         self.assertEqual(code, 2)
-        (code, _, err), _ = self.run_a(seq(("A", None)), Child(exit_at=1))
+        (code, _, err), *_ = self.run_a(seq(("A", None)), Child(exit_at=1))
         self.assertEqual(code, 1)
         self.assertIn("Traceback 本物", err)
         self.assertNotIn("他の呼び出しの失敗", err)
 
     def test_timeout_terminates_child(self):
-        (code, _, err), child = self.run_a(seq(("A", None)), Child())
+        (code, _, err), child, waited, log = self.run_a(seq(("A", None)), Child())
         self.assertEqual(code, 1)
         self.assertTrue(child.terminated)
-        self.assertIn("ログ:", err)
+        self.assertAlmostEqual(waited, 10, delta=0.3)
+        self.assertIn(f"ログ: {log}", err)
 
-    def stop(self, probe, cmdline, killed):
-        clock = Clock()
-        return ensure.stop(1, COMMON, probe=probe, cmdline=lambda pid: cmdline, kill=lambda *a: killed.append(a),
+    def stop(self, probe, cmdline, killed, clock=None):
+        clock = clock or Clock()
+
+        def kill(*a):
+            if isinstance(killed, BaseException):
+                raise killed
+            killed.append(a)
+        return ensure.stop(1, COMMON, probe=probe, cmdline=lambda pid: cmdline, kill=kill,
                            clock=clock, sleep=clock.sleep)
 
     def test_stop(self):
@@ -171,7 +186,12 @@ class E3bWaitAndStop(unittest.TestCase):
         self.assertEqual(killed, [])                                   # 合わなければ送らない
         self.assertEqual(self.stop(seq(("B", {"pid": 7}), ("B", {}), ("A", None)), ok, killed)[0], 0)
         self.assertEqual(killed, [(7, signal.SIGTERM)])
-        self.assertEqual(self.stop(seq(("B", {"pid": 7})), ok, killed)[0], 1)   # 5 秒で止まらない
+        clock = Clock()
+        self.assertEqual(self.stop(seq(("B", {"pid": 7})), ok, killed, clock)[0], 1)   # 5 秒で止まらない
+        self.assertAlmostEqual(clock.t, 5, delta=0.2)
+        self.assertEqual(self.stop(seq(("B", {"pid": 7})), [], killed)[0], 2)          # /proc を読めない
+        self.assertEqual(self.stop(seq(("B", {"pid": 7}), ("A", None)), ok, ProcessLookupError())[0], 0)
+        self.assertEqual(self.stop(seq(("B", {"pid": 7})), ok, PermissionError())[0], 2)
 
 
 class E6Devcontainer(unittest.TestCase):
@@ -205,7 +225,9 @@ class Listen(unittest.TestCase):
 
     def test_e5_start_reuse_stop(self):
         port, common, cwd = free_port(), git.common_dir(), git.main_worktree()
-        log = os.path.join(tempfile.mkdtemp(), "progress-server.log")
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        log = os.path.join(tmp.name, "progress-server.log")
         pids = []
 
         def start(*a):
@@ -217,6 +239,7 @@ class Listen(unittest.TestCase):
         self.assertEqual((code, out.splitlines()[0]), (0, f"http://127.0.0.1:{port}/"), err)
         kind, info = ensure.classify(ensure.fetch_identity(port), common)
         self.assertEqual((kind, info["pid"]), ("B", pids[0]))
+        self.assertIn(f"pid {pids[0]} port {port}", Path(log).read_text(encoding="utf-8"))   # その回の区切り
         self.assertEqual(ensure.ensure(port, common, cwd, log, start=self.fail)[0], 0)   # 立てない
         self.assertEqual(ensure.stop(port, common)[0], 0)
         self.assertEqual(ensure.fetch_identity(port), ("refused",))
