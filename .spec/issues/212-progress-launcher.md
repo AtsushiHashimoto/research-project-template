@@ -102,7 +102,7 @@ python3 scripts/progress/ensure.py [--port N] [--stop]
 - **背景での起動**: `subprocess.Popen([sys.executable, <このファイルの隣の server.py>, "--port", N], cwd=<主 worktree。bare で作業ツリーが無ければ呼んだ worktree の toplevel>,
   stdin=DEVNULL, stdout/stderr=ログ（追記）, start_new_session=True)`。親は開いたログを Popen の後に閉じる。主 worktree で立てるのは、呼んだ worktree が後で消されても止まらないため。
 - `--stop` は §3-2。
-- 出力（標準出力）: 成功時は 1 行目に URL だけ（skill が拾う）、2 行目に §3-3 の ssh の 1 行。失敗の理由は標準エラーへ。
+- 出力（標準出力）: 成功時は 1 行目に URL だけ、2 行目に「（コンテナの中の番号。VS Code 以外で転送するなら `ssh -o ExitOnForwardFailure=yes -L <番号>:127.0.0.1:<番号>`）」の 1 行（§3-3 の明記はこの行が担う）。失敗の理由は標準エラーへ。
 
 ### 4-2. サーバーに足すもの（`scripts/progress/server.py`）
 
@@ -129,7 +129,7 @@ python3 scripts/progress/ensure.py [--port N] [--stop]
 ### 4-4. skill `/progress`（`.claude/skills/progress/SKILL.md`）
 
 - frontmatter `metadata.harness: shared`。本文は agent-runtime の定型 2 行と、次の 2 行だけ:
-  `python3 scripts/progress/ensure.py $ARGUMENTS` を実行し、標準出力の 1 行目の URL か標準エラーの理由をそのまま伝える。止めるときは `--stop`。
+  `python3 scripts/progress/ensure.py $ARGUMENTS` を実行し、標準出力（URL と注記の 2 行）か標準エラーの理由をそのまま伝える。止めるときは `--stop`。
 - `.claude/rules/template/skills.md` に 1 行足す。README の `server.py` の 1 行（`README.md:124`）を `/progress`（`ensure.py`）に置き換える。
 - 常時読み込みのルールファイルには何も足さない。
 
@@ -182,3 +182,4 @@ git は repo 自身での `rev-parse`・`worktree list` だけ（176 §6 の「g
 - 2026-10-24: 作成
 - 2026-10-24: auto-reviewer（`.spec/issues/212-auto-decisions.md`）。origin の URL の区切り、整数でない上書き値、`--stop` の A と待ち切れの終了コード、子が先に終了したときの再判定と上書きの方法の表示、`commonDir` の比較の正規化、テストの所要時間の記録を足した
 - 2026-10-24: /review（PR #219）。origin が無いときにディレクトリ名へ戻さず終了コード 2、上書き値の読み方（`^[0-9]+$`）、`--stop` の cmdline 確認、ログを追記＋区切りの行、待ち切れで子を止める、古い `server.py` と timeout の文言、common dir と主 worktree を `progress_git.py` に 1 か所、bare の主 worktree、直接起動は保護の対象外、テスト E3b・E6 とログの差し込み・後片付け、V3 の境界を足した
+- 2026-10-24: 仕様整合の照合（PR #219）。出力の 2 行目に「コンテナの中の番号」の注記と ssh の 1 行を置き、skill が 2 行とも伝えるようにした
