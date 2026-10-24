@@ -116,7 +116,7 @@ my-project/
 （epic / task / issue の各層、コミット、レビュー、QA、テンプレート管理、Worktree、仕様）。
 一覧はそこだけに置き、この README では重複させません。
 
-**進捗一覧（閲覧のみ）**: `python3 scripts/progress/server.py` を実行し http://127.0.0.1:8765/ を開く。
+**進捗一覧（閲覧のみ）**: `/progress`（`python3 scripts/progress/ensure.py`）が、立っていなければサーバーを立てて URL を出す（番号は repo ごとに 18000〜18999 の固定。`--stop` で止める）。
 いまの repo の epic / task / issue の木と、要対応・作業中・次の候補を出す（`gh` で GitHub を、手元の git を読む。書き込みは、子が 0 件の epic・task を画面から close する操作だけ）。
 
 ---

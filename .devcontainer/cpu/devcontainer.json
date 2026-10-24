@@ -25,6 +25,11 @@
       "moby": false
     }
   },
+  // 進捗一覧（scripts/progress/ensure.py）の番号の範囲。手元の番号が使われていても黙ってずらさない（#212 §4-3）。
+  // 範囲は ensure.py の PORT_MIN・PORT_MAX と同じ（scripts/tests/test_progress_ensure.py が検査）
+  "portsAttributes": {
+    "18000-18999": { "label": "progress", "requireLocalPort": true }
+  },
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python", "ms-toolsai.jupyter"]

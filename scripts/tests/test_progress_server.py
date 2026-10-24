@@ -99,6 +99,17 @@ class Server(unittest.TestCase):
         self.assertEqual(self.req(port, path="/", host=f"evil.example:{port}")[0], 403)
         self.assertEqual(self.req(port, path="/", host=f"127.0.0.1.evil.example:{port}")[0], 403)
 
+    def test_identity_no_fetch_and_host(self):
+        """212 §4-2: /api/identity は取得を起こさず、Host 検査は他の GET と同じ。"""
+        srv, _ = server.serve(0, 60, lambda: self.fail("取得した"), common="/r/.git")
+        threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        port = srv.server_address[1]
+        code, body = self.req(port, path="/api/identity")
+        self.assertEqual((code, json.loads(body)["app"], json.loads(body)["commonDir"]), (200, "progress", "/r/.git"))
+        self.assertEqual(self.req(port, path="/api/identity", host=f"evil.example:{port}")[0], 403)
+
     def test_refresh_needs_page_header(self):
         calls = []
         port = self.start(lambda: calls.append(1) or built())
@@ -166,6 +177,9 @@ class Server(unittest.TestCase):
                 allowed.add(("gh", "issue"))
                 self.assertIn('["gh", "issue", "close"', text)
                 text = text.replace('"close"', "")
+            if f.name == "ensure.py":       # 212 §3-1: 番号の上書きと origin を読むだけ（git config に書かない）
+                allowed |= {("git", "config"), ("git", "remote")}
+                self.assertEqual(text.count('["git", "config"'), text.count('["git", "config", "--get"'))
             for call in re.findall(r'\["(gh|git)", "([^"]+)"', text):
                 self.assertIn(call, allowed, f.name)
             self.assertNotRegex(text, r'"(-X|--method|edit|close|comment|push|commit)"', f.name)

@@ -77,3 +77,20 @@ def parse_worktrees(text):
         elif key == "prunable":
             cur["prunable"] = True
     return result
+
+
+def common_dir(runner=run):
+    """git common dir の絶対パス（worktree 間で同じ。ensure.py と server.py の /api/identity が使う。212 §4-1）。"""
+    out = runner(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).strip()
+    if not out:
+        raise FetchError("git rev-parse --git-common-dir が空を返した")
+    return out
+
+
+def main_worktree(runner=run):
+    """主 worktree のパス（`git worktree list` の最初の 1 件）。bare で作業ツリーが無ければ None。"""
+    blocks = runner(["git", "worktree", "list", "--porcelain"]).split("\n\n")
+    lines = blocks[0].splitlines() if blocks else []
+    if not lines or not lines[0].startswith("worktree ") or "bare" in lines[1:]:
+        return None
+    return lines[0][len("worktree "):]

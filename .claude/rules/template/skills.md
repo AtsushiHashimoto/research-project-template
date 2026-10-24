@@ -41,6 +41,7 @@ paths:
 | `/issue-gaps` | 乖離検出・不足 Issue の作成 |
 | `/issue-backlog` | バックログ処理 |
 | `/issue-unblock` | ブロッカー解消 Issue の作成 |
+| `/progress [--stop]` | 進捗一覧のサーバーを確かめ、無ければ立てて URL を出す（repo ごとの固定番号） |
 
 ### コミット
 
