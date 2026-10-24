@@ -11,6 +11,9 @@ import re
 TASK_BRANCH = re.compile(r"^[a-z][a-z-]*/(\d+)-i(\d+)$")
 # pre-task/・pre-epic/ は /task-run・/epic-cycle の退避ブランチ（日付が番号に見える）
 ISSUE_BRANCH = re.compile(r"^(?!pre-(?:task|epic)/)[a-z][a-z-]*/(\d+)(?:-|$)")
+# 201 §3-1 案 B: 本文の `Refs #N`（flow が書く形。closing keyword も同じ形で読む）。`Refs #1, #2` も読む。
+# `owner/repo#N`（別の repo）は # の直前が空白でないので当たらない
+BODY_REFS = re.compile(r"(?i)(?<![a-z0-9_])(?:refs|closes|fixes|resolves):?[ \t]*(#\d+(?:[ \t]*,[ \t]*#\d+)*)")
 STEP_ORDER = ["survey", "spec", "feature", "validation", "experiment"]   # issue-hierarchy.md の既定の task 構成
 DROPPED = {"NOT_PLANNED", "DUPLICATE"}
 WORKING_DAYS = 14   # 「作業中」: main に無い tip がこの日数以内（ちょうどは含む）
@@ -32,16 +35,30 @@ def unix(iso):
     return datetime.datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
 
 
+def body_issues(body):
+    """PR の本文 → `Refs #N` 等で参照する同じ repo の issue 番号の list（出た順、重複なし）。"""
+    out = []
+    for m in BODY_REFS.finditer(body or ""):
+        out += [int(x) for x in re.findall(r"\d+", m.group(1)) if int(x) not in out]
+    return out
+
+
 def attach_prs(nodes, pulls):
-    """§3-1: A（head ブランチ名）と C（closing keyword。node に既にある）を番号で重複を除いて合わせる。
+    """§3-1: A（head ブランチ名）と B（open の PR の本文の Refs #N）と C（closing keyword。node に既にある）を
+    番号で重複を除いて合わせる。B は epic・task に結び付けない（A の task 番号と同じ扱い）。
     pulls が None（取れなかった）なら C だけ。戻り値は結び付かなかった open の PR の番号（None なら不明）。"""
     linked = {p["number"] for n in nodes.values() for p in n["prs"]}
     unlinked = []
     for pr in pulls or []:
         hit = None if pr.get("isCrossRepository") else branch_issue(pr["headRefName"])
-        if hit and hit[0] in nodes:
-            nodes[hit[0]]["prs"].append({k: pr[k] for k in ("number", "state", "url")})
-            linked.add(pr["number"])
+        targets = [hit[0]] if hit else []
+        if pr["state"] == "OPEN":
+            targets += [k for k in body_issues(pr.get("body"))
+                        if k in nodes and nodes[k]["kind"] not in ("epic", "task")]
+        for k in dict.fromkeys(targets):
+            if k in nodes:
+                nodes[k]["prs"].append({k2: pr[k2] for k2 in ("number", "state", "url")})
+                linked.add(pr["number"])
     for pr in pulls or []:
         if pr["state"] == "OPEN" and pr["number"] not in linked:
             unlinked.append(pr["number"])

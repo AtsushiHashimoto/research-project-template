@@ -32,19 +32,23 @@
 
 ## 3. 未確定の解消（task #200 の `## 未確定` の 6 行）
 
-### 3-1. PR と issue の結び付け方 → **PR の head ブランチ名を、ブランチと同じ規則で読む**
+### 3-1. PR と issue の結び付け方 → **PR の head ブランチ名を、ブランチと同じ規則で読む。open の PR は本文の `Refs #N` も読む**（B は #208 で採用）
 
 | 案 | 下流の実測（PR 348 件、2026-10-24） | 採否 |
 |---|---|---|
 | **A. `headRefName` を `branch_issue`（いまは `progress_tree.py:33`）で読む** | **343 件が issue に結び付く**。外れる 5 件は番号を持たないブランチ名（`chore/template-skills-migration` 等） | **採用** |
-| B. 本文の `Refs #N` | 本文を全件取ると応答が大きくなる（本文は 1 件で数 KB）。1 本の PR が複数の issue を参照する | 不採用 |
+| B. 本文の `Refs #N` | 当初は「本文を全件取ると応答が大きくなる（本文は 1 件で数 KB）」として不採用。しかし A だけでは番号を持たないブランチの open の PR（下流 #118。本文は `Refs #70`）を見落とし、#70 を作業中にしなかった（validation #203、bug #208）。**本文を取るのは open の PR だけ**にすれば応答は open の件数ぶん（下流 2 件）で済む | **A に足す**（#208。open の PR だけ） |
 | C. いまの `closedByPullRequestsReferences`（closing keyword） | flow は `Refs #N` を使うので、ほとんど空 | **A に足す**（既存の経路を消さない） |
 
 - task 単位のブランチ `<type>/<TASK>-i<N>` の PR は **issue N** に結び付ける（`branch_issue` の戻り値の 1 つ目）。task #TASK には結び付けない。
   task のカードは「配下で作業中」（§4-3）で子の作業を表す。
-- `isCrossRepository` が真の PR（fork から）は結び付けない（他人の fork のブランチ名が手元の番号に当たるため。下流は 0 件）。
+- **B の規則（#208）**: open の PR だけ、本文の `Refs #N`（`Closes`・`Fixes`・`Resolves` も同じ形で読む。`:` 可、`Refs #1, #2` の並びも読む）を同じ repo の issue 番号として読み、その issue に結び付ける（`progress_work.BODY_REFS`・`body_issues`）。
+  `owner/repo#N`（別の repo）・語の途中（`xrefs #N`）は読まない。merged・closed の PR の本文は取らないので読まない。
+  **epic・task の番号には結び付けない**（A で task 番号に結び付けないのと同じ。task のカードは §4-3 の「配下で作業中」で表す。task だけを参照する open の PR は下の `unlinkedOpenPrs` に出る）。
+  fork の PR も本文は読む（fork を外す理由はブランチ名の衝突で、本文には当たらない）。
+- `isCrossRepository` が真の PR（fork から）はブランチ名では結び付けない（他人の fork のブランチ名が手元の番号に当たるため。下流は 0 件）。
 - 1 つの issue に PR が複数あれば全部持つ。A と C を番号で重複を除いて合わせ、残す値は `{number, state, url}`（C は `headRefOid` を持たないので、§4-1 の照合には A の全 PR の一覧を使う）。カードには番号の最も大きい 1 本の状態と「+k」を出す（§5-2）。
-- **結び付かなかった open の PR**（下流ではいま #118 の 1 本）は、`rules.unlinkedOpenPrs` として返し、帯に「issue に結び付かない open の PR: #118」と出す（作業中から黙って外さない）。
+- **結び付かなかった open の PR**（下流では #208 の前は #118 の 1 本。#208 の後は 0 本）は、`rules.unlinkedOpenPrs` として返し、帯に「issue に結び付かない open の PR: #118」と出す（作業中から黙って外さない）。
 
 ### 3-2. 「作業中」に要るコミット日・PR の状態を、取得時間を大きく増やさずに取れるか → **取れる（実測）**
 
@@ -52,6 +56,7 @@
 |---|---|---|---|
 | issue（既存）に `createdAt` を足す | 0 回増（同じ query） | 660 件 7 ページで 8.5 秒（既存） | 0 |
 | **PR（新規）** `gh api graphql --paginate --slurp`、1 ページ 100 件、`number state url headRefName headRefOid isCrossRepository` | **ページ数（348 件で 4 回）** | **3.2 秒、69 KB** | **issue の取得と並行**（`ThreadPoolExecutor(2)` を `with` で使い、両方の完了を待ってから例外を出す）。壁時計は max(8.5, 3.2) で 0 秒増 |
+| **open の PR の本文**（#208）同じ形の 2 本目の query、`pullRequests(states: [OPEN])` の `number body` だけ | **ページ数（open 2 件で 1 回）** | `fetch_pulls` の中で全 PR の query の後に続けて呼ぶ。PR の取得 2.48 → 2.76 秒（3 回の平均、+0.28 秒） | issue の取得と並行のまま。壁時計（`default_fetch` 全体）は 8.95 → 8.33 秒（3 回の平均。差は揺れの範囲で増えていない） |
 | git の ref（既存の `for-each-ref` の書式に `%(objectname)`・`%(committerdate:unix)` を足す） | 0 回増 | 305 本で 0.02 秒 | 0 |
 | **git の「main に無い tip」**（新規）`git for-each-ref --no-merged=<基準> --format=%(refname) refs/heads refs/remotes` | **1 回** | 150 本で 0.02 秒 | +0.02 秒 |
 | **基準の有無**（新規）`git rev-parse --verify -q refs/remotes/origin/main`、無ければ `refs/heads/main` | **1〜2 回** | < 0.01 秒 | +0.01 秒 |
