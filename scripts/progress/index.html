@@ -58,7 +58,7 @@ details > summary { cursor:pointer; }
   <label><input type="checkbox" name="closed"> closed も表示</label>
   <label><input type="checkbox" name="marks"> 逸脱の印と注記を表示</label>
   <select name="label" aria-label="ラベルで絞り込み"><option value="">ラベル: すべて</option></select>
-  <input type="search" name="q" aria-label="タイトルか番号で絞り込み" placeholder="タイトル・#番号で絞り込み">
+  <input type="search" name="q" aria-label="タイトルか番号で絞り込み" placeholder="タイトル・#番号で絞り込み" maxlength="200">
   <button type="button" id="refresh">取り直す</button>
 </div>
 <p class="muted">作業中 = open かつブランチか worktree がある（手元の git。fetch はしない）。次の候補 = 作業中の子が無い open な task の、既定の順（survey → spec → feature → validation → experiment）で先頭の子。PR は closing keyword で紐づいたものだけ。</p>
@@ -76,7 +76,7 @@ const el = (tag, text, cls) => {
   return e;
 };
 const badge = (text, cls, title) => { const b = el("span", text, "badge " + (cls || "")); if (title) b.title = title; return b; };
-let data = null, labelsFilled = false, level = 0, missing = [];
+let data = null, labelsFilled = false, level = 0, missing = [], seq = 0, loadError = "";
 const toggled = new Map();      // 利用者が開け閉めした行（key は番号と "lone"）。一括・絞り込みで消す
 const sumToggled = new Map();   // 要約の 3 群（key は "sum:…"）。一括・絞り込みでは消さない
 
@@ -153,7 +153,7 @@ function nodeEl(item, opt) {
   const n = data.nodes[item.number];
   if (!n) { missing.push(item.number); return null; }
   if (!item.children.length) { const d = el("div", undefined, "leaf"); d.append(rowOf(n, opt, item)); return d; }
-  const s = el("summary"); s.append(el("span", n.kind + " ", "kind"), rowOf(n, opt, item), badge(`子 ${item.count}`));
+  const s = el("summary"); s.append(el("span", n.kind + " ", "kind"), rowOf(n, opt, item), badge(`子 ${item.count}`, "", "開くと出る直下の行の数"));
   const d = folder(item.number, s, item.defaultOpen || item.openAt <= level);
   for (const c of item.children) { const e = nodeEl(c, opt); if (e) d.append(e); }
   return d;
@@ -192,49 +192,47 @@ function render() {
   const main = $("tree"); main.replaceChildren(); missing = [];
   for (const it of v.epics) { const e = nodeEl(it, opt); if (e) main.append(e); }
   if (v.lone.count) {
-    const d = folder("lone", el("summary", `親なし (${v.lone.count})`), v.lone.defaultOpen || level >= 1);
+    const d = folder("lone", el("summary", `親なし (${v.lone.count})`), v.lone.defaultOpen || v.lone.openAt <= level);
     for (const it of v.lone.items) { const e = nodeEl(it, opt); if (e) d.append(e); }
     main.append(d);
   }
   if (!v.epics.length && !v.lone.count) {
     main.append(el("p", v.query.label || v.query.q.trim() ? "一致なし" : "open な issue はありません", "muted"));
   }
-  const msgs = [];
+  const msgs = loadError ? [loadError] : [];
   if (data.error) msgs.push(`取得失敗 ${data.errorAt} — 表示は ${data.fetchedAt} 時点（${data.error}）`);
   if (data.gitError) msgs.push(`手元の git を読めない — 作業中・次の候補は不明（${data.gitError}）`);
   if (data.labelsError) msgs.push(`ラベルの検査をしていない（${data.labelsError}）`);
-  if (missing.length) msgs.push(`表示の木に一覧に無い番号がある: ${missing.map((x) => "#" + x).join(", ")}`);
+  if (missing.length) msgs.push(`一覧に無い issue 番号があるので、その行を出していない: ${missing.map((x) => "#" + x).join(", ")}`);
   showBanner(msgs.join(" / "));
 }
+// 失敗は帯に残す（次の描き直しで消さない）。下の木が前の条件のものであることも書く
+function failed(why) {
+  loadError = data ? `取得失敗 — 下は前の条件の表示（${data.fetchedAt} 時点）（${why}）` : `取得失敗 — 表示できるデータがありません（${why}）`;
+  lastQuery = null;                      // 次の入力で必ず取り直す
+  if (data) render(); else { showBanner(loadError); $("when").textContent = ""; }
+}
 async function load(refresh) {
-  const btn = $("refresh"), want = query(), p = new URLSearchParams();
-  if (want.closed) p.set("closed", "1");
-  if (want.label) p.set("label", want.label);
-  if (want.q) p.set("q", want.q);
+  const btn = $("refresh"), want = query(), mine = ++seq;
+  const p = new URLSearchParams({ closed: want.closed ? "1" : "0", label: want.label, q: want.q });
   if (refresh) p.set("refresh", "1");
   lastQuery = want;
   btn.disabled = true; btn.textContent = "取得中…";
   try {
-    const qs = p.toString();
-    const res = await fetch("/api/tree.json" + (qs ? "?" + qs : ""),
-                            { headers: refresh ? { "X-Progress-Refresh": "1" } : {} });
+    const res = await fetch("/api/tree.json?" + p, { headers: refresh ? { "X-Progress-Refresh": "1" } : {} });
     const text = await res.text();
+    if (mine !== seq) return;            // 後から出した要求がある（その応答を待つ）
     let body = null;
     try { body = JSON.parse(text); } catch { /* 403・404 は text/plain */ }
-    if (!res.ok || !body) {
-      const why = (body && body.error) || text.trim() || res.status;
-      showBanner(data ? `取得失敗 — 表示は ${data.fetchedAt} 時点（${why}）` : `取得失敗 — 表示できるデータがありません（${why}）`);
-      if (!data) $("when").textContent = "";
-      return;
-    }
+    if (!res.ok || !body) return failed((body && body.error) || text.trim() || res.status);
     if (!sameQuery(body.view.query, query())) return;   // 古い応答（後から届いても描かない）
-    data = body; fillLabels();
+    loadError = ""; data = body; fillLabels();
     if (field("label").value !== want.label) return writeParams();   // URL のラベルが一覧に無い
     render();
   } catch (e) {
-    showBanner(`サーバーに繋がらない — ${data ? `表示は ${data.fetchedAt} 時点` : "表示できるデータがありません"}（${e.message}）`);
+    if (mine === seq) failed(`サーバーに繋がらない: ${e.message}`);
   } finally {
-    btn.disabled = false; btn.textContent = "取り直す";
+    if (mine === seq) { btn.disabled = false; btn.textContent = "取り直す"; }
   }
 }
 syncForm();

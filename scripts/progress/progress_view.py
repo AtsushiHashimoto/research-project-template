@@ -7,7 +7,7 @@
 import re
 
 OPEN_AT = {"epic": 1, "task": 2, "issue": 3}   # 一括で開く段（§4-2）
-NUMBER_QUERY = re.compile(r"^#(\d{1,9})$")      # 固定の regex。利用者の入力を regex にしない
+NUMBER_QUERY = re.compile(r"^#(\d{1,9})$", re.ASCII)   # 固定の regex。利用者の入力を regex にしない（全角の数字は番号にしない）
 DROPPED = {"NOT_PLANNED", "DUPLICATE"}         # progress_tree.DROPPED と同じ（import しないので写す）
 
 
@@ -56,13 +56,17 @@ def view(tree, closed=False, label="", q=""):
         gone = under_dropped or (n["state"] == "CLOSED" and n.get("stateReason") in DROPPED)
         if not n["children"]:
             return (0, 0, 1) if gone else ((1 if n["state"] == "CLOSED" else 0), 1, 0)
-        sums = [count_progress(c, gone) for c in n["children"] if not excluded(c)]
-        return tuple(sum(x) for x in zip(*sums)) if sums else (0, 0, 0)
+        # 数える葉が 1 枚も無い部分木は None（子が全部除くノードの open な task 等。親の和にも入れない）
+        sums = [x for x in (count_progress(c, gone) for c in n["children"] if not excluded(c)) if x is not None]
+        return tuple(sum(x) for x in zip(*sums)) if sums else None
 
     def progress_of(n):
         if closed or n["progress"] is None:
             return n["progress"]
-        done, total, skipped = count_progress(n["number"], False)
+        counted = count_progress(n["number"], False)
+        if counted is None:          # 木の上の子が全部除くノード。「0/0」を出すと隠した epic・task の気配になる
+            return None
+        done, total, skipped = counted
         return {"completed": done, "total": total, "notPlanned": skipped}
 
     def item(num, parent_shown):
@@ -82,4 +86,4 @@ def view(tree, closed=False, label="", q=""):
             (epics if nodes[num]["kind"] == "epic" else lone).append(it)
     return {"query": {"closed": closed, "label": label, "q": q},
             "epics": epics,
-            "lone": {"count": len(lone), "items": lone, "defaultOpen": filtering and bool(lone)}}
+            "lone": {"count": len(lone), "items": lone, "defaultOpen": filtering and bool(lone), "openAt": 1}}

@@ -3,10 +3,23 @@
 "use strict";
 const vm = require("vm");
 
+// 実ブラウザに合わせるもの: <details> の open を変えると toggle が非同期に届く（代入でも）、
+// <select> に選択肢に無い値を入れると "" になる
 class El {
   constructor(tag, attrs = {}) {
     Object.assign(this, { tagName: tag.toUpperCase(), children: [], _text: "", dataset: {}, listeners: {},
-      attrs, className: "", hidden: false, open: false, value: "", checked: false });
+      attrs, className: "", hidden: false, _open: false, _value: "", checked: false });
+  }
+  get open() { return this._open; }
+  set open(v) {
+    const changed = this._open !== Boolean(v);
+    this._open = Boolean(v);
+    if (changed && this.tagName === "DETAILS") setImmediate(() => this.dispatch("toggle"));
+  }
+  get value() { return this._value; }
+  set value(v) {
+    v = String(v);
+    this._value = this.tagName !== "SELECT" || this.children.some((o) => o.value === v) ? v : "";
   }
   get textContent() { return this._text + this.children.map((c) => c.textContent).join(""); }
   set textContent(t) { this._text = String(t); this.children = []; }
@@ -61,17 +74,30 @@ async function main() {
   await p.flush();
   out.firstUrl = p.urls[0];
   out.levels = {};
-  for (const lv of [0, 1, 2, 3]) { p.click(lv); out.levels[lv] = p.opened(); }
-  p.click(0);
-  const row = p.details("1"), sum = p.details("sum:要対応");
-  row.open = true; row.dispatch("toggle");          // 利用者が開けた行
-  sum.open = false; sum.dispatch("toggle");         // 利用者が閉じた要約
+  for (const lv of [0, 1, 2, 3]) { p.click(lv); await p.flush(); out.levels[lv] = p.opened(); }
+  // 一括で開いた行の toggle が描き直しの後に届いても、利用者の操作として覚えない
+  p.click(3); p.click(0); await p.flush();
+  p.ids.filters.querySelector("[name=marks]").checked = true; p.ids.filters.dispatch("input"); await p.flush();
+  out.afterLateToggles = p.opened();
+  p.details("1").open = true;                     // 利用者が開けた行
+  p.details("sum:要対応").open = false;           // 利用者が閉じた要約
+  await p.flush();
   out.toggledBefore = { row: p.details("1").open, sum: p.details("sum:要対応").open };
-  p.click(0);
+  p.click(0); await p.flush();
   out.toggledAfter = { row: p.details("1").open, sum: p.details("sum:要対応").open };
+  // 絞り込みを変えると段と行の記録を消す（一致した行に至る経路だけが開く）
+  const q = p.ids.filters.querySelector("[name=q]");
+  const search = async (text) => { q.value = text; p.ids.filters.dispatch("input"); p.runTimers(); await p.flush(); };
+  p.click(1); await p.flush();
+  p.details("1").open = false; await p.flush();   // 段 1 で開いた epic を利用者が閉じた
+  await search("#770");
+  out.filterOpened = p.opened();
+  await search("");
+  out.clearedOpened = p.opened();
+  await search("#40");
+  out.loneOpened = p.opened();
   // 古い応答: #770 の応答が #2 の応答の後に届いても描かない
   p.ctx.hold = true;
-  const q = p.ids.filters.querySelector("[name=q]");
   q.value = "#770"; p.ids.filters.dispatch("input"); p.runTimers();
   q.value = "#2"; p.ids.filters.dispatch("input"); p.runTimers();
   out.staleUrls = p.urls.slice(-2);
@@ -84,6 +110,14 @@ async function main() {
   await f.flush();
   out.filteredUrl = f.urls[0];
   out.filteredText = f.ids.tree.textContent;
+  // URL のラベルが一覧に無ければ外して取り直す。取得の失敗は次の描き直しでも帯に残る
+  const g = page(input, "?label=nosuch");
+  await g.flush(); g.runTimers(); await g.flush();
+  out.unknownLabelUrls = g.urls;
+  const gq = g.ids.filters.querySelector("[name=q]");
+  gq.value = "no-payload"; g.ids.filters.dispatch("input"); g.runTimers(); await g.flush();
+  g.ids.filters.querySelector("[name=marks]").checked = true; g.ids.filters.dispatch("input"); g.runTimers(); await g.flush();
+  out.failBanner = g.ids.banner.textContent;
   process.stdout.write(JSON.stringify(out));
 }
 main().catch((e) => { console.error(e.stack); process.exit(1); });

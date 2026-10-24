@@ -38,9 +38,9 @@ class Page(unittest.TestCase):
         if not node:
             raise unittest.SkipTest("node が無いので画面の JS を実行できない（W7 は未検査）")
         cls.base = payload()
-        loads = {"0||": cls.base, "0||#770": payload(q="#770"), "0||#2": payload(q="#2"),
-                 "1|blocked|x": payload(closed=True, label="blocked", q="x")}
-        script = re.search(r"<script>\n(.*?)</script>", PAGE, re.S).group(1)
+        loads = {"0||": cls.base, "0||#770": payload(q="#770"), "0||#2": payload(q="#2"), "0||#40": payload(q="#40"),
+                 "1|blocked|x": payload(closed=True, label="blocked", q="x"), "0|nosuch|": payload(label="nosuch")}
+        script = re.search(r"<script>\n(.*?)</script>", PAGE, re.DOTALL).group(1)
         cls.buttons = [[int(lv), text] for lv, text in
                        re.findall(r'<button type="button" data-level="(\d)">([^<]+)</button>', PAGE)]
         r = subprocess.run([node, str(HERE / "progress_page_harness.js")], capture_output=True, text=True, timeout=10,
@@ -58,24 +58,34 @@ class Page(unittest.TestCase):
         items = list(walk(v["epics"])) + list(walk(v["lone"]["items"]))
         for lv in range(4):
             want = {str(it["number"]) for it in items if it["children"] and it["openAt"] <= lv}
-            if lv >= 1 and v["lone"]["count"]:
+            if v["lone"]["openAt"] <= lv and v["lone"]["count"]:
                 want.add("lone")
             self.assertEqual(set(self.out["levels"][str(lv)]), want, lv)
         self.assertEqual(self.out["levels"]["0"], [])
 
     def test_bulk_clears_rows_keeps_summary(self):
+        self.assertEqual(self.out["afterLateToggles"], [])   # 一括で開いた行の toggle を記録しない
         self.assertEqual(self.out["toggledBefore"], {"row": True, "sum": False})
         self.assertEqual(self.out["toggledAfter"], {"row": False, "sum": False})
 
+    def test_filter_resets_level_and_rows(self):
+        self.assertEqual(self.out["filterOpened"], ["1", "756"])   # 段 1 で閉じた #1 の記録は消え、経路が開く
+        self.assertEqual(self.out["clearedOpened"], [])            # 段も 0 に戻る
+        self.assertEqual(self.out["loneOpened"], ["lone"])         # lone.defaultOpen
+
     def test_stale_response_is_dropped(self):
-        self.assertEqual(self.out["staleUrls"], ["/api/tree.json?q=%23770", "/api/tree.json?q=%232"])
+        self.assertEqual(self.out["staleUrls"], ["/api/tree.json?closed=0&label=&q=%23770",
+                                                 "/api/tree.json?closed=0&label=&q=%232"])
         self.assertEqual(self.out["staleShown"], [1, 2])          # #770 の経路（#756・#770）は描かない
         self.assertEqual(self.out["staleOpened"], ["1"])
 
     def test_load_url_carries_query(self):
-        self.assertEqual(self.out["firstUrl"], "/api/tree.json")
+        self.assertEqual(self.out["firstUrl"], "/api/tree.json?closed=0&label=&q=")
         self.assertEqual(self.out["filteredUrl"], "/api/tree.json?closed=1&label=blocked&q=x")
         self.assertIn("一致なし", self.out["filteredText"])
+        self.assertEqual(self.out["unknownLabelUrls"][:2], ["/api/tree.json?closed=0&label=nosuch&q=",
+                                                             "/api/tree.json?closed=0&label=&q="])
+        self.assertIn("取得失敗 — 下は前の条件の表示", self.out["failBanner"])   # 描き直しでも消えない
 
     def test_closed_hint_removed(self):
         self.assertNotIn("+${hidden} closed", PAGE)
