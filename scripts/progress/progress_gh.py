@@ -91,10 +91,14 @@ def fetch_issues(repo, runner=run):
 def fetch_pulls(repo, runner=run):
     """repo の全 PR（open・merged・closed）を返す。open の PR には本文 `body` を足す（201 §3-1 案 B）。"""
     pulls = paged(repo, PULL_QUERY, "pullRequests", runner)
-    bodies = {p["number"]: p["body"] or "" for p in paged(repo, OPEN_BODY_QUERY, "pullRequests", runner)}
-    for p in pulls:
-        if p["state"] == "OPEN" and p["number"] in bodies:
-            p["body"] = bodies[p["number"]]
+    opened = paged(repo, OPEN_BODY_QUERY, "pullRequests", runner)
+    try:
+        bodies = {p["number"]: p["body"] or "" for p in opened}
+        for p in pulls:
+            if p["state"] == "OPEN" and p["number"] in bodies:
+                p["body"] = bodies[p["number"]]
+    except KeyError as e:                     # 形が違えば FetchError（server が pullsError にして続ける）
+        raise shape_error(e) from e
     return pulls
 
 
@@ -112,7 +116,8 @@ def collect(pages, field="issues"):
     total = None
     for page in pages:
         if page.get("errors"):
-            raise graphql_error(page["errors"])
+            errors = page["errors"]
+            raise graphql_error(errors if isinstance(errors, list) else [errors])
         data = page.get("data") or {}
         repo = data.get("repository") if isinstance(data, dict) else None
         if repo is None:
@@ -122,7 +127,7 @@ def collect(pages, field="issues"):
             total = conn["totalCount"]
             for node in conn["nodes"]:
                 by_number[node["number"]] = node
-        except (KeyError, TypeError) as e:   # 形が違えば FetchError（PR だけの失敗を取得全体の失敗にしない）
+        except (KeyError, TypeError) as e:   # 形が違えば FetchError（PR の側は server が pullsError にして続ける）
             raise shape_error(e) from e
     if len(by_number) != total:
         raise FetchError(f"件数が合わない（取れた {len(by_number)} 件 / totalCount {total} 件）")
