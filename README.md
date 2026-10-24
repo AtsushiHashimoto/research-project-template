@@ -121,7 +121,8 @@ my-project/
 (epic / task / issue layers, commit, review, QA, template management, worktree, spec).
 The list lives there only — this README does not duplicate it.
 
-**Progress overview (read-only)**: `python3 scripts/progress/server.py` then open http://127.0.0.1:8765/ —
+**Progress overview (read-only)**: `/progress` (`python3 scripts/progress/ensure.py`) starts the server if needed and prints its URL
+(a fixed port per repository in 18000–18999; `--stop` stops it) —
 the epic / task / issue tree of the current repository, with what needs you, what is in progress and what is next
 (reads GitHub through `gh` and the local git; the only write is closing an epic / task that has no children, from the page).
 

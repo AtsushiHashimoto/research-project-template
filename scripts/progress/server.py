@@ -3,6 +3,8 @@
 
     python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 
+通常は scripts/progress/ensure.py（/progress）から起動する（repo ごとの番号を決め、立っていれば立てない。212）。
+
 cwd の repo の epic / task / issue の木と、要対応・作業中・次の候補をブラウザに出す。
 仕様: .spec/issues/176-progress-server.md、表示の木と query は .spec/issues/194-progress-collapse.md §4-1、
 作業中の判定・カード・close の経路は .spec/issues/201-progress-cards.md
@@ -11,6 +13,7 @@ cwd の repo の epic / task / issue の木と、要対応・作業中・次の�
 import argparse
 import datetime
 import json
+import os
 import re
 import sys
 import threading
@@ -167,7 +170,8 @@ def loopback(host):
     return re.sub(r":\d+$", "", host or "") in LOOPBACK_HOSTS
 
 
-def make_handler(cache, runner):
+def make_handler(cache, runner, common=None):
+    identity = {"app": "progress", "commonDir": common, "pid": os.getpid()}   # 212 §4-2。取得は起こさない
     page = (HERE / "index.html").read_bytes()
     script = (HERE / "page.js").read_bytes()
 
@@ -201,6 +205,8 @@ def make_handler(cache, runner):
                 return self.send(200, page, "text/html; charset=utf-8")
             if url.path == CLOSE_PATH:
                 return self.refuse()
+            if url.path == "/api/identity":
+                return self.send_json(200, identity)
             if url.path == "/page.js":
                 return self.send(200, script, "text/javascript; charset=utf-8")
             if url.path == "/api/tree.json":
@@ -250,9 +256,19 @@ def make_handler(cache, runner):
     return Handler
 
 
-def serve(port, ttl, fetch=default_fetch, runner=run_raw):
+def serve(port, ttl, fetch=default_fetch, runner=run_raw, common=None):
+    """common は /api/identity が返す git common dir（None なら null。ensure.py は別のものと判定する）。"""
     cache = Cache(fetch, ttl)
-    return ThreadingHTTPServer(("127.0.0.1", port), make_handler(cache, runner)), cache
+    return ThreadingHTTPServer(("127.0.0.1", port), make_handler(cache, runner, common)), cache
+
+
+def startup_common_dir():
+    """起動時に 1 回だけ求める（212 §4-2）。失敗したら None。"""
+    try:
+        return progress_git.common_dir()
+    except FetchError as e:
+        log("WARN", f"git common dir を求められない（/api/identity の commonDir は null）: {e}")
+        return None
 
 
 def main():
@@ -263,7 +279,7 @@ def main():
     if not 0 <= args.port <= 65535:
         ap.error(f"--port は 0〜65535: {args.port}")
     try:
-        server, _ = serve(args.port, args.ttl)
+        server, _ = serve(args.port, args.ttl, common=startup_common_dir())
     except OSError as e:
         sys.exit(f"[progress] ERROR: 127.0.0.1:{args.port} で待ち受けられない（{e.strerror}）。--port で別の番号を指定する")
     log("INFO", f"http://127.0.0.1:{server.server_address[1]}/ （ttl {args.ttl} 秒。Ctrl-C で止める）")

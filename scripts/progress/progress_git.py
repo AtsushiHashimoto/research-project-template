@@ -4,6 +4,8 @@ GitHub の取得とは失敗の仕方が違うので別にしてある。ここ�
 「作業中」の列だけを不明にする（.spec/issues/176-progress-server.md §3-2、201 §3-2）。
 """
 
+import os
+
 from progress_cmd import FetchError, failure, run, run_raw
 
 BASES = ("refs/remotes/origin/main", "refs/heads/main")   # 基準の ref（この順で最初にあるもの）
@@ -77,3 +79,20 @@ def parse_worktrees(text):
         elif key == "prunable":
             cur["prunable"] = True
     return result
+
+
+def common_dir(runner=run):
+    """git common dir の絶対パス（worktree 間で同じ。ensure.py と server.py の /api/identity が使う。212 §4-1）。"""
+    out = runner(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).strip()
+    if not os.path.isabs(out) or "\n" in out:      # git < 2.31 は --path-format を知らず、そのまま出力に混ぜる
+        raise FetchError(f"git rev-parse --git-common-dir が絶対パスを返さない（git 2.31 以上が要る）: {out[:80]!r}")
+    return out
+
+
+def main_worktree(runner=run):
+    """主 worktree のパス（`git worktree list` の最初の 1 件）。bare で作業ツリーが無ければ None。"""
+    blocks = runner(["git", "worktree", "list", "--porcelain"]).split("\n\n")
+    lines = blocks[0].splitlines() if blocks else []
+    if not lines or not lines[0].startswith("worktree ") or "bare" in lines[1:]:
+        return None
+    return lines[0][len("worktree "):]

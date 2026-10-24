@@ -74,8 +74,8 @@ class CacheRules(unittest.TestCase):
 
 
 class Server(unittest.TestCase):
-    def start(self, fetch):
-        srv, _ = server.serve(0, 60, fetch)
+    def start(self, fetch, common=None):
+        srv, _ = server.serve(0, 60, fetch, common=common)
         threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         self.addCleanup(srv.server_close)
         self.addCleanup(srv.shutdown)
@@ -88,7 +88,12 @@ class Server(unittest.TestCase):
         return r.status, r.read()
 
     def test_v5_read_only_and_host(self):
-        port = self.start(built)
+        calls = []
+        port = self.start(lambda: calls.append(1) or built(), common="/r/.git")
+        # 212 §4-2: /api/identity は取得を起こさず、Host 検査は他の GET と同じ
+        ident = json.loads(self.req(port, path="/api/identity")[1])
+        self.assertEqual((ident["app"], ident["commonDir"], calls), ("progress", "/r/.git", []))
+        self.assertEqual(self.req(port, path="/api/identity", host=f"evil.example:{port}")[0], 403)
         for m in ("POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"):
             self.assertEqual(self.req(port, m)[0], 405, m)
         self.assertEqual(self.req(port, host="evil.example:80")[0], 403)
@@ -166,6 +171,9 @@ class Server(unittest.TestCase):
                 allowed.add(("gh", "issue"))
                 self.assertIn('["gh", "issue", "close"', text)
                 text = text.replace('"close"', "")
+            if f.name == "ensure.py":       # 212 §3-1: 番号の上書きと origin を読むだけ（git config に書かない）
+                allowed |= {("git", "config"), ("git", "remote")}
+                self.assertEqual(text.count('["git", "config"'), text.count('["git", "config", "--get"'))
             for call in re.findall(r'\["(gh|git)", "([^"]+)"', text):
                 self.assertIn(call, allowed, f.name)
             self.assertNotRegex(text, r'"(-X|--method|edit|close|comment|push|commit)"', f.name)
