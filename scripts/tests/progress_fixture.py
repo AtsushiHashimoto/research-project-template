@@ -9,7 +9,8 @@ PROGRESS = Path(__file__).resolve().parents[1] / "progress"
 sys.path.insert(0, str(PROGRESS))   # server.py が同じディレクトリの progress_* を import するため
 
 
-cmd, gh, git, tree = (importlib.import_module(m) for m in ("progress_cmd", "progress_gh", "progress_git", "progress_tree"))
+cmd, gh, git, tree, pview = (importlib.import_module(m) for m in
+                            ("progress_cmd", "progress_gh", "progress_git", "progress_tree", "progress_view"))
 _spec = importlib.util.spec_from_file_location("progress_server", PROGRESS / "server.py")
 server = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(server)
@@ -54,6 +55,9 @@ ISSUES = [
     issue(98, ["feature"], C, 95, "DUPLICATE"),            # 重複で閉じた → 見送りに数える                        # 次の候補（spec が validation より先）
     issue(110, ["task"], C, 1, "COMPLETED"),               # closed の task の open の子は候補にしない
     issue(111, ["feature"], parent=110),
+    issue(120, ["task"], C, 1, "COMPLETED"),               # 全部 closed の task（194 §6 (a)）
+    issue(121, ["feature"], C, 120, "COMPLETED"),
+    issue(122, ["task"], C, 1, "COMPLETED"),               # 子の無い closed の task（(d)）
     issue(40, ["review-integrity"]),                       # 報告 issue（逸脱ではない）
     issue(41, ["enhancement"]),                            # テンプレート外のラベル
     issue(60, ["feature"], parent=12, parent_repo="other/repo"),   # 親が別 repo（番号は手元の #12 と同じ）
@@ -62,6 +66,10 @@ ISSUES = [
     issue(72, ["epic", "task"]),                           # 逸脱: 両方
     issue(73, ["feature", "user-action"], C, None, "COMPLETED"),   # closed は要対応に出さない
     issue(74, ["docs"], label_total=25),                   # 逸脱: labels の上限超え
+    issue(130, ["epic"], C, None, "COMPLETED"),            # 全部 closed の根の epic（(b)）
+    issue(131, ["feature"], C, 130, "COMPLETED"),
+    issue(140, ["epic"], C, None, "COMPLETED"),            # closed の根の epic の下の open（(c)）
+    issue(141, ["feature"], parent=140),
     issue(100, ["docs"], parent=101),                      # 親子の循環
     issue(101, ["docs"], parent=100),
 ]

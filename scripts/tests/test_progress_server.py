@@ -145,6 +145,22 @@ class Server(unittest.TestCase):
         self.assertEqual(status, 502)
         self.assertEqual(json.loads(body)["error"], "gh が無い")
 
+    def test_view_query(self):
+        """194 §4-1: 受け付けない query は 400。絞り込みは取り直しと同時に渡せる。"""
+        port = self.start(built)
+        for bad in ("closed=2", "closed=true", "q=" + "x" * 201, "label=a&label=b", "q=a&q=b", "closed=1&closed=1"):
+            status, body = self.req(port, path="/api/tree.json?" + bad)
+            self.assertEqual(status, 400, bad)
+            self.assertIn("error", json.loads(body))
+        self.assertEqual(self.req(port, path="/api/tree.json?q=" + "x" * 200)[0], 200)
+        status, body = self.req(port, path="/api/tree.json?refresh=1&q=%23770", headers={"X-Progress-Refresh": "1"})
+        v = json.loads(body)["view"]
+        self.assertEqual(status, 200)
+        self.assertEqual(v["query"], {"closed": False, "label": "", "q": "#770"})
+        self.assertEqual([it["number"] for it in v["epics"]], [1])
+        v = json.loads(self.req(port, path="/api/tree.json?closed=1&label=blocked")[1])["view"]
+        self.assertEqual(v["query"], {"closed": True, "label": "blocked", "q": ""})
+
     def test_empty_repo(self):
         self.assertEqual(self.req(self.start(lambda: tree.build([], REPO, SECTIONS, [], [])))[0], 200)
 
