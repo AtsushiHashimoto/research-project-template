@@ -29,7 +29,7 @@ epic → (sub-epic) → task → issue の木と、各 issue の作業状態（�
 | 取得（ローカル git） | `git for-each-ref refs/heads refs/remotes`（`*/HEAD` を除き、ローカルとリモートの同名は 1 つにまとめる）と `git worktree list --porcelain`（`-z` は使わない。git 2.34 に無い。`locked`・`prunable`・`detached`・`bare` 行を許容）。**fetch はしない**（リモートのブランチは最後に fetch した時点の値。画面に注記する） | `scripts/progress/progress_git.py` |
 | ラベル定義 | 表示する repo（cwd）の `scripts/setup-labels.sh`、無ければ server の隣を読む。読めない・「種類」の見出しが無いときは**ラベルに基づく検査をしない**と帯に出す（全 issue に誤った注記を付けない） | `server.py` |
 | 組み立て | 下の規則で木と状態を作る | `scripts/progress/progress_tree.py`（純関数。ネットワーク・git を呼ばない） |
-| 出力 | `GET /` 静的な HTML 1 枚（`/api/tree.json` を取得して描画）。`GET /api/tree.json` 木と要約と取得状態 | `scripts/progress/server.py`、`scripts/progress/index.html` |
+| 出力 | `GET /` 静的な HTML 1 枚と `GET /page.js`（`/api/tree.json` を取得して描画）。`GET /api/tree.json` 木と要約と取得状態 | `scripts/progress/server.py`、`scripts/progress/index.html`（HTML と CSS）、`scripts/progress/page.js`（取得と描画） |
 
 GraphQL（1 ページ 100 件。実測 1 ページ約 1.1 秒・コスト 2）:
 
@@ -112,7 +112,7 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 | V3 | 作業中の判定 | fixture: `fix/12-x` → 12 が作業中、`survey/756-i770` → 770 が作業中で 756 は「配下で作業中」、CLOSED + ブランチ → 残骸で作業中でない、`pre-task/2026…` は無視。実 repo: worktree を持つ OPEN issue を 1 件ずつ照合 |
 | V4 | 逸脱の印 | 逸脱を仕込んだ fixture で印が付き、正常な fixture（sub-epic・`review-integrity`・テンプレート外のラベルを含む）で付かない |
 | V5 | 閲覧のみ・Host | POST/PUT/DELETE が 405。Host が別名なら 403。コードに `gh issue edit` / `-X POST` 等が無い（#178 の時点の判定。`POST /api/close` と `gh issue close` は 201 §6・W5 が判定する） |
-| V6 | エスケープ | `<script>` を含むタイトルの fixture が JSON にそのまま入り、`index.html` がデータを `innerHTML` に入れていない |
+| V6 | エスケープ | `<script>` を含むタイトルの fixture が JSON にそのまま入り、`page.js`（描画）がデータを `innerHTML` に入れていない |
 | V7 | 取得失敗 | 2 ページ目で失敗させると一部の木を出さず、前回の木に失敗表示が付く（前回が無ければ 502）。git だけの失敗で「不明」 |
 | V8 | 要約 | fixture で 3 群の件数が手で数えた値と一致する |
 
@@ -128,3 +128,4 @@ python3 scripts/progress/server.py [--port 8765] [--ttl 60]
 - 2026-10-23: /review-spec（実現性・品質・設計・Fallback・goal 整合・妥当性検証・UI/UX）を反映。ブランチの種類をラベルから読むのをやめた（`fix/` を取りこぼすため）。作業中を OPEN に限った（実測で手元の issue ブランチの 7 割以上が closed issue のもの）。取得は全ページ成功時だけ採用。task 単位のブランチは既に使われているので先に当てる。要約 3 群・既定の表示・Host 検査・V1 を全ノードに拡大・V8 を追加。`--repo` を削除。取得を GitHub とローカル git の 2 ファイルに分割
 - 2026-10-23: 実装（#177）の /review 8 観点を反映。次の候補を task ごとに先頭の 1 件にした（実データで 56 件→13 件）。見送りに DUPLICATE と見送った親の配下を含めた。取得の失敗後の待ち、`?refresh=1` の取りまとめと header の要求、ラベル定義が読めないときの扱い、親子の循環、`pre-task/` の除外を足した。`--verbose` を削除
 - 2026-10-25: docs #217（Integrity Review 2026-10-25T0642）。§4 の Host 検査を実装（ホスト名だけ・`[::1]` を含む。PR #191）に合わせた。close と §3-1 の作業中・PR を 201 で置き換えたことをメタ情報に、close の例外を §6・§7 V5 に書いた
+- 2026-10-25: docs #227（Integrity Review 2026-10-25T1507、#226）。§3 の出力と V6 の描画を実体の `page.js` に合わせた（`index.html` は HTML と CSS）

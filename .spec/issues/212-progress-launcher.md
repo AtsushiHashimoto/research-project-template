@@ -128,8 +128,9 @@ python3 scripts/progress/ensure.py [--port N] [--stop]
 
 ### 4-4. skill `/progress`（`.claude/skills/progress/SKILL.md`）
 
-- frontmatter `metadata.harness: shared`。本文は agent-runtime の定型 2 行と、次の 2 行だけ:
+- frontmatter `metadata.harness: shared`。本文は agent-runtime の定型 2 行と、次の 2 行と、JSON の取り方の 2 行だけ:
   `python3 scripts/progress/ensure.py $ARGUMENTS` を実行し、標準出力（URL と注記の 2 行）か標準エラーの理由をそのまま伝える。止めるときは `--stop`。
+  JSON の取り方（epic #210 の前提 2026-10-25「では、/progress の説明に JSON の取り方も書いて」）: agent が中身を読むときは出た URL に続けて `curl -s <URL>api/tree.json` で取ること（`view` が表示中の木）と、絞り込みの query（`?closed=1` で close 済みも含める・`?label=<ラベル>`・`?q=<文字列>` は 200 文字まで。`&` で組み合わせる）。文言は SKILL.md が正（ここは要約）。
 - `.claude/rules/template/skills.md` に 1 行足す。README の `server.py` の 1 行（`README.md:124`）を `/progress`（`ensure.py`）に置き換える。
 - 常時読み込みのルールファイルには何も足さない。
 
@@ -145,7 +146,7 @@ git は repo 自身での `rev-parse`・`worktree list` だけ（176 §6 の「g
 | E3 | 判定の分岐: 拒否 → A、一致 → B（symlink 越しのパスでも `realpath` で B）、別の `commonDir`・`commonDir` が null・`app` 違い・JSON でない・timeout → C。C の理由に `git config progress.port` が出る | なし |
 | E3b | A の後半と `--stop`（起動・時計・接続結果を差し込む）: 子が先に終了 → 再判定で B なら 0・C なら 2、10 秒で B にならない → 子に SIGTERM を送って 1（理由にログのパス）。`--stop` は A なら 0、C なら 2、cmdline が合わなければ送らずに 2、5 秒で止まらなければ 1 | なし |
 | E6 | `cpu/devcontainer.json`・`gpu/devcontainer.json` の `portsAttributes` のキーが式の範囲（`ensure.py` の定数）と一致し、`requireLocalPort` が true（範囲を 3 箇所に書くので、片方だけ変わる黙ったずれを検出する。jsonc なのでコメントを外してから読む） | なし |
-| E4 | **番号が別のものに使われている**: 404 を返すだけの HTTP サーバーを立てた番号で呼ぶと、起動を呼ばず終了コード 2 | 1 |
+| E4 | **番号が別のものに使われている**: 何にも 501 を返す HTTP サーバー（`BaseHTTPRequestHandler` に `do_GET` を持たせないもの）を立てた番号で呼ぶと、起動を呼ばず終了コード 2 | 1 |
 | E5 | **立っていない → 立てる → 立っている → 止める**: 空きの番号で呼ぶと `server.py` が立ち URL が出る。もう一度呼ぶと同じ `pid` で起動を呼ばない。`--stop` で connect が拒否されるようになる | 1 |
 
 - E4・E5 は範囲の検査を通さない関数の口で空きの番号（`bind(("127.0.0.1", 0))`）を使う（固定番号だとテストを回すマシンで衝突する）。
@@ -183,3 +184,4 @@ git は repo 自身での `rev-parse`・`worktree list` だけ（176 §6 の「g
 - 2026-10-24: auto-reviewer（`.spec/issues/212-auto-decisions.md`）。origin の URL の区切り、整数でない上書き値、`--stop` の A と待ち切れの終了コード、子が先に終了したときの再判定と上書きの方法の表示、`commonDir` の比較の正規化、テストの所要時間の記録を足した
 - 2026-10-24: /review（PR #219）。origin が無いときにディレクトリ名へ戻さず終了コード 2、上書き値の読み方（`^[0-9]+$`）、`--stop` の cmdline 確認、ログを追記＋区切りの行、待ち切れで子を止める、古い `server.py` と timeout の文言、common dir と主 worktree を `progress_git.py` に 1 か所、bare の主 worktree、直接起動は保護の対象外、テスト E3b・E6 とログの差し込み・後片付け、V3 の境界を足した
 - 2026-10-24: 仕様整合の照合（PR #219）。出力の 2 行目に「コンテナの中の番号」の注記と ssh の 1 行を置き、skill が 2 行とも伝えるようにした
+- 2026-10-25: docs #227（Integrity Review 2026-10-25T1507、#226）。§4-4 の skill 本文に JSON の取り方の 2 行（epic #210 の前提 2026-10-25）を足し、§5 E4 のサーバーを実際のテストどおり 501 を返すものにした
