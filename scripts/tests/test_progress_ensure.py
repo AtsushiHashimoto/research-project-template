@@ -15,6 +15,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from progress_fixture import PROGRESS, git
@@ -202,6 +203,29 @@ class E6Devcontainer(unittest.TestCase):
             conf = json.loads(re.sub(r"(?m)^\s*//.*$", "", text))
             self.assertEqual(list(conf["portsAttributes"]), [key], kind)
             self.assertIs(conf["portsAttributes"][key]["requireLocalPort"], True, kind)
+
+
+class E7StartDir(unittest.TestCase):
+    def test_main_worktree_or_toplevel(self):
+        def runner(listing):
+            calls = []
+            def run(argv):
+                calls.append(argv[1])
+                return listing if argv[1] == "worktree" else "/w/issue1\n"
+            return run, calls
+        run, calls = runner("worktree /m\nHEAD 1\nbranch refs/heads/main\n\nworktree /m/w\nHEAD 2\ndetached\n")
+        self.assertEqual((git.start_dir(run), calls), ("/m", ["worktree"]))   # toplevel を呼ばない
+        run, calls = runner("worktree /m.git\nbare\n\nworktree /w/issue1\nHEAD 2\nbranch refs/heads/x\n")
+        self.assertEqual((git.start_dir(run), calls), ("/w/issue1", ["worktree", "rev-parse"]))
+
+    def test_main_passes_start_dir(self):
+        seen = []
+        with mock.patch.object(ensure, "choose_port", return_value=18001), \
+             mock.patch.object(git, "common_dir", return_value=COMMON), \
+             mock.patch.object(git, "start_dir", return_value="/m"), \
+             mock.patch.object(ensure, "ensure", side_effect=lambda *a: seen.append(a[2]) or (0, "", "")):
+            self.assertEqual(ensure.main([]), 0)
+        self.assertEqual(seen, ["/m"])
 
 
 def free_port():

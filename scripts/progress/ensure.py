@@ -241,7 +241,7 @@ def main(argv=None):
         if args.stop:
             code, out, err = stop(port, common)
         else:
-            cwd = progress_git.main_worktree() or progress_git.run(["git", "rev-parse", "--show-toplevel"]).strip()
+            cwd = progress_git.start_dir()
             code, out, err = ensure(port, common, cwd, os.path.join(common, "progress-server.log"))
     except Refused as e:
         code, out, err = 2, "", str(e)

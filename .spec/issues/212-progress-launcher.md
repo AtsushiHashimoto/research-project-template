@@ -99,7 +99,7 @@ python3 scripts/progress/ensure.py [--port N] [--stop]
 
 - 同じ repo の別の worktree から呼んでも B になる（`commonDir` は worktree 間で同じ）。
 - **git common dir と主 worktree の取り方は `progress_git.py` に 1 関数ずつ置き、`ensure.py` と `server.py` の両方がそれを使う**（B の一致判定が 2 つの書き方の一致に依存しないように。単一情報源）。
-- **背景での起動**: `subprocess.Popen([sys.executable, <このファイルの隣の server.py>, "--port", N], cwd=<主 worktree。bare で作業ツリーが無ければ呼んだ worktree の toplevel>,
+- **背景での起動**: `subprocess.Popen([sys.executable, <このファイルの隣の server.py>, "--port", N], cwd=<主 worktree。bare で作業ツリーが無ければ呼んだ worktree の toplevel。`progress_git.start_dir()`>,
   stdin=DEVNULL, stdout/stderr=ログ（追記）, start_new_session=True)`。親は開いたログを Popen の後に閉じる。主 worktree で立てるのは、呼んだ worktree が後で消されても止まらないため。
 - `--stop` は §3-2。
 - 出力（標準出力）: 成功時は 1 行目に URL だけ、2 行目に「（コンテナの中の番号。VS Code 以外で転送するなら `ssh -o ExitOnForwardFailure=yes -L <番号>:127.0.0.1:<番号>`）」の 1 行（§3-3 の明記はこの行が担う）。失敗の理由は標準エラーへ。
@@ -147,6 +147,7 @@ git は repo 自身での `rev-parse`・`worktree list` だけ（176 §6 の「g
 | E3b | A の後半と `--stop`（起動・時計・接続結果を差し込む）: 子が先に終了 → 再判定で B なら 0・C なら 2、10 秒で B にならない → 子に SIGTERM を送って 1（理由にログのパス）。`--stop` は A なら 0、C なら 2、cmdline が合わなければ送らずに 2、5 秒で止まらなければ 1 | なし |
 | E6 | `cpu/devcontainer.json`・`gpu/devcontainer.json` の `portsAttributes` のキーが式の範囲（`ensure.py` の定数）と一致し、`requireLocalPort` が true（範囲を 3 箇所に書くので、片方だけ変わる黙ったずれを検出する。jsonc なのでコメントを外してから読む） | なし |
 | E4 | **番号が別のものに使われている**: 何にも 501 を返す HTTP サーバー（`BaseHTTPRequestHandler` に `do_GET` を持たせないもの）を立てた番号で呼ぶと、起動を呼ばず終了コード 2 | 1 |
+| E7 | 作業ディレクトリ（`progress_git.start_dir`。`git` の出力を差し込む）: 主 worktree があればそれで toplevel を呼ばない、bare なら呼んだ worktree の toplevel。`main()` が `start_dir()` の値を `ensure()` に渡す | なし |
 | E5 | **立っていない → 立てる → 立っている → 止める**: 空きの番号で呼ぶと `server.py` が立ち URL が出る。もう一度呼ぶと同じ `pid` で起動を呼ばない。`--stop` で connect が拒否されるようになる | 1 |
 
 - E4・E5 は範囲の検査を通さない関数の口で空きの番号（`bind(("127.0.0.1", 0))`）を使う（固定番号だとテストを回すマシンで衝突する）。
@@ -185,3 +186,4 @@ git は repo 自身での `rev-parse`・`worktree list` だけ（176 §6 の「g
 - 2026-10-24: /review（PR #219）。origin が無いときにディレクトリ名へ戻さず終了コード 2、上書き値の読み方（`^[0-9]+$`）、`--stop` の cmdline 確認、ログを追記＋区切りの行、待ち切れで子を止める、古い `server.py` と timeout の文言、common dir と主 worktree を `progress_git.py` に 1 か所、bare の主 worktree、直接起動は保護の対象外、テスト E3b・E6 とログの差し込み・後片付け、V3 の境界を足した
 - 2026-10-24: 仕様整合の照合（PR #219）。出力の 2 行目に「コンテナの中の番号」の注記と ssh の 1 行を置き、skill が 2 行とも伝えるようにした
 - 2026-10-25: docs #227（Integrity Review 2026-10-25T1507、#226）。§4-4 の skill 本文に JSON の取り方の 2 行（epic #210 の前提 2026-10-25）を足し、§5 E4 のサーバーを実際のテストどおり 501 を返すものにした
+- 2026-10-25: refactor #228（Integrity Review 2026-10-25T1507、#226）。作業ディレクトリの決め方を `progress_git.start_dir()` にし、テスト E7（bare の fallback と `main()` の配線）を足した
