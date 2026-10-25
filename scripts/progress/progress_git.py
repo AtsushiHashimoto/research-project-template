@@ -96,3 +96,9 @@ def main_worktree(runner=run):
     if not lines or not lines[0].startswith("worktree ") or "bare" in lines[1:]:
         return None
     return lines[0][len("worktree "):]
+
+
+def start_dir(runner=run):
+    """ensure.py が server.py を立てる作業ディレクトリ（212 §4-1）。主 worktree（呼んだ worktree が後で消されても server.py が
+    止まらないため）。bare で作業ツリーが無ければ、呼んだ worktree の toplevel。"""
+    return main_worktree(runner) or runner(["git", "rev-parse", "--show-toplevel"]).strip()
