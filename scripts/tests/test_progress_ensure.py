@@ -210,13 +210,15 @@ class E7StartDir(unittest.TestCase):
         def runner(listing):
             calls = []
             def run(argv):
-                calls.append(argv[1])
-                return listing if argv[1] == "worktree" else "/w/issue1\n"
+                calls.append(argv[1:])
+                if argv[1:] == ["worktree", "list", "--porcelain"]:
+                    return listing
+                return "/w/issue1\n" if argv[1:] == ["rev-parse", "--show-toplevel"] else "/wrong\n"
             return run, calls
         run, calls = runner("worktree /m\nHEAD 1\nbranch refs/heads/main\n\nworktree /m/w\nHEAD 2\ndetached\n")
-        self.assertEqual((git.start_dir(run), calls), ("/m", ["worktree"]))   # toplevel を呼ばない
+        self.assertEqual((git.start_dir(run), calls), ("/m", [["worktree", "list", "--porcelain"]]))   # toplevel を呼ばない
         run, calls = runner("worktree /m.git\nbare\n\nworktree /w/issue1\nHEAD 2\nbranch refs/heads/x\n")
-        self.assertEqual((git.start_dir(run), calls), ("/w/issue1", ["worktree", "rev-parse"]))
+        self.assertEqual((git.start_dir(run), calls), ("/w/issue1", [["worktree", "list", "--porcelain"], ["rev-parse", "--show-toplevel"]]))
 
     def test_main_passes_start_dir(self):
         seen = []
