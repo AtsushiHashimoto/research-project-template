@@ -130,7 +130,7 @@ python3 scripts/progress/ensure.py [--port N] [--stop]
 
 - frontmatter `metadata.harness: shared`。本文は agent-runtime の定型 2 行と、次の 2 行と、JSON の取り方の 2 行だけ:
   `python3 scripts/progress/ensure.py $ARGUMENTS` を実行し、標準出力（URL と注記の 2 行）か標準エラーの理由をそのまま伝える。止めるときは `--stop`。
-  JSON の取り方（epic #210 の前提 2026-10-25「では、/progress の説明に JSON の取り方も書いて」）: 出た URL に続けて `curl -s <URL>api/tree.json` で取ること（`view` が表示中の木）と、絞り込みの query（`?closed=1`・`?label=<ラベル>`・`?q=<文字列>`）。
+  JSON の取り方（epic #210 の前提 2026-10-25「では、/progress の説明に JSON の取り方も書いて」）: agent が中身を読むときは出た URL に続けて `curl -s <URL>api/tree.json` で取ること（`view` が表示中の木）と、絞り込みの query（`?closed=1` で close 済みも含める・`?label=<ラベル>`・`?q=<文字列>` は 200 文字まで。`&` で組み合わせる）。文言は SKILL.md が正（ここは要約）。
 - `.claude/rules/template/skills.md` に 1 行足す。README の `server.py` の 1 行（`README.md:124`）を `/progress`（`ensure.py`）に置き換える。
 - 常時読み込みのルールファイルには何も足さない。
 
