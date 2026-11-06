@@ -41,6 +41,15 @@
 
 set -uo pipefail
 
+# Project ratchet (optional): runs before any route, so selecting checks cannot bypass it.
+# Projects with neither file skip it; limits without the checker are an error.
+if [ -f "$(dirname "$0")/check-harness-ratchet.py" ]; then
+  python3 "$(dirname "$0")/check-harness-ratchet.py" --root "$(dirname "$0")/.." || exit 1
+elif [ -f "$(dirname "$0")/harness-ratchet.json" ]; then
+  echo "FAIL: harness-ratchet.json はあるが check-harness-ratchet.py が無い" >&2
+  exit 1
+fi
+
 FAILED=0
 RAN_ANY=0
 
