@@ -28,7 +28,10 @@
   // 進捗一覧（scripts/progress/ensure.py）の番号の範囲。手元の番号が使われていても黙ってずらさない（#212 §4-3）。
   // 範囲は ensure.py の PORT_MIN・PORT_MAX と同じ（scripts/tests/test_progress_ensure.py が検査）
   "portsAttributes": {
-    "18000-18999": { "label": "progress", "requireLocalPort": true }
+    "18000-18999": { "label": "progress", "requireLocalPort": true },
+    // voice dictation の受信側（scripts/voice/recv.py の PORT と同じ。scripts/tests/test_voice.py が検査）。
+    // 手元の送信側が同じ番号に送るので、別の番号へずらさない
+    "9257": { "label": "claude-voice", "onAutoForward": "silent", "requireLocalPort": true }
   },
   "customizations": {
     "vscode": {

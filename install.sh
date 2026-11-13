@@ -40,6 +40,8 @@ msg() {
                 "gitignore_ok") echo ".gitignore は既に必要なエントリを含んでいます" ;;
                 "created_data") echo "data/shared ディレクトリを作成しました" ;;
                 "complete") echo "インストール完了！" ;;
+                "voice_prompt") echo "devcontainer で Claude Code の音声入力（/voice）を使えるようにしますか？" ;;
+                "voice_desc") echo "既定は「入れない」。入れると image に PulseAudio 等が入り（約 150 MB）、手元のマイクの音をコンテナへ送れます。後で変えるには .devcontainer/options.env を書き換えて Rebuild Container" ;;
                 "init_prompt") echo "データディレクトリを初期化しますか？" ;;
                 "init_desc") echo "共有データの保存場所を設定します（デフォルト: data/shared）" ;;
                 "init_later") echo "後で初期化する場合: ./scripts/init-data.sh または Claude Code で /worktree-init" ;;
@@ -63,6 +65,8 @@ msg() {
                 "gitignore_ok") echo ".gitignore 已包含所需条目" ;;
                 "created_data") echo "已创建 data/shared 目录" ;;
                 "complete") echo "安装完成！" ;;
+                "voice_prompt") echo "是否在 devcontainer 中启用 Claude Code 的语音输入（/voice）？" ;;
+                "voice_desc") echo "默认不启用。启用后镜像会安装 PulseAudio 等（约 150 MB），并可将本机麦克风的声音发送到容器。之后如需更改，请修改 .devcontainer/options.env 并 Rebuild Container" ;;
                 "init_prompt") echo "是否初始化数据目录？" ;;
                 "init_desc") echo "设置共享数据存储位置（默认: data/shared）" ;;
                 "init_later") echo "稍后初始化: ./scripts/init-data.sh 或在 Claude Code 中使用 /worktree-init" ;;
@@ -86,6 +90,8 @@ msg() {
                 "gitignore_ok") echo ".gitignore already has required entries" ;;
                 "created_data") echo "Created data/shared directory" ;;
                 "complete") echo "Installation complete!" ;;
+                "voice_prompt") echo "Enable Claude Code voice dictation (/voice) in the devcontainer?" ;;
+                "voice_desc") echo "Default is No. Yes adds PulseAudio etc. to the image (about 150 MB) so you can send your local microphone to the container. To change later, edit .devcontainer/options.env and Rebuild Container" ;;
                 "init_prompt") echo "Initialize data directory?" ;;
                 "init_desc") echo "Configure shared data storage location (default: data/shared)" ;;
                 "init_later") echo "To initialize later: ./scripts/init-data.sh or /worktree-init in Claude Code" ;;
@@ -327,6 +333,22 @@ SUBST_EOF
     success "$(msg installed): .claude/template-substitutions.json"
 else
     info "Skipped .claude/template-substitutions.json (プロジェクト情報が未入力)"
+fi
+
+# devcontainer の build 時の選択（Dockerfile が読む）。既に在れば聞かない（選択を上書きしない）。
+# 非対話では書かない（ファイルが無ければ「入れない」）。Dockerfile が古いまま（--force 無しの再実行）なら聞かない
+if [[ -t 0 && ! -f .devcontainer/options.env ]] && grep -qs install-voice.sh .devcontainer/Dockerfile; then
+    echo ""
+    echo -e "${BLUE}$(msg voice_prompt)${NC}"
+    msg voice_desc
+    read -r -p "[y/N]: " do_voice || do_voice=""
+    if [[ "$do_voice" =~ ^[Yy]([Ee][Ss])?$ ]]; then CLAUDE_VOICE=true; else CLAUDE_VOICE=false; fi
+    cat > .devcontainer/options.env <<OPTIONS_EOF
+# devcontainer の build 時の選択。変えたら devcontainer を作り直す（Rebuild Container）。
+# CLAUDE_VOICE=true で Claude Code の voice dictation の受け口が入る（optional-features.md）
+CLAUDE_VOICE=$CLAUDE_VOICE
+OPTIONS_EOF
+    info ".devcontainer/options.env: CLAUDE_VOICE=$CLAUDE_VOICE"
 fi
 
 # worktree-config.json をプロジェクトの実態に合わせる

@@ -139,6 +139,19 @@ RUN if [ "$INSTALL_TORCH_CPU" = "true" ]; then \
     pip install "torch==${TORCH_VERSION}" --index-url https://download.pytorch.org/whl/cpu; \
 fi
 
+# Claude Code の voice dictation（/voice）を使うための導入（opt-in）
+# ★ 既定では入れない。image が大きくなり、起動のたびに PulseAudio が常駐し、
+#   手元のマイクの音がコンテナに入る経路ができるため、プロジェクトごとに選ぶ。
+#   選択は `.devcontainer/options.env` の `CLAUDE_VOICE=true`（install.sh が init 時に聞いて書く）。
+# ★ build arg にしない。compose の変数展開は devcontainer の起動元の環境に依存するが、
+#   build context の中のファイルなら起動の仕方によらず同じ結果になる。
+# ★ `options.env*` と glob にするのは、ファイルが無いプロジェクトでも COPY を通すため
+#   （install-voice.sh が必ず在るので、glob が 0 件でも COPY は失敗しない）。
+# ★ 値の判定は install-voice.sh が行う。読めない値は build を止める（黙って「入れない」に倒さない）。
+COPY .devcontainer/install-voice.sh .devcontainer/options.env* /tmp/devcontainer-voice/
+RUN bash /tmp/devcontainer-voice/install-voice.sh --if-enabled /tmp/devcontainer-voice/options.env && \
+    rm -rf /tmp/devcontainer-voice
+
 # ============================================================
 # ここから非 root（#141）
 # ============================================================

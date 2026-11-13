@@ -203,16 +203,17 @@ scan_dir() {
 # ★ 例外（意図的な非対称。対称にしないこと）:
 #   .dev/                      … backlog.md 等はユーザーデータ。還流も同期もしない
 #   .claude/template-source.json … fork 先の URL。上書き・還流の対象にしない
+#   .devcontainer/options.env  … プロジェクトごとの選択（install.sh が書く）。還流すると全プロジェクトに配られる
 # MANIFEST.sha256 は generate-rules-manifest.sh の生成物であり、還流の対象にしない
 # shellcheck source=template-targets.sh
 # shellcheck source-path=SCRIPTDIR
 source "$SCRIPT_DIR/template-targets.sh"
 while IFS= read -r target; do
-  if [ "$target" = ".claude/rules/template" ]; then
-    scan_dir "$target" "$RULES_MANIFEST_NAME"
-  else
-    scan_dir "$target"
-  fi
+  case "$target" in
+    .claude/rules/template) scan_dir "$target" "$RULES_MANIFEST_NAME" ;;
+    .devcontainer) scan_dir "$target" "options.env" ;;
+    *) scan_dir "$target" ;;
+  esac
 done < <(template_targets contribute-dirs)
 while IFS= read -r single; do
   [ -f "$PROJECT_ROOT/$single" ] || continue
