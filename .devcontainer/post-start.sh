@@ -29,3 +29,8 @@ fi
 unset _claude_orig
 EOF
 fi
+
+# voice dictation の受信側（.devcontainer/install-voice.sh で導入したときだけ。optional-features.md）
+if [ -f /etc/pulse/client.conf.d/claude-voice.conf ]; then
+  bash scripts/voice/start.sh || echo "[post-start] WARNING: voice dictation の受信側を起動できなかった（原因は上の [voice] 行。直したら bash scripts/voice/start.sh）" >&2
+fi

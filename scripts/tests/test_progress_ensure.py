@@ -201,7 +201,12 @@ class E6Devcontainer(unittest.TestCase):
         for kind in ("cpu", "gpu"):
             text = (PROGRESS.parents[1] / ".devcontainer" / kind / "devcontainer.json").read_text(encoding="utf-8")
             conf = json.loads(re.sub(r"(?m)^\s*//.*$", "", text))
-            self.assertEqual(list(conf["portsAttributes"]), [key], kind)
+            ports = conf["portsAttributes"]
+            self.assertIn(key, ports, kind)
+            # 他の機能の番号（voice 等）が並んでよいが、progress の範囲の中には置かない
+            for other in ports:
+                if other != key:
+                    self.assertFalse(ensure.PORT_MIN <= int(other) <= ensure.PORT_MAX, (kind, other))
             self.assertIs(conf["portsAttributes"][key]["requireLocalPort"], True, kind)
 
 
